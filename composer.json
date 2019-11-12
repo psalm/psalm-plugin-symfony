@@ -1,0 +1,33 @@
+{
+    "name": "seferov/symfony-psalm-plugin",
+    "description": "Psalm Plugin for Symfony",
+    "type": "psalm-plugin",
+    "require": {
+        "php": "^7.1",
+        "vimeo/psalm": "^3.2",
+        "symfony/framework-bundle": "^3.0 || ^4.0"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Farhad Safarov",
+            "email": "farhad.safarov@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Seferov\\SymfonyPsalmPlugin\\": "src"
+        }
+    },
+    "extra": {
+        "psalm" : {
+            "pluginClass": "Seferov\\SymfonyPsalmPlugin\\Plugin"
+        }
+    },
+    "scripts": {
+        "check": [
+            "@analyze"
+        ],
+        "analyze": "psalm"
+    }
+}

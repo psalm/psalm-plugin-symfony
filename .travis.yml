@@ -1,0 +1,25 @@
+language: php
+
+php:
+  - 7.1
+  - 7.2
+  - 7.3
+
+before_install:
+  - phpenv config-rm xdebug.ini || true
+
+install:
+  - composer install
+  - if [[ "$DEPS" = 'high' ]]; then travis_retry composer $DEFAULT_COMPOSER_FLAGS update; fi
+  - if [[ "$DEPS" = 'low' ]]; then travis_retry composer $DEFAULT_COMPOSER_FLAGS --prefer-lowest --prefer-stable update; fi
+  - if [[ "$DEPS" = 'stable' ]]; then travis_retry composer $DEFAULT_COMPOSER_FLAGS --prefer-stable update; fi
+
+script: composer check
+
+env:
+  matrix:
+    - DEPS="low"
+    - DEPS="high"
+    - DEPS="stable"
+  global:
+    - DEFAULT_COMPOSER_FLAGS="--no-interaction --no-suggest"
