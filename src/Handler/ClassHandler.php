@@ -69,8 +69,7 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
             return;
         }
 
-        if ($expr->name instanceof Node\Identifier && 'getRepository' === $expr->name->name) {
-            /** @psalm-suppress PossiblyNullReference */
+        if ($expr->name instanceof Node\Identifier && 'getRepository' === $expr->name->name && $expr->var->inferredType) {
             foreach ($expr->var->inferredType->getTypes() as $className => $type) {
                 if ('Doctrine\ORM\EntityManagerInterface' === $className && !$expr->args[0]->value instanceof ClassConstFetch) {
                     IssueBuffer::accepts(
