@@ -69,14 +69,15 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
             return;
         }
 
-        if ($expr->name instanceof Node\Identifier && 'getRepository' === $expr->name->name && $expr->var->inferredType) {
-            foreach ($expr->var->inferredType->getTypes() as $className => $type) {
-                if ('Doctrine\ORM\EntityManagerInterface' === $className && !$expr->args[0]->value instanceof ClassConstFetch) {
-                    IssueBuffer::accepts(
-                        new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
-                        $statements_source->getSuppressedIssues()
-                    );
-                }
+        if ($expr->name instanceof Node\Identifier && 'getRepository' === $expr->name->name) {
+            /** @psalm-suppress InternalMethod */
+            $methodStorage = $codebase->methods->getStorage($declaring_method_id);
+
+            if ('Doctrine\ORM\EntityManagerInterface' === $methodStorage->defining_fqcln && !$expr->args[0]->value instanceof ClassConstFetch) {
+                IssueBuffer::accepts(
+                    new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
+                    $statements_source->getSuppressedIssues()
+                );
             }
         }
     }
