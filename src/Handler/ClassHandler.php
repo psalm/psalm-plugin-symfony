@@ -5,12 +5,9 @@ namespace Seferov\SymfonyPsalmPlugin\Handler;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ClassConstFetch;
-use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Expr\StaticCall;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
-use Psalm\FileManipulation;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\Hook\AfterClassLikeAnalysisInterface;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
@@ -24,11 +21,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAnalysisInterface
 {
     /**
-     * Called after a statement has been checked
-     *
-     * @param FileManipulation[] $file_replacements
-     *
-     * @return null|false
+     * {@inheritDoc}
      */
     public static function afterStatementAnalysis(Node\Stmt\ClassLike $stmt, ClassLikeStorage $classlike_storage, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [])
     {
@@ -49,10 +42,7 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
     }
 
     /**
-     * @param MethodCall|StaticCall $expr
-     * @param FileManipulation[] $file_replacements
-     *
-     * @return void
+     * {@inheritDoc}
      */
     public static function afterMethodCallAnalysis(
         Expr $expr,
@@ -65,20 +55,26 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
         array &$file_replacements = [],
         Union &$return_type_candidate = null
     ) {
-        if (!$expr instanceof MethodCall) {
-            return;
-        }
+        switch ($declaring_method_id) {
+            case 'Doctrine\ORM\EntityManagerInterface::getrepository':
+                if (!$expr->args[0]->value instanceof ClassConstFetch) {
+                    IssueBuffer::accepts(
+                        new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
+                        $statements_source->getSuppressedIssues()
+                    );
+                }
+                break;
 
-        if ($expr->name instanceof Node\Identifier && 'getRepository' === $expr->name->name) {
-            /** @psalm-suppress InternalMethod */
-            $methodStorage = $codebase->methods->getStorage($declaring_method_id);
-
-            if ('Doctrine\ORM\EntityManagerInterface' === $methodStorage->defining_fqcln && !$expr->args[0]->value instanceof ClassConstFetch) {
-                IssueBuffer::accepts(
-                    new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
-                    $statements_source->getSuppressedIssues()
-                );
-            }
+            case 'Symfony\Component\HttpFoundation\Request::getcontent':
+                if ($return_type_candidate) {
+                    $removeType = 'resource';
+                    if (isset($expr->args[0]->value->name->parts[0])) {
+                        /** @psalm-suppress MixedArrayAccess */
+                        $removeType = 'true' === $expr->args[0]->value->name->parts[0] ? 'string' : 'resource';
+                    }
+                    $return_type_candidate->removeType($removeType);
+                }
+                break;
         }
     }
 }
