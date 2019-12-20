@@ -11,6 +11,7 @@ vendor/bin/psalm-plugin enable seferov/symfony-psalm-plugin
 
 ### Features
 
+- Detect `ContainerInterface::get()` result type
 - Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
 The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
 - Complains when `Container` is injected to a service. Use dependency-injection.
