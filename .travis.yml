@@ -22,4 +22,4 @@ env:
     - DEPS="high"
     - DEPS="stable"
   global:
-    - DEFAULT_COMPOSER_FLAGS="--no-interaction --no-suggest"
+    - DEFAULT_COMPOSER_FLAGS="--no-interaction --no-suggest --prefer-dist"
