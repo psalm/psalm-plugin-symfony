@@ -69,12 +69,11 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                     self::$classServiceMap = self::loadServiceFile($codebase);
                 }
                 if ($return_type_candidate && count(self::$classServiceMap) && $expr->args[0]->value instanceof Node\Scalar\String_) {
-                    $serviceName = $expr->args[0]->value->value;
-                    if (isset($serviceName)) {
-                        if (isset(self::$classServiceMap[$serviceName])) {
-                            $return_type_candidate = new Union([new TNamedObject((string)self::$classServiceMap[$serviceName])]);
-                        }
+                    $serviceName = (string)$expr->args[0]->value->value;
+                    if (isset(self::$classServiceMap[$serviceName])) {
+                        $return_type_candidate = new Union([new TNamedObject((string)self::$classServiceMap[$serviceName])]);
                     }
+
                 }
                 break;
             case 'Symfony\Component\HttpFoundation\Request::getcontent':
