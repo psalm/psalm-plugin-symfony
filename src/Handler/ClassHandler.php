@@ -66,17 +66,12 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 $classMapFromServiceContainer = self::loadServiceFile($codebase);
                 if ($return_type_candidate && count($classMapFromServiceContainer) && $expr->args[0]->value instanceof Node\Scalar\String_) {
                     $serviceName = $expr->args[0]->value->value;
-                    if ($serviceName) {
-                        for ($a=0; $a<=count($classMapFromServiceContainer); $a++) {
-                            /** @psalm-suppress MixedArrayAccess */
-                            if($serviceName === $classMapFromServiceContainer[$a]['service']) {
-                                /** @psalm-suppress MixedArrayAccess */
-                                $return_type_candidate = new Union([new TNamedObject($classMapFromServiceContainer[$a]['class'])]);
-                            }
+                    if (isset($serviceName)) {
+                        if (isset($classMapFromServiceContainer[$serviceName])) {
+                            $return_type_candidate = new Union([new TNamedObject((string)$classMapFromServiceContainer[$serviceName])]);
                         }
                     }
                 }
-
                 break;
             case 'Symfony\Component\HttpFoundation\Request::getcontent':
                 if ($return_type_candidate) {
@@ -99,7 +94,9 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 break;
         }
     }
-
+    /**
+     * @return array<string,string>
+     **/
     private static function loadServiceFile(Codebase $codebase) : array {
 
         $classServiceMap = [];
@@ -110,10 +107,17 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 $serviceFilePath = (string)$serviceFile;
                 if (file_exists($serviceFilePath)) {
                     $xml = simplexml_load_file($serviceFilePath);
-                    foreach($xml->services->service as $serviceObj) {
-                        $serviceAttributes = $serviceObj ? $serviceObj->attributes() : null;
-                        if ($serviceAttributes && $serviceAttributes['id'] && $serviceAttributes['class']) {
-                            $classServiceMap[] = ['service' => (string)$serviceAttributes['id'], 'class' => (string) $serviceAttributes['class']];
+                    if (!$xml->services instanceof \SimpleXMLElement) {
+                        return $classServiceMap;
+                    }
+                    $services = $xml->services;
+                    /** @psalm-suppress MixedAssignment */
+                    foreach($services->service as $serviceObj) {
+                        if (isset($serviceObj) && $serviceObj instanceof \SimpleXMLElement) {
+                            $serviceAttributes = $serviceObj->attributes();
+                            if ($serviceAttributes && isset($serviceAttributes['id']) && isset($serviceAttributes['class'])) {
+                                $classServiceMap[(string)$serviceAttributes['id']] = (string)$serviceAttributes['class'];
+                            }
                         }
                     }
                 }
