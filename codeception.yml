@@ -1,11 +1,11 @@
 namespace: Psalm\PhpUnitPlugin\Tests
 
 paths:
-  tests: tests
-  output: tests/_output
-  data: tests/_data
-  support: tests/_support
-  envs: tests/_envs
+  tests: tests/acceptance
+  output: tests/acceptance/_output
+  data: tests/acceptance/_data
+  support: tests/acceptance/_support
+  envs: tests/acceptance/_envs
 
 actor_suffix: Tester
 
