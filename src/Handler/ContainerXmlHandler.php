@@ -11,7 +11,6 @@ use Psalm\StatementsSource;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Seferov\SymfonyPsalmPlugin\SymfonyContainer;
-use Webmozart\Assert\Assert;
 
 class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
 {
@@ -53,8 +52,9 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
             if ($serviceDefinition) {
                 if ($serviceDefinition->isPublic()) {
                     $class = $serviceDefinition->getClass();
-                    Assert::string($class);
-                    $return_type_candidate = new Union([new TNamedObject($class)]);
+                    if ($class) {
+                        $return_type_candidate = new Union([new TNamedObject($class)]);
+                    }
                 }
                 // @todo: else emit "get private service" issue
             }

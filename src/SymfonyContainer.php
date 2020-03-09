@@ -26,13 +26,7 @@ class SymfonyContainer
             /** @psalm-var \SimpleXMLElement $serviceAttributes */
             $serviceAttributes = $service->attributes();
             $definition = new Definition((string) $serviceAttributes->class);
-            if ((bool) $serviceAttributes->public) {
-                $definition->setPublic(true);
-                $definition->setPrivate(false);
-            } else {
-                $definition->setPublic(false);
-                $definition->setPrivate(true);
-            }
+            $definition->setPublic((bool) $serviceAttributes->public);
 
             $this->services[(string) $serviceAttributes->id] = $definition;
         }
