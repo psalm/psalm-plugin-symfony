@@ -22,7 +22,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAnalysisInterface
 {
     /**
-     * {@inheritDoc}
+     * @psalm-var array<string, string>
+     */
+    private static $classServiceMap = [];
+
+    /**
+     * {@inheritdoc}
      */
     public static function afterStatementAnalysis(Node\Stmt\ClassLike $stmt, ClassLikeStorage $classlike_storage, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [])
     {
@@ -43,7 +48,7 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
     }
 
     /**
-     * {@inheritDoc}
+     * {@inheritdoc}
      */
     public static function afterMethodCallAnalysis(
         Expr $expr,
@@ -62,6 +67,15 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 if ($return_type_candidate && $expr->args[0]->value instanceof ClassConstFetch) {
                     $className = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
                     $return_type_candidate = new Union([new TNamedObject($className)]);
+                }
+                if (!count(self::$classServiceMap)) {
+                    self::$classServiceMap = self::loadServiceFile($codebase);
+                }
+                if ($return_type_candidate && count(self::$classServiceMap) && $expr->args[0]->value instanceof Node\Scalar\String_) {
+                    $serviceName = (string) $expr->args[0]->value->value;
+                    if (isset(self::$classServiceMap[$serviceName])) {
+                        $return_type_candidate = new Union([new TNamedObject((string) self::$classServiceMap[$serviceName])]);
+                    }
                 }
                 break;
             case 'Symfony\Component\HttpFoundation\Request::getcontent':
@@ -84,5 +98,46 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 }
                 break;
         }
+    }
+
+    /**
+     * @todo don't check every time if containerXml config is not set.
+     * @psalm-return array<string, string>
+     */
+    private static function loadServiceFile(Codebase $codebase): array
+    {
+        $classServiceMap = [];
+        if (count($codebase->config->getPluginClasses())) {
+            foreach ($codebase->config->getPluginClasses() as $pluginClass) {
+                if ($pluginClass['class'] === str_replace('Handler', 'Plugin', __NAMESPACE__)) {
+                    $simpleXmlConfig = $pluginClass['config'];
+                }
+            }
+        }
+
+        if (isset($simpleXmlConfig) && $simpleXmlConfig instanceof \SimpleXMLElement) {
+            $serviceFilePath = (string) $simpleXmlConfig->containerXml;
+            if (!file_exists($serviceFilePath)) {
+                return [];
+            }
+            $xml = simplexml_load_file($serviceFilePath);
+            if (!$xml->services instanceof \SimpleXMLElement) {
+                return $classServiceMap;
+            }
+            $services = $xml->services;
+            /** @psalm-suppress MixedAssignment */
+            if (count($services)) {
+                foreach ($services->service as $serviceObj) {
+                    if (isset($serviceObj) && $serviceObj instanceof \SimpleXMLElement) {
+                        $serviceAttributes = $serviceObj->attributes();
+                        if ($serviceAttributes && isset($serviceAttributes['id']) && isset($serviceAttributes['class'])) {
+                            $classServiceMap[(string) $serviceAttributes['id']] = (string) $serviceAttributes['class'];
+                        }
+                    }
+                }
+            }
+        }
+
+        return $classServiceMap;
     }
 }
