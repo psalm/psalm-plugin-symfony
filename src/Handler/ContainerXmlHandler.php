@@ -5,11 +5,14 @@ namespace Seferov\SymfonyPsalmPlugin\Handler;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
+use Psalm\CodeLocation;
 use Psalm\Context;
+use Psalm\IssueBuffer;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
+use Seferov\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Seferov\SymfonyPsalmPlugin\SymfonyContainer;
 
 class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
@@ -57,8 +60,12 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
                     }
                 }
                 // @todo: else emit "get private service" issue
+            } else {
+                IssueBuffer::accepts(
+                    new ServiceNotFound($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
+                    $statements_source->getSuppressedIssues()
+                );
             }
-            // @todo: else emit "get non existent service" issue
         }
     }
 }

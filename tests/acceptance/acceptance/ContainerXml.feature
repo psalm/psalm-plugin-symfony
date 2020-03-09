@@ -55,5 +55,5 @@ Feature: Container XML config
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                         |
-      | PossiblyNullReference | Cannot call method has on possibly null value   |
+      | Type            | Message                           |
+      | ServiceNotFound | Service "not_a_service" not found |
