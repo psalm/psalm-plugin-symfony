@@ -17,7 +17,8 @@
     },
     "require-dev": {
         "codeception/base": "^2.5",
-        "weirdan/codeception-psalm-module": "^0.2.2"
+        "weirdan/codeception-psalm-module": "^0.2.2",
+        "phpunit/phpunit": "~7.5"
     },
     "autoload": {
         "psr-4": {
@@ -26,7 +27,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Seferov\\SymfonyPsalmPlugin\\Tests\\": ["tests/_support"]
+            "Seferov\\SymfonyPsalmPlugin\\Tests\\Acceptance\\": ["tests/acceptance/_support"],
+            "Seferov\\SymfonyPsalmPlugin\\Tests\\": ["tests/unit"]
         }
     },
     "extra": {
@@ -39,8 +41,13 @@
             "@analyze",
             "@test"
         ],
-        "analyze": "psalm",
         "test": [
+            "@phpunit",
+            "@codeception"
+        ],
+        "analyze": "psalm",
+        "phpunit": "phpunit --testdox",
+        "codeception": [
             "codecept build",
             "codecept run -v"
         ]

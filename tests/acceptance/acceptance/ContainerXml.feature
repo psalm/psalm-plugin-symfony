@@ -37,7 +37,6 @@ Feature: Container XML config
     When I run Psalm
     Then I see no errors
 
-  # todo: emit a service not found error instead of PossiblyNullReference
   Scenario: Psalm emits when service ID not found in container'
     Given I have the following code
       """
