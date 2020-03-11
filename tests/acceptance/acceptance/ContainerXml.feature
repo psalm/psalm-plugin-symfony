@@ -56,3 +56,45 @@ Feature: Container XML config
     Then I see these errors
       | Type            | Message                           |
       | ServiceNotFound | Service "not_a_service" not found |
+
+  Scenario: Using service both via alias and class const
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Component\HttpKernel\HttpKernelInterface;
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index(): void
+        {
+          $this->container->get('http_kernel');
+          $this->container->get(HttpKernelInterface::class);
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: Using private service
+    Given I have the following code
+      """
+      <?php
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index(): void
+        {
+          $this->container->get('private_service');
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message                                                    |
+      | PrivateService  | Private service "private_service" used in container::get() |
+    And I see no errors

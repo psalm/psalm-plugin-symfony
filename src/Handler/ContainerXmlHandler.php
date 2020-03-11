@@ -33,11 +33,7 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
         array &$file_replacements = [],
         Union &$return_type_candidate = null
     ) {
-        if (!in_array($declaring_method_id, [
-            'Psr\Container\ContainerInterface::get',
-            'Symfony\Component\DependencyInjection\ContainerInterface::get',
-            "Symfony\Bundle\FrameworkBundle\Controller\AbstractController::get",
-        ])) {
+        if (!ContainerHandler::isContainerGet($declaring_method_id)) {
             return;
         }
 
@@ -68,6 +64,8 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
             if ($service->isPublic()) {
                 $class = $service->getClassName();
                 if ($class) {
+                    /** @psalm-suppress InternalMethod */
+                    $codebase->classlikes->addFullyQualifiedClassName($class);
                     $return_type_candidate = new Union([new TNamedObject($class)]);
                 }
             } else {

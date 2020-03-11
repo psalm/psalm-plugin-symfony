@@ -15,5 +15,6 @@
         </service>
         <service id="Symfony\Component\HttpKernel\HttpKernelInterface" alias="http_kernel" public="true"/>
         <service id="Foo\Bar" class="Foo\Bar" public="false"/>
+        <service id="private_service" class="Foo\Bar" public="false"/>
     </services>
 </container>

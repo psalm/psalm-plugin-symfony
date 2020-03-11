@@ -27,7 +27,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface
         array &$file_replacements = [],
         Union &$return_type_candidate = null
     ) {
-        if (!in_array($declaring_method_id, ['Psr\Container\ContainerInterface::get', 'Symfony\Component\DependencyInjection\ContainerInterface::get'])) {
+        if (!self::isContainerGet($declaring_method_id)) {
             return;
         }
 
@@ -35,5 +35,15 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface
             $className = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
             $return_type_candidate = new Union([new TNamedObject($className)]);
         }
+    }
+
+    public static function isContainerGet(string $declaring_method_id): bool
+    {
+        return in_array($declaring_method_id, [
+            'Psr\Container\ContainerInterface::get',
+            'Symfony\Component\DependencyInjection\ContainerInterface::get',
+            "Symfony\Bundle\FrameworkBundle\Controller\AbstractController::get",
+            "Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait::get",
+        ]);
     }
 }
