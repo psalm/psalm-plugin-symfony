@@ -11,7 +11,7 @@ vendor/bin/psalm-plugin enable seferov/symfony-psalm-plugin
 
 ### Features
 
-- Detect `ContainerInterface::get()` result type. Works better if you [configure](https://github.com/seferov/symfony-psalm-plugin/#configuration) compiled container XML file.
+- Detect `ContainerInterface::get()` result type. Works better if you [configure](#configuration) compiled container XML file.
 - Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
 The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
 - Complains when `Container` is injected to a service. Use dependency-injection.
@@ -22,12 +22,7 @@ If you followed installation instructions, psalm-plugin command would added plug
 
 ```xml
 <?xml version="1.0"?>
-<psalm
-    totallyTyped="true"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns="https://getpsalm.org/schema/config"
-    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
->
+<psalm totallyTyped="true">
     <!--  project configuration -->
 
     <plugins>
