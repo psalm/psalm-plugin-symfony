@@ -20,6 +20,16 @@ use Seferov\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
 {
     /**
+     * @var ContainerMeta|null
+     */
+    private static $containerMeta;
+
+    public static function init(ContainerMeta $containerMeta): void
+    {
+        self::$containerMeta = $containerMeta;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public static function afterMethodCallAnalysis(
@@ -45,21 +55,11 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
             return;
         }
 
-        $simpleXmlConfig = null;
-        if (count($codebase->config->getPluginClasses())) {
-            foreach ($codebase->config->getPluginClasses() as $pluginClass) {
-                if ($pluginClass['class'] === str_replace('Handler', 'Plugin', __NAMESPACE__)) {
-                    $simpleXmlConfig = (string) $pluginClass['config'];
-                }
-            }
+        if (!self::$containerMeta) {
+            throw new \Exception('\Seferov\SymfonyPsalmPlugin\Handler\ContainerXmlHandler::init() must be run to initialize this hook');
         }
 
-        if (!is_string($simpleXmlConfig)) {
-            throw new \LogicException('This hook is registered when xml file is set');
-        }
-
-        $containerMeta = new ContainerMeta($simpleXmlConfig);
-        $service = $containerMeta->get($serviceId);
+        $service = self::$containerMeta->get($serviceId);
         if ($service) {
             if ($service->isPublic()) {
                 $class = $service->getClassName();

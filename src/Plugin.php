@@ -8,6 +8,7 @@ use Psalm\Plugin\RegistrationInterface;
 use Seferov\SymfonyPsalmPlugin\Handler\ClassHandler;
 use Seferov\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Seferov\SymfonyPsalmPlugin\Handler\ContainerXmlHandler;
+use Seferov\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use SimpleXMLElement;
 
 class Plugin implements PluginEntryPointInterface
@@ -28,6 +29,8 @@ class Plugin implements PluginEntryPointInterface
             if (!$containerXmlPath) {
                 throw new ConfigException(sprintf('Container XML file (%s) does not exits', $containerXmlPath));
             }
+
+            ContainerXmlHandler::init(new ContainerMeta($containerXmlPath));
 
             $api->registerHooksFromClass(ContainerXmlHandler::class);
         } else {
