@@ -102,4 +102,4 @@ jobs:
       - name: "Run acceptance tests with codeception"
         run: |
           vendor/bin/codecept build
-          vendor/bin/codecept build run -v
+          vendor/bin/codecept run -v
