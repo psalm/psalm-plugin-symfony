@@ -1,6 +1,6 @@
 # Symfony Psalm Plugin
 
-[![Build Status](https://travis-ci.com/psalm/plugin-symfony.svg?branch=master)](https://travis-ci.com/seferov/symfony-psalm-plugin)
+[![Build Status](https://travis-ci.org/psalm/psalm-plugin-symfony.svg?branch=master)](https://travis-ci.org/psalm/psalm-plugin-symfony)
 
 ### Installation
 
