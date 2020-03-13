@@ -1,11 +1,11 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Tests\Symfony;
+namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 
 use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
-use Seferov\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Seferov\SymfonyPsalmPlugin\Symfony\Service;
+use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Symfony\Service;
 
 /**
  * @testdox ContainerMetaTest

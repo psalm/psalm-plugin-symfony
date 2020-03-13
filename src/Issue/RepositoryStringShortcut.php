@@ -1,6 +1,6 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Issue;
+namespace Psalm\SymfonyPsalmPlugin\Issue;
 
 use Psalm\CodeLocation;
 use Psalm\Issue\CodeIssue;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Handler;
+namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
@@ -14,8 +14,8 @@ use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
 use Psalm\Type\Union;
-use Seferov\SymfonyPsalmPlugin\Issue\ContainerDependency;
-use Seferov\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
+use Psalm\SymfonyPsalmPlugin\Issue\ContainerDependency;
+use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAnalysisInterface

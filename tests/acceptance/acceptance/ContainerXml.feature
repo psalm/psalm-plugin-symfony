@@ -12,7 +12,7 @@ Feature: Container XML config
         </projectFiles>
 
         <plugins>
-          <pluginClass class="Seferov\SymfonyPsalmPlugin\Plugin">
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
             <containerXml>../../tests/acceptance/container.xml</containerXml>
           </pluginClass>
         </plugins>

@@ -1,6 +1,6 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Handler;
+namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ClassConstFetch;
@@ -13,9 +13,9 @@ use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
-use Seferov\SymfonyPsalmPlugin\Issue\PrivateService;
-use Seferov\SymfonyPsalmPlugin\Issue\ServiceNotFound;
-use Seferov\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
+use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
+use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 
 class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
 {
@@ -56,7 +56,7 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
         }
 
         if (!self::$containerMeta) {
-            throw new \Exception('\Seferov\SymfonyPsalmPlugin\Handler\ContainerXmlHandler::init() must be run to initialize this hook');
+            throw new \Exception('\Psalm\SymfonyPsalmPlugin\Handler\ContainerXmlHandler::init() must be run to initialize this hook');
         }
 
         $service = self::$containerMeta->get($serviceId);

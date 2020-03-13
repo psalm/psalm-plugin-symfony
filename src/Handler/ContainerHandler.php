@@ -1,6 +1,6 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Handler;
+namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ClassConstFetch;

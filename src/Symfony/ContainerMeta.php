@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Seferov\SymfonyPsalmPlugin\Symfony;
+namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin\Symfony;
+namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 class Service
 {

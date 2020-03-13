@@ -26,7 +26,7 @@ If you followed installation instructions, psalm-plugin command would added plug
     <!--  project configuration -->
 
     <plugins>
-        <pluginClass class="Seferov\SymfonyPsalmPlugin\Plugin" />
+        <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
     </plugins>
 </psalm>
 ```
@@ -34,7 +34,7 @@ If you followed installation instructions, psalm-plugin command would added plug
 To be able to detect return types of services using ID (generally starts with `@` in Symfony YAML config files. Ex: `logger` service)
 `containerXml` must be provided. Example:
 ```xml
-<pluginClass class="Seferov\SymfonyPsalmPlugin\Plugin">
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
     <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
 </pluginClass>
 ```

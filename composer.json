@@ -22,18 +22,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Seferov\\SymfonyPsalmPlugin\\": "src"
+            "Psalm\\SymfonyPsalmPlugin\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Seferov\\SymfonyPsalmPlugin\\Tests\\Acceptance\\": ["tests/acceptance/_support"],
-            "Seferov\\SymfonyPsalmPlugin\\Tests\\": ["tests/unit"]
+            "Psalm\\SymfonyPsalmPlugin\\Tests\\Acceptance\\": ["tests/acceptance/_support"],
+            "Psalm\\SymfonyPsalmPlugin\\Tests\\": ["tests/unit"]
         }
     },
     "extra": {
         "psalm" : {
-            "pluginClass": "Seferov\\SymfonyPsalmPlugin\\Plugin"
+            "pluginClass": "Psalm\\SymfonyPsalmPlugin\\Plugin"
         }
     },
     "scripts": {

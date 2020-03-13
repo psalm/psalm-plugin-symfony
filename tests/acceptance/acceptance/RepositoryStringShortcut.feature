@@ -18,7 +18,7 @@ Feature: RepositoryStringShortcut
         </issueHandlers>
 
         <plugins>
-          <pluginClass class="Seferov\SymfonyPsalmPlugin\Plugin"/>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
       </psalm>
       """

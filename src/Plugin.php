@@ -1,14 +1,14 @@
 <?php
 
-namespace Seferov\SymfonyPsalmPlugin;
+namespace Psalm\SymfonyPsalmPlugin;
 
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
-use Seferov\SymfonyPsalmPlugin\Handler\ClassHandler;
-use Seferov\SymfonyPsalmPlugin\Handler\ContainerHandler;
-use Seferov\SymfonyPsalmPlugin\Handler\ContainerXmlHandler;
-use Seferov\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Handler\ClassHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ContainerXmlHandler;
+use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use SimpleXMLElement;
 
 class Plugin implements PluginEntryPointInterface

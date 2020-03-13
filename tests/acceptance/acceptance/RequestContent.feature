@@ -12,7 +12,7 @@ Feature: Request getContent
         </projectFiles>
 
         <plugins>
-          <pluginClass class="Seferov\SymfonyPsalmPlugin\Plugin"/>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
       </psalm>
       """
