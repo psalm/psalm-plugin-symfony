@@ -1,5 +1,5 @@
 {
-    "name": "seferov/symfony-psalm-plugin",
+    "name": "psalm/plugin-symfony",
     "description": "Psalm Plugin for Symfony",
     "type": "psalm-plugin",
     "license": "MIT",
