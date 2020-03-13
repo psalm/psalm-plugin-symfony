@@ -1,12 +1,12 @@
 # Symfony Psalm Plugin
 
-[![Build Status](https://travis-ci.com/seferov/symfony-psalm-plugin.svg?branch=master)](https://travis-ci.com/seferov/symfony-psalm-plugin)
+[![Build Status](https://travis-ci.com/psalm/plugin-symfony.svg?branch=master)](https://travis-ci.com/seferov/symfony-psalm-plugin)
 
 ### Installation
 
 ```
-composer require --dev seferov/symfony-psalm-plugin
-vendor/bin/psalm-plugin enable seferov/symfony-psalm-plugin
+composer require --dev psalm/plugin-symfony
+vendor/bin/psalm-plugin enable psalm/plugin-symfony
 ```
 
 ### Features
