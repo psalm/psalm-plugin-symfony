@@ -1,6 +1,6 @@
 # Symfony Psalm Plugin
 
-![Continuous Integration](https://github.com/psalm/psalm-plugin-symfony/workflows/Continuous%20Integration/badge.svg)
+![Integrate](https://github.com/psalm/psalm-plugin-symfony/workflows/Integrate/badge.svg)
 
 ### Installation
 
