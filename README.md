@@ -47,4 +47,5 @@ Default file for Symfony versions:
 
 ### Credits
 
+- Plugin created by [@seferov](https://github.com/seferov)
 - [@weirdan](https://github.com/weirdan) for [codeception psalm module](https://github.com/weirdan/codeception-psalm-module)
