@@ -45,7 +45,7 @@ jobs:
 
       - name: "Install highest dependencies from composer.json"
         if: matrix.dependencies == 'highest'
-        run: composer install --no-interaction --no-progress --no-suggestc
+        run: composer install --no-interaction --no-progress --no-suggest
 
       - name: "Run vimeo/psalm"
         run: vendor/bin/psalm --config=psalm.xml --shepherd --show-info=false --stats --output-format=github
