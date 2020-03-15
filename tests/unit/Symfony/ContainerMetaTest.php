@@ -57,6 +57,11 @@ class ContainerMetaTest extends TestCase
                 'className' => 'Symfony\Component\HttpKernel\HttpKernel',
                 'isPublic' => true,
             ],
+            [
+                'id' => 'public_service_wo_public_attr',
+                'className' => 'Foo\Bar',
+                'isPublic' => true,
+            ],
         ];
     }
 

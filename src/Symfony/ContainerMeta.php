@@ -33,7 +33,7 @@ class ContainerMeta
             if (isset($serviceAttributes->alias)) {
                 $service->setAlias((string) $serviceAttributes->alias);
             }
-            $service->setIsPublic('true' === (string) $serviceAttributes->public);
+            $service->setIsPublic('false' !== (string) $serviceAttributes->public);
 
             $this->add($service);
         }
