@@ -1,3 +1,4 @@
+.build/psalm
 vendor
 composer.lock
 .php_cs.cache

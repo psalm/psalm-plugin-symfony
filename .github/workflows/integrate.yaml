@@ -47,8 +47,15 @@ jobs:
         if: matrix.dependencies == 'highest'
         run: composer install --no-interaction --no-progress --no-suggest
 
+      - name: "Cache cache directory for vimeo/psalm"
+        uses: actions/cache@v1
+        with:
+          path: .build/psalm
+          key: php-${{ matrix.php-version }}-psalm-${{ github.sha }}
+          restore-keys: php-${{ matrix.php-version }}-psalm-
+
       - name: "Run vimeo/psalm"
-        run: vendor/bin/psalm --config=psalm.xml --shepherd --show-info=false --stats --output-format=github
+        run: vendor/bin/psalm --config=psalm.xml --diff --diff-methods --shepherd --show-info=false --stats --output-format=github
 
   tests:
     name: "Tests"
