@@ -6,6 +6,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\ClassHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerXmlHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
@@ -21,8 +22,10 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ClassHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ContainerXmlHandler.php';
+        require_once __DIR__.'/Handler/ConsoleHandler.php';
 
         $api->registerHooksFromClass(ClassHandler::class);
+        $api->registerHooksFromClass(ConsoleHandler::class);
 
         if (isset($config->containerXml)) {
             $containerXmlPath = realpath((string) $config->containerXml);
