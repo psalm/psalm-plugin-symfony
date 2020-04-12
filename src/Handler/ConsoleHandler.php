@@ -3,7 +3,6 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
-use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
@@ -80,12 +79,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     {
         if (count($expr->args) > 1) {
             try {
-                $mode = self::getModeValue($expr->args[1]->value, InputArgument::class);
+                $mode = self::getModeValue($expr->args[1]->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
                     new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $expr->args[1]->value)),
                     $statements_source->getSuppressedIssues()
                 );
+
                 return;
             }
         } else {
@@ -113,12 +113,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     {
         if (isset($expr->args[2])) {
             try {
-                $mode = self::getModeValue($expr->args[2]->value, InputOption::class);
+                $mode = self::getModeValue($expr->args[2]->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
                     new InvalidConsoleOptionValue(new CodeLocation($statements_source, $expr->args[2]->value)),
                     $statements_source->getSuppressedIssues()
                 );
+
                 return;
             }
         } else {
@@ -149,17 +150,23 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @param mixed $mode
      */
-    private static function getModeValue($mode, string $className): int
+    private static function getModeValue($mode): int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
-            return self::getModeValue($mode->left, $className) | self::getModeValue($mode->right, $className);
+            return self::getModeValue($mode->left) | self::getModeValue($mode->right);
         }
 
         if ($mode instanceof Expr\ClassConstFetch) {
-            /** @var Identifier $constName */
-            $constName = $mode->name;
-            /** @var int $value */
-            $value = constant($className.'::'.$constName->name);
+            /**
+             * @psalm-suppress MixedAssignment
+             * @psalm-suppress MixedOperand
+             * @psalm-suppress UndefinedPropertyFetch
+             */
+            $value = constant($mode->class->getAttribute('resolvedName').'::'.$mode->name->name);
+            if (!is_int($value)) {
+                throw new InvalidConsoleModeException();
+            }
+
             return $value;
         }
 
