@@ -12,6 +12,8 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 ### Features
 
 - Detect `ContainerInterface::get()` result type. Works better if you [configure](#configuration) compiled container XML file.
+- Detect return type of console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`). Enforces
+to use InputArgument and InputOption constants as a part of best practise.
 - Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
 The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
 - Complains when `Container` is injected to a service. Use dependency-injection.

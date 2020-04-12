@@ -11,11 +11,11 @@ use Psalm\Context;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
-use Psalm\Type\Atomic\TNamedObject;
-use Psalm\Type\Union;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\Type\Atomic\TNamedObject;
+use Psalm\Type\Union;
 
 class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
 {

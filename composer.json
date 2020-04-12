@@ -18,7 +18,8 @@
     "require-dev": {
         "codeception/base": "^2.5",
         "weirdan/codeception-psalm-module": "^0.2.2",
-        "phpunit/phpunit": "~7.5"
+        "phpunit/phpunit": "~7.5",
+        "symfony/console": "*"
     },
     "autoload": {
         "psr-4": {

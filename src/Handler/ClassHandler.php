@@ -13,9 +13,9 @@ use Psalm\Plugin\Hook\AfterClassLikeAnalysisInterface;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
-use Psalm\Type\Union;
 use Psalm\SymfonyPsalmPlugin\Issue\ContainerDependency;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
+use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAnalysisInterface
