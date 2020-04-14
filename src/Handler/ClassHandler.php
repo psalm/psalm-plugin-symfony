@@ -56,16 +56,6 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
         Union &$return_type_candidate = null
     ) {
         switch ($declaring_method_id) {
-            case 'Symfony\Component\HttpFoundation\Request::getcontent':
-                if ($return_type_candidate) {
-                    $removeType = 'resource';
-                    if (isset($expr->args[0]->value->name->parts[0])) {
-                        /** @psalm-suppress MixedArrayAccess */
-                        $removeType = 'true' === $expr->args[0]->value->name->parts[0] ? 'string' : 'resource';
-                    }
-                    $return_type_candidate->removeType($removeType);
-                }
-                break;
             case 'Doctrine\ORM\EntityManagerInterface::getrepository':
             case 'Doctrine\Persistence\ObjectManager::getrepository':
                 if (!$expr->args[0]->value instanceof ClassConstFetch) {
