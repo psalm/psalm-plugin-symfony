@@ -12,14 +12,14 @@
     "require": {
         "php": "^7.1",
         "ext-simplexml": "*",
-        "vimeo/psalm": "^3.11",
-        "symfony/framework-bundle": "^3.0 || ^4.0 || ^5.0"
+        "symfony/framework-bundle": "^3.0 || ^4.0 || ^5.0",
+        "vimeo/psalm": "^3.11"
     },
     "require-dev": {
         "codeception/base": "^2.5",
-        "weirdan/codeception-psalm-module": "^0.2.2",
         "phpunit/phpunit": "~7.5",
-        "symfony/console": "*"
+        "symfony/console": "*",
+        "weirdan/codeception-psalm-module": "^0.2.2"
     },
     "autoload": {
         "psr-4": {
@@ -31,6 +31,9 @@
             "Psalm\\SymfonyPsalmPlugin\\Tests\\Acceptance\\": ["tests/acceptance/_support"],
             "Psalm\\SymfonyPsalmPlugin\\Tests\\": ["tests/unit"]
         }
+    },
+    "config": {
+        "sort-packages": true
     },
     "extra": {
         "psalm" : {

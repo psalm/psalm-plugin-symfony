@@ -15,6 +15,10 @@ use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\ContainerDependency;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
+use Psalm\Type\Atomic\TArray;
+use Psalm\Type\Atomic\TInt;
+use Psalm\Type\Atomic\TNull;
+use Psalm\Type\Atomic\TString;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -56,6 +60,16 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
         Union &$return_type_candidate = null
     ) {
         switch ($declaring_method_id) {
+            case 'Symfony\Component\HttpFoundation\HeaderBag::get':
+                if ($return_type_candidate) {
+                    /** @psalm-suppress MixedArrayAccess */
+                    if (isset($expr->args[2]->value->name->parts[0]) && 'false' === $expr->args[2]->value->name->parts[0]) {
+                        $return_type_candidate = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+                    } else {
+                        $return_type_candidate = new Union([new TString(), new TNull()]);
+                    }
+                }
+                break;
             case 'Doctrine\ORM\EntityManagerInterface::getrepository':
             case 'Doctrine\Persistence\ObjectManager::getrepository':
                 if (!$expr->args[0]->value instanceof ClassConstFetch) {
