@@ -1,0 +1,21 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class HeaderBag
+{
+    /**
+     * Returns a header value by name.
+     *
+     * @param string      $key     The header name
+     * @param string|null $default The default value
+     * @param bool        $first   Whether to return the first value or all header values
+     *
+     * @psalm-return (
+     *     $first is true
+     *     ? ?string
+     *     : string[]
+     * )
+     */
+    public function get($key, $default = null, $first = true) {}
+}

@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin;
 
+use PackageVersions\Versions;
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
@@ -40,8 +41,10 @@ class Plugin implements PluginEntryPointInterface
             $api->registerHooksFromClass(ContainerHandler::class);
         }
 
-        foreach (glob(__DIR__ . '/Stubs/*.stubphp') as $stubFilePath) {
-            $api->addStubFile($stubFilePath);
+        $versionParts = explode('@', Versions::getVersion('symfony/http-foundation'));
+        if (version_compare(ltrim($versionParts[0], 'v'), '4.3', 'le')) {
+            $api->addStubFile(__DIR__.'/Stubs/Symfony43/HeaderBag.stubphp');
         }
+        $api->addStubFile(__DIR__.'/Stubs/Request.stubphp');
     }
 }
