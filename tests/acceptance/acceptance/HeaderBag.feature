@@ -32,7 +32,7 @@ Feature: Header get
             return;
           }
 
-          sprintf('%s', $string);
+          trim($string);
         }
       }
       """
