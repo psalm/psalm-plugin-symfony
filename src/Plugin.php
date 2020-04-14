@@ -39,5 +39,9 @@ class Plugin implements PluginEntryPointInterface
         } else {
             $api->registerHooksFromClass(ContainerHandler::class);
         }
+
+        foreach (glob(__DIR__ . '/Stubs/*.stubphp') as $stubFilePath) {
+            $api->addStubFile($stubFilePath);
+        }
     }
 }

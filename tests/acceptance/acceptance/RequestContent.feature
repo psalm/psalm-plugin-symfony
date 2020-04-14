@@ -72,3 +72,4 @@ Feature: Request getContent
     Then I see these errors
       | Type            | Message                                                     |
       | InvalidArgument | Argument 1 of json_decode expects string, resource provided |
+    And I see no other errors

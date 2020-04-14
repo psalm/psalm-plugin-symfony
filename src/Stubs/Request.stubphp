@@ -1,0 +1,21 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class Request
+{
+    /**
+     * Returns the request body content.
+     *
+     * @param bool $asResource If true, a resource will be returned
+     *
+     * @throws \LogicException
+     *
+     * @psalm-return (
+     *     $asResource is true
+     *     ? resource
+     *     : string
+     * )
+     */
+    public function getContent($asResource = false) {}
+}
