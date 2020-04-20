@@ -14,7 +14,7 @@ class ContainerMeta
     private $services = [];
 
     /**
-     * @psalm-var array<class-string>
+     * @var array<string>
      */
     private $classNames = [];
 
@@ -70,7 +70,7 @@ class ContainerMeta
     }
 
     /**
-     * @psalm-return array<class-string>
+     * @return array<string>
      */
     public function getClassNames() : array
     {
