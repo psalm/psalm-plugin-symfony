@@ -13,6 +13,11 @@ class ContainerMeta
      */
     private $services = [];
 
+    /**
+     * @psalm-var array<class-string>
+     */
+    private $classNames = [];
+
     public function __construct(string $containerXmlPath)
     {
         if (!file_exists($containerXmlPath)) {
@@ -29,7 +34,13 @@ class ContainerMeta
             /** @psalm-var \SimpleXMLElement $serviceAttributes */
             $serviceAttributes = $serviceXml->attributes();
 
-            $service = new Service((string) $serviceAttributes->id, (string) $serviceAttributes->class);
+            $className = (string) $serviceAttributes->class;
+
+            if ($className) {
+                $this->classNames[] = $className;
+            }
+
+            $service = new Service((string) $serviceAttributes->id, $className);
             if (isset($serviceAttributes->alias)) {
                 $service->setAlias((string) $serviceAttributes->alias);
             }
@@ -56,5 +67,13 @@ class ContainerMeta
         }
 
         $this->services[$service->getId()] = $service;
+    }
+
+    /**
+     * @psalm-return array<class-string>
+     */
+    public function getClassNames() : array
+    {
+        return $this->classNames;
     }
 }

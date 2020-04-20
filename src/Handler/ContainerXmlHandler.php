@@ -5,19 +5,23 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Stmt\ClassLike;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
+use Psalm\FileSource;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
 use Psalm\StatementsSource;
+use Psalm\Storage\ClassLikeStorage;
+use Psalm\Type\Atomic\TNamedObject;
+use Psalm\Type\Union;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\Type\Atomic\TNamedObject;
-use Psalm\Type\Union;
 
-class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
+class ContainerXmlHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
     /**
      * @var ContainerMeta|null
@@ -79,6 +83,25 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface
                 new ServiceNotFound($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
                 $statements_source->getSuppressedIssues()
             );
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public static function afterClassLikeVisit(
+        ClassLike $class_node,
+        ClassLikeStorage $class_storage,
+        FileSource $statements_source,
+        Codebase $codebase,
+        array &$file_replacements = []
+    ) {
+        $file_path = $statements_source->getFilePath();
+        $file_storage = $codebase->file_storage_provider->get($file_path);
+
+        foreach (self::$containerMeta->getClassNames() as $className) {
+            $codebase->queueClassLikeForScanning($className, $file_path);
+            $file_storage->referenced_classlikes[strtolower($className)] = $className;
         }
     }
 }
