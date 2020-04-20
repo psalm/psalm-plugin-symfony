@@ -40,15 +40,22 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('**/composer.json') }}
+          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
 
       - name: "Install highest dependencies from composer.json"
         if: matrix.dependencies == 'highest'
         run: composer install --no-interaction --no-progress --no-suggest
 
+      - name: "Cache cache directory for vimeo/psalm"
+        uses: actions/cache@v1
+        with:
+          path: .build/psalm
+          key: php-${{ matrix.php-version }}-psalm-${{ github.sha }}
+          restore-keys: php-${{ matrix.php-version }}-psalm-
+
       - name: "Run vimeo/psalm"
-        run: vendor/bin/psalm --config=psalm.xml --shepherd --show-info=false --stats --output-format=github
+        run: vendor/bin/psalm --config=psalm.xml --diff --diff-methods --shepherd --show-info=false --stats --output-format=github
 
   tests:
     name: "Tests"
@@ -85,7 +92,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('**/composer.json') }}
+          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
 
       - name: "Install lowest dependencies from composer.json"
