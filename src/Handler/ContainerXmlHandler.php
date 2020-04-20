@@ -101,7 +101,7 @@ class ContainerXmlHandler implements AfterMethodCallAnalysisInterface, AfterClas
 
         if (self::$containerMeta) {
             foreach (self::$containerMeta->getClassNames() as $className) {
-                $codebase->queueClassLikeForScanning($className, $file_path);
+                $codebase->queueClassLikeForScanning($className);
                 $file_storage->referenced_classlikes[strtolower($className)] = $className;
             }
         }
