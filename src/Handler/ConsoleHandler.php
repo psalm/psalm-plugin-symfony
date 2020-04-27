@@ -53,8 +53,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 self::analyseArgument($expr, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
-                /** @var String_ $argumentName */
                 $argumentName = $expr->args[0]->value;
+                if (!$argumentName instanceof String_) {
+                    break;
+                }
                 $argumentNameValue = $argumentName->value;
                 if (isset(self::$arguments[$argumentNameValue])) {
                     $return_type_candidate = self::$arguments[$argumentNameValue];
@@ -65,8 +67,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 self::analyseOption($expr, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':
-                /** @var String_ $optionName */
                 $optionName = $expr->args[0]->value;
+                if (!$optionName instanceof String_) {
+                    break;
+                }
                 $optionNameValue = $optionName->value;
                 if (isset(self::$options[$optionNameValue])) {
                     $return_type_candidate = self::$options[$optionNameValue];

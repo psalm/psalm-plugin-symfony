@@ -111,3 +111,36 @@ Feature: ConsoleOption
       | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
       | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
     And I see no other errors
+
+  Scenario: Cannot evaluate dynamic option names
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Component\Console\Command\Command;
+      use Symfony\Component\Console\Input\InputOption;
+      use Symfony\Component\Console\Input\InputInterface;
+      use Symfony\Component\Console\Output\OutputInterface;
+
+      class MyCommand extends Command
+      {
+        public function configure(): void
+        {
+          $this->addOption('foo');
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          $optionName = 'foo';
+          $string1 = $input->getOption($optionName);
+          $output->writeLn(sprintf('%s', $string1));
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                    | Message                                                                                                                         |
+      | PossiblyInvalidArgument | Argument 2 of sprintf expects float\|int\|string, possibly different type array<array-key, string>\|bool\|null\|string provided |
+    And I see no other errors
