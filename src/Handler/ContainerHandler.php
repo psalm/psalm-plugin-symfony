@@ -13,6 +13,13 @@ use Psalm\Type\Union;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface
 {
+    const GET_CLASSLIKES = [
+        'Psr\Container\ContainerInterface',
+        'Symfony\Component\DependencyInjection\ContainerInterface',
+        'Symfony\Bundle\FrameworkBundle\Controller\AbstractController',
+        'Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait',
+    ];
+
     /**
      * {@inheritdoc}
      */
@@ -39,11 +46,15 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface
 
     public static function isContainerGet(string $declaring_method_id): bool
     {
-        return in_array($declaring_method_id, [
-            'Psr\Container\ContainerInterface::get',
-            'Symfony\Component\DependencyInjection\ContainerInterface::get',
-            "Symfony\Bundle\FrameworkBundle\Controller\AbstractController::get",
-            "Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait::get",
-        ]);
+        return in_array(
+            $declaring_method_id,
+            array_map(
+                function($c) {
+                    return $c . '::get';
+                },
+                self::GET_CLASSLIKES
+            ),
+            true
+        );
     }
 }
