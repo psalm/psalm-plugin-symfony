@@ -17,6 +17,7 @@ to use InputArgument and InputOption constants as a part of best practise.
 - Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
 The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
 - Detect return type of `Symfony\Component\HttpFoundation\HeaderBag::get` (by checking third argument for < Symfony 4.4)
+- Detects service [naming convention](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations
 - Complains when `Container` is injected to a service. Use dependency-injection.
 
 ### Configuration
