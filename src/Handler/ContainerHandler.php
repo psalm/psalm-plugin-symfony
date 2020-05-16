@@ -15,6 +15,7 @@ use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
+use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
@@ -23,6 +24,13 @@ use Psalm\Type\Union;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
+    private const GET_CLASSLIKES = [
+        'Psr\Container\ContainerInterface',
+        'Symfony\Component\DependencyInjection\ContainerInterface',
+        'Symfony\Bundle\FrameworkBundle\Controller\AbstractController',
+        'Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait',
+    ];
+
     /**
      * @var ContainerMeta|null
      */
@@ -47,12 +55,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         array &$file_replacements = [],
         Union &$return_type_candidate = null
     ) {
-        if (!in_array($declaring_method_id, [
-            'Psr\Container\ContainerInterface::get',
-            'Symfony\Component\DependencyInjection\ContainerInterface::get',
-            "Symfony\Bundle\FrameworkBundle\Controller\AbstractController::get",
-            "Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait::get",
-        ])) {
+        if (!ContainerHandler::isContainerGet($declaring_method_id)) {
             return;
         }
 
@@ -75,6 +78,13 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
 
         $service = self::$containerMeta->get($serviceId);
         if ($service) {
+            if (!self::followsConvention($serviceId) && !class_exists($service->getClassName())) {
+                IssueBuffer::accepts(
+                    new NamingConventionViolation(new CodeLocation($statements_source, $expr->args[0]->value)),
+                    $statements_source->getSuppressedIssues()
+                );
+            }
+
             if ($service->isPublic()) {
                 $class = $service->getClassName();
                 if ($class) {
@@ -106,14 +116,38 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         Codebase $codebase,
         array &$file_replacements = []
     ) {
-        if (self::$containerMeta) {
-            $file_path = $statements_source->getFilePath();
-            $file_storage = $codebase->file_storage_provider->get($file_path);
+        if (\in_array($class_storage->name, ContainerHandler::GET_CLASSLIKES)) {
+            if (self::$containerMeta) {
+                $file_path = $statements_source->getFilePath();
+                $file_storage = $codebase->file_storage_provider->get($file_path);
 
-            foreach (self::$containerMeta->getClassNames() as $className) {
-                $codebase->queueClassLikeForScanning($className);
-                $file_storage->referenced_classlikes[strtolower($className)] = $className;
+                foreach (self::$containerMeta->getClassNames() as $className) {
+                    $codebase->queueClassLikeForScanning($className);
+                    $file_storage->referenced_classlikes[strtolower($className)] = $className;
+                }
             }
         }
+    }
+
+    private static function isContainerGet(string $declaring_method_id): bool
+    {
+        return in_array(
+            $declaring_method_id,
+            array_map(
+                function($c) {
+                    return $c . '::get';
+                },
+                self::GET_CLASSLIKES
+            ),
+            true
+        );
+    }
+
+    /**
+     * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
+     */
+    private static function followsConvention(string $name): bool
+    {
+        return !preg_match('/[A-Z]/', $name);
     }
 }
