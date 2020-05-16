@@ -8,7 +8,6 @@ use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\ClassHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
-use Psalm\SymfonyPsalmPlugin\Handler\ContainerXmlHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use SimpleXMLElement;
 
@@ -21,7 +20,6 @@ class Plugin implements PluginEntryPointInterface
     {
         require_once __DIR__.'/Handler/ClassHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
-        require_once __DIR__.'/Handler/ContainerXmlHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
 
         $api->registerHooksFromClass(ClassHandler::class);
@@ -33,12 +31,10 @@ class Plugin implements PluginEntryPointInterface
                 throw new ConfigException(sprintf('Container XML file (%s) does not exits', $containerXmlPath));
             }
 
-            ContainerXmlHandler::init(new ContainerMeta($containerXmlPath));
-
-            $api->registerHooksFromClass(ContainerXmlHandler::class);
-        } else {
-            $api->registerHooksFromClass(ContainerHandler::class);
+            ContainerHandler::init(new ContainerMeta($containerXmlPath));
         }
+
+        $api->registerHooksFromClass(ContainerHandler::class);
 
         foreach (glob(__DIR__ . '/Stubs/*.stubphp') as $stubFilePath) {
             $api->addStubFile($stubFilePath);
