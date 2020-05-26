@@ -16,14 +16,15 @@ Feature: Request getContent
         </plugins>
       </psalm>
       """
+    And I have the following code preamble
+      """
+      <?php
+      use Symfony\Component\HttpFoundation\Request;
+      """
 
   Scenario: Asserting '$request->getContent()' without any argument returns string
     Given I have the following code
       """
-      <?php
-
-      use Symfony\Component\HttpFoundation\Request;
-
       class App
       {
         public function index(Request $request): void
@@ -38,10 +39,6 @@ Feature: Request getContent
   Scenario: Asserting '$request->getContent(false)' returns string
     Given I have the following code
       """
-      <?php
-
-      use Symfony\Component\HttpFoundation\Request;
-
       class App
       {
         public function index(Request $request): void
@@ -56,10 +53,6 @@ Feature: Request getContent
   Scenario: Asserting '$request->getContent(true)' returns resource
     Given I have the following code
       """
-      <?php
-
-      use Symfony\Component\HttpFoundation\Request;
-
       class App
       {
         public function index(Request $request): void
