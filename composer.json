@@ -55,5 +55,8 @@
             "codecept build",
             "codecept run -v"
         ]
+    },
+    "suggest": {
+        "weirdan/doctrine-psalm-plugin": "If Doctrine is used, it is recommended install this plugin"
     }
 }
