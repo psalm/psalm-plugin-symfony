@@ -72,7 +72,7 @@ Feature: Container service
       {
         use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
 
-        public function index(): void
+        public function index()
         {
           $this->container->get(self::class)->index();
         }
@@ -80,5 +80,5 @@ Feature: Container service
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                                                          |
-      | PossiblyNullReference | Cannot call method index on possibly null value                                  |
+      | Type              | Message                                                                   |
+      | MissingReturnType |  Method SomeController::index does not have a return type, expecting void |
