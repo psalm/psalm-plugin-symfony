@@ -82,5 +82,3 @@ Feature: Container service
     Then I see these errors
       | Type                  | Message                                                                          |
       | PossiblyNullReference | Cannot call method index on possibly null value                                  |
-      | MixedMethodCall       | Cannot determine the type of the object on the left hand side of this expression |
-    And I see no other errors
