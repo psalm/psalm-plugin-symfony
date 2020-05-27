@@ -4,7 +4,6 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
@@ -73,7 +72,7 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                 break;
             case 'Doctrine\ORM\EntityManagerInterface::getrepository':
             case 'Doctrine\Persistence\ObjectManager::getrepository':
-                if ($expr->args[0]->value instanceof String_ ) {
+                if ($expr->args[0]->value instanceof String_) {
                     IssueBuffer::accepts(
                         new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
                         $statements_source->getSuppressedIssues()

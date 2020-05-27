@@ -62,3 +62,25 @@ Feature: Container service
     Then I see these errors
       | Type            | Message                                          |
       | UndefinedMethod |  Method SomeService::nosuchmethod does not exist |
+    And I see no other errors
+
+  Scenario: Container get(self::class) should not crash
+    Given I have the following code
+      """
+      <?php
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index(): void
+        {
+          $this->container->get(self::class)->index();
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                  | Message                                                                          |
+      | PossiblyNullReference | Cannot call method index on possibly null value                                  |
+      | MixedMethodCall       | Cannot determine the type of the object on the left hand side of this expression |
+    And I see no other errors

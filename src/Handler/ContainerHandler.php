@@ -62,7 +62,9 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         if (!self::$containerMeta) {
             if ($return_type_candidate && $expr->args[0]->value instanceof ClassConstFetch) {
                 $className = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
-                $return_type_candidate = new Union([new TNamedObject($className)]);
+                if (!in_array($className, ['self', 'parent', 'static'])) {
+                    $return_type_candidate = new Union([new TNamedObject($className)]);
+                }
             }
 
             return;
