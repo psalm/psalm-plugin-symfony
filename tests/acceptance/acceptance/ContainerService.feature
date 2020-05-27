@@ -62,3 +62,23 @@ Feature: Container service
     Then I see these errors
       | Type            | Message                                          |
       | UndefinedMethod |  Method SomeService::nosuchmethod does not exist |
+    And I see no other errors
+
+  Scenario: Container get(self::class) should not crash
+    Given I have the following code
+      """
+      <?php
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index()
+        {
+          $this->container->get(self::class)->index();
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type              | Message                                                                   |
+      | MissingReturnType |  Method SomeController::index does not have a return type, expecting void |
