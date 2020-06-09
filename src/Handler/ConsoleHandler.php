@@ -3,6 +3,7 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
@@ -53,13 +54,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 self::analyseArgument($expr, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
-                $argumentName = $expr->args[0]->value;
-                if (!$argumentName instanceof String_) {
+                $identifier = self::getNodeIdentifier($expr->args[0]->value);
+                if (!$identifier) {
                     break;
                 }
-                $argumentNameValue = $argumentName->value;
-                if (isset(self::$arguments[$argumentNameValue])) {
-                    $return_type_candidate = self::$arguments[$argumentNameValue];
+
+                if (isset(self::$arguments[$identifier])) {
+                    $return_type_candidate = self::$arguments[$identifier];
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
@@ -67,13 +68,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 self::analyseOption($expr, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':
-                $optionName = $expr->args[0]->value;
-                if (!$optionName instanceof String_) {
+                $identifier = self::getNodeIdentifier($expr->args[0]->value);
+                if (!$identifier) {
                     break;
                 }
-                $optionNameValue = $optionName->value;
-                if (isset(self::$options[$optionNameValue])) {
-                    $return_type_candidate = self::$options[$optionNameValue];
+
+                if (isset(self::$options[$identifier])) {
+                    $return_type_candidate = self::$options[$identifier];
                 }
                 break;
         }
@@ -107,10 +108,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
         }
 
-        /** @var String_ $argumentName */
-        $argumentName = $expr->args[0]->value;
+        $identifier = self::getNodeIdentifier($expr->args[0]->value);
+        if (!$identifier) {
+            return;
+        }
 
-        self::$arguments[$argumentName->value] = $returnTypes;
+        self::$arguments[$identifier] = $returnTypes;
     }
 
     private static function analyseOption(Expr\MethodCall $expr, StatementsSource $statements_source): void
@@ -145,10 +148,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
         }
 
-        /** @var String_ $optionName */
-        $optionName = $expr->args[0]->value;
+        $identifier = self::getNodeIdentifier($expr->args[0]->value);
+        if (!$identifier) {
+            return;
+        }
 
-        self::$options[$optionName->value] = $returnTypes;
+        self::$options[$identifier] = $returnTypes;
     }
 
     /**
@@ -175,5 +180,21 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         throw new InvalidConsoleModeException();
+    }
+
+    private static function getNodeIdentifier(Expr $expr): ?string
+    {
+        if ($expr instanceof String_) {
+            return $expr->value;
+        }
+
+        if ($expr instanceof Expr\ClassConstFetch) {
+            $name = $expr->name;
+            if ($name instanceof Identifier) {
+                return $name->name;
+            }
+        }
+
+        return null;
     }
 }

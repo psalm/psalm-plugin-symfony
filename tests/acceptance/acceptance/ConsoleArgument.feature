@@ -70,6 +70,37 @@ Feature: ConsoleArgument
     When I run Psalm
     Then I see no errors
 
+  Scenario: Asserting arguments return types have inferred (without error) 2
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Component\Console\Command\Command;
+      use Symfony\Component\Console\Input\InputArgument;
+      use Symfony\Component\Console\Input\InputInterface;
+      use Symfony\Component\Console\Output\OutputInterface;
+
+      class MyCommand extends Command
+      {
+        const FOO_ARGUMENT_NAME = 'foo_argument_name';
+
+        public function configure(): void
+        {
+          $this->addArgument(self::FOO_ARGUMENT_NAME, InputArgument::REQUIRED);
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          $string = $input->getArgument(self::FOO_ARGUMENT_NAME);
+          $output->writeLn(sprintf('%s', $string));
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
   Scenario: Asserting arguments return types have inferred (with errors)
     Given I have the following code
       """
