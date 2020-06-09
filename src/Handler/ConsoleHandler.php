@@ -3,6 +3,7 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
@@ -188,7 +189,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($expr instanceof Expr\ClassConstFetch) {
-            return $expr->name->name;
+            $name = $expr->name;
+            if ($name instanceof Identifier) {
+                return $name->name;
+            }
         }
 
         return null;
