@@ -3,12 +3,12 @@
 namespace Psalm\SymfonyPsalmPlugin\Issue;
 
 use Psalm\CodeLocation;
-use Psalm\Issue\CodeIssue;
+use Psalm\Issue\PluginIssue;
 
 /**
  * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
  */
-class NamingConventionViolation extends CodeIssue
+class NamingConventionViolation extends PluginIssue
 {
     public function __construct(CodeLocation $code_location)
     {

@@ -3,9 +3,9 @@
 namespace Psalm\SymfonyPsalmPlugin\Issue;
 
 use Psalm\CodeLocation;
-use Psalm\Issue\CodeIssue;
+use Psalm\Issue\PluginIssue;
 
-class InvalidConsoleArgumentValue extends CodeIssue
+class InvalidConsoleArgumentValue extends PluginIssue
 {
     public function __construct(CodeLocation $code_location)
     {
