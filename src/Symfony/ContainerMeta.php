@@ -72,7 +72,7 @@ class ContainerMeta
     /**
      * @return array<string>
      */
-    public function getClassNames() : array
+    public function getClassNames(): array
     {
         return $this->classNames;
     }
