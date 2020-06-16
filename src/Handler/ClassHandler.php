@@ -4,7 +4,6 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
@@ -14,7 +13,6 @@ use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\ContainerDependency;
-use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
@@ -68,15 +66,6 @@ class ClassHandler implements AfterClassLikeAnalysisInterface, AfterMethodCallAn
                     } else {
                         $return_type_candidate = new Union([new TString(), new TNull()]);
                     }
-                }
-                break;
-            case 'Doctrine\ORM\EntityManagerInterface::getrepository':
-            case 'Doctrine\Persistence\ObjectManager::getrepository':
-                if ($expr->args[0]->value instanceof String_) {
-                    IssueBuffer::accepts(
-                        new RepositoryStringShortcut(new CodeLocation($statements_source, $expr->args[0]->value)),
-                        $statements_source->getSuppressedIssues()
-                    );
                 }
                 break;
         }
