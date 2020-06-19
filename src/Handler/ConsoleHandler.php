@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
@@ -51,7 +52,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
                 /** @psalm-suppress PossiblyInvalidArgument */
-                self::analyseArgument($expr, $statements_source);
+                self::analyseArgument($expr->args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
                 $identifier = self::getNodeIdentifier($expr->args[0]->value);
@@ -65,7 +66,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
                 /** @psalm-suppress PossiblyInvalidArgument */
-                self::analyseOption($expr, $statements_source);
+                self::analyseOption($expr->args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':
                 $identifier = self::getNodeIdentifier($expr->args[0]->value);
@@ -77,17 +78,51 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                     $return_type_candidate = self::$options[$identifier];
                 }
                 break;
+            case 'Symfony\Component\Console\Command\Command::setdefinition':
+                $inputItems = [];
+                $definition = $expr->args[0]->value;
+                if ($definition instanceof Expr\Array_) {
+                    $inputItems = $definition->items;
+                } elseif ($definition instanceof Expr\New_) {
+                    $inputDefinition = $definition->args[0]->value;
+                    if ($inputDefinition instanceof Expr\Array_) {
+                        $inputItems = $inputDefinition->items;
+                    }
+                }
+
+                if (empty($inputItems)) {
+                    break;
+                }
+
+                foreach ($inputItems as $inputItem) {
+                    if ($inputItem instanceof Expr\ArrayItem && $inputItem->value instanceof Expr\New_) {
+                        switch ($inputItem->value->class->getAttribute('resolvedName')) {
+                            case InputArgument::class:
+                                self::analyseArgument($inputItem->value->args, $statements_source);
+                                break;
+                            case InputOption::class:
+                                self::analyseOption($inputItem->value->args, $statements_source);
+                                break;
+                        }
+                    }
+                }
+
+                break;
         }
     }
 
-    private static function analyseArgument(Expr\MethodCall $expr, StatementsSource $statements_source): void
+    /**
+     * @param Arg[] $args
+     * @param StatementsSource $statements_source
+     */
+    private static function analyseArgument(array $args, StatementsSource $statements_source): void
     {
-        if (count($expr->args) > 1) {
+        if (count($args) > 1) {
             try {
-                $mode = self::getModeValue($expr->args[1]->value);
+                $mode = self::getModeValue($args[1]->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
-                    new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $expr->args[1]->value)),
+                    new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $args[1]->value)),
                     $statements_source->getSuppressedIssues()
                 );
 
@@ -108,7 +143,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
         }
 
-        $identifier = self::getNodeIdentifier($expr->args[0]->value);
+        $identifier = self::getNodeIdentifier($args[0]->value);
         if (!$identifier) {
             return;
         }
@@ -116,14 +151,18 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         self::$arguments[$identifier] = $returnTypes;
     }
 
-    private static function analyseOption(Expr\MethodCall $expr, StatementsSource $statements_source): void
+    /**
+     * @param Arg[] $args
+     * @param StatementsSource $statements_source
+     */
+    private static function analyseOption(array $args, StatementsSource $statements_source): void
     {
-        if (isset($expr->args[2])) {
+        if (isset($args[2])) {
             try {
-                $mode = self::getModeValue($expr->args[2]->value);
+                $mode = self::getModeValue($args[2]->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
-                    new InvalidConsoleOptionValue(new CodeLocation($statements_source, $expr->args[2]->value)),
+                    new InvalidConsoleOptionValue(new CodeLocation($statements_source, $args[2]->value)),
                     $statements_source->getSuppressedIssues()
                 );
 
@@ -148,7 +187,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
         }
 
-        $identifier = self::getNodeIdentifier($expr->args[0]->value);
+        $identifier = self::getNodeIdentifier($args[0]->value);
         if (!$identifier) {
             return;
         }

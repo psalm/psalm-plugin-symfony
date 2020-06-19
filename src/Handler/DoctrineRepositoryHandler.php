@@ -4,6 +4,7 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\ORM\Mapping\Entity as EntityAnnotation;
+use function GuzzleHttp\Psr7\parse_query;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\ClassLike;
@@ -21,7 +22,6 @@ use Psalm\Storage\ClassLikeStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
-use function GuzzleHttp\Psr7\parse_query;
 
 class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
@@ -73,8 +73,9 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         array &$file_replacements = []
     ) {
         $docblock = $stmt->getDocComment();
-        if ($docblock && strpos((string) $docblock, 'repositoryClass') !== false) {
+        if ($docblock && false !== strpos((string) $docblock, 'repositoryClass')) {
             try {
+                /** @psalm-suppress DeprecatedMethod */
                 $parsedComment = DocComment::parse(
                     (string) $docblock->getReformattedText()
                 );
