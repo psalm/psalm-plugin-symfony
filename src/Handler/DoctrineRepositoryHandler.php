@@ -75,6 +75,7 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         $docblock = $stmt->getDocComment();
         if ($docblock && false !== strpos((string) $docblock, 'repositoryClass')) {
             try {
+                /** @psalm-suppress DeprecatedMethod */
                 $parsedComment = DocComment::parse(
                     (string) $docblock->getReformattedText()
                 );
