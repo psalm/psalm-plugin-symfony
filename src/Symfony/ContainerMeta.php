@@ -18,36 +18,9 @@ class ContainerMeta
      */
     private $classNames = [];
 
-    public function __construct(string $containerXmlPath)
+    public function __construct(array $containerXmlPaths)
     {
-        if (!file_exists($containerXmlPath)) {
-            throw new ConfigException('Container xml file not found at '.$containerXmlPath);
-        }
-
-        $xml = simplexml_load_file($containerXmlPath);
-        if (!$xml->services instanceof \SimpleXMLElement) {
-            throw new ConfigException('Not a valid container xml file');
-        }
-
-        /** @psalm-var \SimpleXMLElement $serviceXml */
-        foreach ($xml->services->service as $serviceXml) {
-            /** @psalm-var \SimpleXMLElement $serviceAttributes */
-            $serviceAttributes = $serviceXml->attributes();
-
-            $className = (string) $serviceAttributes->class;
-
-            if ($className) {
-                $this->classNames[] = $className;
-            }
-
-            $service = new Service((string) $serviceAttributes->id, $className);
-            if (isset($serviceAttributes->alias)) {
-                $service->setAlias((string) $serviceAttributes->alias);
-            }
-            $service->setIsPublic('false' !== (string) $serviceAttributes->public);
-
-            $this->add($service);
-        }
+        $this->init($containerXmlPaths);
     }
 
     public function get(string $id): ?Service
@@ -75,5 +48,45 @@ class ContainerMeta
     public function getClassNames(): array
     {
         return $this->classNames;
+    }
+
+    private function init(array $containerXmlPaths): void
+    {
+        /** @var string $containerXmlPath */
+        foreach ($containerXmlPaths as $containerXmlPath) {
+            $xmlPath = realpath((string) $containerXmlPath);
+            if (!$xmlPath || !file_exists($xmlPath)) {
+                continue;
+            }
+
+            $xml = simplexml_load_file($xmlPath);
+            if (!$xml->services instanceof \SimpleXMLElement) {
+                throw new ConfigException($xmlPath.' is not a valid container xml file');
+            }
+
+            /** @psalm-var \SimpleXMLElement $serviceXml */
+            foreach ($xml->services->service as $serviceXml) {
+                /** @psalm-var \SimpleXMLElement $serviceAttributes */
+                $serviceAttributes = $serviceXml->attributes();
+
+                $className = (string) $serviceAttributes->class;
+
+                if ($className) {
+                    $this->classNames[] = $className;
+                }
+
+                $service = new Service((string) $serviceAttributes->id, $className);
+                if (isset($serviceAttributes->alias)) {
+                    $service->setAlias((string) $serviceAttributes->alias);
+                }
+                $service->setIsPublic('false' !== (string) $serviceAttributes->public);
+
+                $this->add($service);
+            }
+
+            return;
+        }
+
+        throw new ConfigException('Container xml file(s) not found at ');
     }
 }

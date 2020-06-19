@@ -19,7 +19,7 @@ class ContainerMetaTest extends TestCase
 
     public function setUp()
     {
-        $this->containerMeta = new ContainerMeta(__DIR__.'/../../acceptance/container.xml');
+        $this->containerMeta = new ContainerMeta([__DIR__.'/../../acceptance/container.xml']);
     }
 
     public function tearDown()
@@ -71,7 +71,7 @@ class ContainerMetaTest extends TestCase
     public function testInvalidFile()
     {
         $this->expectException(ConfigException::class);
-        $this->containerMeta = new ContainerMeta('non-existent-file.xml');
+        $this->containerMeta = new ContainerMeta(['non-existent-file.xml']);
     }
 
     /**
@@ -80,5 +80,15 @@ class ContainerMetaTest extends TestCase
     public function testNonExistentService()
     {
         $this->assertNull($this->containerMeta->get('non-existent-service'));
+    }
+
+    /**
+     * @testdox one valid, one invalid file should not raise an issue
+     */
+    public function testBothValidAndInvalidArray()
+    {
+        $containerMeta = new ContainerMeta(['non-existent-file.xml', __DIR__.'/../../acceptance/container.xml']);
+        $service = $containerMeta->get('service_container');
+        $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClassName());
     }
 }

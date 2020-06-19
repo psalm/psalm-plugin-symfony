@@ -3,7 +3,6 @@
 namespace Psalm\SymfonyPsalmPlugin;
 
 use Doctrine\Common\Annotations\AnnotationRegistry;
-use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\ClassHandler;
@@ -35,17 +34,12 @@ class Plugin implements PluginEntryPointInterface
         }
 
         if (isset($config->containerXml)) {
-            $containerXmlPath = realpath((string) $config->containerXml);
-            if (!$containerXmlPath) {
-                throw new ConfigException(sprintf('Container XML file (%s) does not exits', $containerXmlPath));
-            }
-
-            ContainerHandler::init(new ContainerMeta($containerXmlPath));
+            ContainerHandler::init(new ContainerMeta((array) $config->containerXml));
         }
 
         $api->registerHooksFromClass(ContainerHandler::class);
 
-        foreach (glob(__DIR__ . '/Stubs/*.stubphp') as $stubFilePath) {
+        foreach (glob(__DIR__.'/Stubs/*.stubphp') as $stubFilePath) {
             $api->addStubFile($stubFilePath);
         }
     }
