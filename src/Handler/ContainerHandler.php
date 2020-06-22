@@ -109,7 +109,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     }
 
     /**
-     * {@inheritDoc}
+     * {@inheritdoc}
      */
     public static function afterClassLikeVisit(
         ClassLike $class_node,
@@ -136,8 +136,8 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         return in_array(
             $declaring_method_id,
             array_map(
-                function($c) {
-                    return $c . '::get';
+                function ($c) {
+                    return $c.'::get';
                 },
                 self::GET_CLASSLIKES
             ),
