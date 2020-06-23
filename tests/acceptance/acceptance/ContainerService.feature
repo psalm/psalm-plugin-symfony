@@ -60,8 +60,8 @@ Feature: Container service
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                          |
-      | UndefinedMethod |  Method SomeService::nosuchmethod does not exist |
+      | Type            | Message                                         |
+      | UndefinedMethod | Method SomeService::nosuchmethod does not exist |
     And I see no other errors
 
   Scenario: Container get(self::class) should not crash
