@@ -54,14 +54,14 @@ Feature: Container service
 
         public function index(): void
         {
-          $this->container->get(SomeService::class)->noSuchMethod();
+          $this->container->get(SomeService::class)->nosuchmethod();
         }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                          |
-      | UndefinedMethod |  Method SomeService::nosuchmethod does not exist |
+      | Type            | Message                                         |
+      | UndefinedMethod | Method SomeService::nosuchmethod does not exist |
     And I see no other errors
 
   Scenario: Container get(self::class) should not crash
@@ -80,5 +80,5 @@ Feature: Container service
       """
     When I run Psalm
     Then I see these errors
-      | Type              | Message                                                                   |
-      | MissingReturnType |  Method SomeController::index does not have a return type, expecting void |
+      | Type              | Message                                                                  |
+      | MissingReturnType | Method SomeController::index does not have a return type, expecting void |

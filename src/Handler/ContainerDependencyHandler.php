@@ -26,7 +26,7 @@ class ContainerDependencyHandler implements AfterFunctionLikeAnalysisInterface
     ) {
         if ($stmt instanceof Node\Stmt\ClassMethod && '__construct' === $stmt->name->name) {
             foreach ($stmt->params as $param) {
-                if ($param->type instanceof Node\Name && ContainerInterface::class === $param->type->getAttributes()['resolvedName']) {
+                if ($param->type instanceof Node\Name && ContainerInterface::class === $param->type->getAttribute('resolvedName')) {
                     IssueBuffer::accepts(
                         new ContainerDependency(new CodeLocation($statements_source, $param)),
                         $statements_source->getSuppressedIssues()
