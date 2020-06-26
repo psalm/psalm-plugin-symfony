@@ -2,42 +2,48 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
-use PhpParser\Node\Expr;
-use Psalm\Codebase;
+use PhpParser\Node\Expr\ConstFetch;
+use PhpParser\Node\Scalar\String_;
+use Psalm\CodeLocation;
 use Psalm\Context;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
 use Psalm\StatementsSource;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
 use Psalm\Type\Union;
+use Symfony\Component\HttpFoundation\HeaderBag;
 
-class HeaderBagHandler implements AfterMethodCallAnalysisInterface
+class HeaderBagHandler implements MethodReturnTypeProviderInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ) {
-        if ('Symfony\Component\HttpFoundation\HeaderBag::get' === $declaring_method_id) {
-            if ($return_type_candidate) {
-                /** @psalm-suppress MixedArrayAccess */
-                if (isset($expr->args[2]->value->name->parts[0]) && 'false' === $expr->args[2]->value->name->parts[0]) {
-                    $return_type_candidate = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
-                } else {
-                    $return_type_candidate = new Union([new TString(), new TNull()]);
+    public static function getClassLikeNames(): array
+    {
+        return [
+            HeaderBag::class,
+        ];
+    }
+
+    public static function getMethodReturnType(StatementsSource $source, string $fq_classlike_name, string $method_name_lowercase, array $call_args, Context $context, CodeLocation $code_location, array $template_type_parameters = null, string $called_fq_classlike_name = null, string $called_method_name_lowercase = null)
+    {
+        if (HeaderBag::class !== $fq_classlike_name) {
+            return null;
+        }
+
+        if ('get' === $method_name_lowercase) {
+            if (3 === count($call_args) && (($arg = $call_args[2]->value) instanceof ConstFetch) && 'false' === $arg->name->parts[0]) {
+                return new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+            }
+
+            if (isset($call_args[1])) {
+                if ($call_args[1]->value instanceof String_) {
+                    return new Union([new TString()]);
                 }
             }
+
+            return new Union([new TString(), new TNull()]);
         }
+
+        return null;
     }
 }
