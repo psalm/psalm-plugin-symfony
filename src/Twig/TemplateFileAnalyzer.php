@@ -4,24 +4,19 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-use Psalm\Context;
+use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\FileAnalyzer;
-use Psalm\Internal\Codebase\Taint;
 use Psalm\Internal\Taint\TaintNode;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+use Twig\NodeTraverser;
 
 class TemplateFileAnalyzer extends FileAnalyzer
 {
-    /**
-     * @var Taint|null
-     */
-    private $taint;
-
     public function analyze(
-        Context $file_context = null,
+        PsalmContext $file_context = null,
         bool $preserve_analyzers = false,
-        Context $global_context = null
+        PsalmContext $global_context = null
     ) {
         $codebase = $this->project_analyzer->getCodebase();
 
@@ -29,7 +24,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
             return;
         }
 
-        $this->taint = $codebase->taint;
+        $taint = $codebase->taint;
 
         $loader = new FilesystemLoader('templates', $codebase->config->base_dir);
         $twig = new Environment($loader, [
@@ -44,23 +39,15 @@ class TemplateFileAnalyzer extends FileAnalyzer
         $twig_source = $loader->getSourceContext($local_file_name);
         $tree = $twig->parse($twig->tokenize($twig_source));
 
-        $context = new Context();
+        $twigContext = new Context($twig_source, $taint);
 
-        $moduleAnalyzer = new TwigModuleAnalyzer($context, $twig_source, $codebase->taint);
-        $moduleAnalyzer->analyzeModule($tree);
+        $traverser = new NodeTraverser($twig, [
+            new TaintAnalysisVisitor($twigContext),
+        ]);
 
-        foreach ($context->vars_in_scope as $var_name => $var_type) {
-            $taint_source = self::getTaintNodeForTwigNamedVariable($local_file_name, $var_name);
-            $this->taint->addTaintNode($taint_source);
+        $traverser->traverse($tree);
 
-            if (null === $var_type->parent_nodes) {
-                continue;
-            }
-
-            foreach ($var_type->parent_nodes as $taint_sink) {
-                $this->taint->addPath($taint_source, $taint_sink, 'arg');
-            }
-        }
+        $twigContext->taintUnassignedVariables($local_file_name);
     }
 
     public static function getTaintNodeForTwigNamedVariable(
