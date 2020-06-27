@@ -50,7 +50,7 @@
             "@phpunit",
             "@codeception"
         ],
-        "analyze": "psalm",
+        "analyze": "psalm --find-dead-code --find-unused-psalm-suppress --long-progress",
         "phpunit": "phpunit --testdox",
         "codeception": [
             "codecept build",

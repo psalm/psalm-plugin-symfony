@@ -55,7 +55,7 @@ jobs:
           restore-keys: php-${{ matrix.php-version }}-psalm-
 
       - name: "Run vimeo/psalm"
-        run: vendor/bin/psalm --config=psalm.xml --diff --diff-methods --shepherd --show-info=false --stats --output-format=github
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --diff --diff-methods --shepherd --show-info=false --stats --output-format=github
 
   tests:
     name: "Tests"

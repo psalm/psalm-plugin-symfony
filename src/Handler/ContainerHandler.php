@@ -90,7 +90,6 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             if ($service->isPublic()) {
                 $class = $service->getClassName();
                 if ($class) {
-                    /** @psalm-suppress InternalMethod */
                     $codebase->classlikes->addFullyQualifiedClassName($class);
                     $return_type_candidate = new Union([new TNamedObject($class)]);
                 }
