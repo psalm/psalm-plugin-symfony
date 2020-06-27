@@ -13,6 +13,9 @@ use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use SimpleXMLElement;
 
+/**
+ * @psalm-suppress UnusedClass
+ */
 class Plugin implements PluginEntryPointInterface
 {
     /**
