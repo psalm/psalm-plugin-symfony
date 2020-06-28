@@ -55,7 +55,17 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         array &$file_replacements = [],
         Union &$return_type_candidate = null
     ) {
-        if (!ContainerHandler::isContainerGet($declaring_method_id)) {
+        if (!self::isContainerMethod($declaring_method_id, 'get')) {
+            if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
+                $argument = $expr->args[0]->value;
+                if ($argument instanceof String_ && !self::followsNamingConvention($argument->value)) {
+                    IssueBuffer::accepts(
+                        new NamingConventionViolation(new CodeLocation($statements_source, $argument)),
+                        $statements_source->getSuppressedIssues()
+                    );
+                }
+            }
+
             return;
         }
 
@@ -80,7 +90,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
 
         $service = self::$containerMeta->get($serviceId);
         if ($service) {
-            if (!self::followsConvention($serviceId) && !class_exists($service->getClassName())) {
+            if (!self::followsNamingConvention($serviceId) && !class_exists($service->getClassName())) {
                 IssueBuffer::accepts(
                     new NamingConventionViolation(new CodeLocation($statements_source, $expr->args[0]->value)),
                     $statements_source->getSuppressedIssues()
@@ -130,13 +140,13 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
-    private static function isContainerGet(string $declaring_method_id): bool
+    private static function isContainerMethod(string $declaringMethodId, string $methodName): bool
     {
         return in_array(
-            $declaring_method_id,
+            $declaringMethodId,
             array_map(
-                function ($c) {
-                    return $c.'::get';
+                function ($c) use ($methodName) {
+                    return $c.'::'.$methodName;
                 },
                 self::GET_CLASSLIKES
             ),
@@ -147,7 +157,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     /**
      * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
      */
-    private static function followsConvention(string $name): bool
+    private static function followsNamingConvention(string $name): bool
     {
         return !preg_match('/[A-Z]/', $name);
     }
