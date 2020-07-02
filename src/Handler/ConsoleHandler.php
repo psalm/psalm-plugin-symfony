@@ -51,7 +51,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     ) {
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
-                /** @psalm-suppress PossiblyInvalidArgument */
                 self::analyseArgument($expr->args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
@@ -65,7 +64,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
-                /** @psalm-suppress PossiblyInvalidArgument */
                 self::analyseOption($expr->args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':

@@ -54,6 +54,45 @@ Feature: Naming conventions
       """
     When I run Psalm
     Then I see these errors
-      | Type                      | Message                                                       |
+      | Type                      | Message                                                      |
+      | NamingConventionViolation | Use snake_case for configuration parameter and service names |
+    And I see no other errors
+
+  Scenario: No naming convention violation for parameter
+    Given I have the following code
+      """
+      <?php
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index(): void
+        {
+          $this->container->getParameter('kernel.cache_dir');
+        }
+      }
+      """
+    When I run Psalm
+    And I see no other errors
+
+  Scenario: Detects parameter naming convention violation
+    Given I have the following code
+      """
+      <?php
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function index(): void
+        {
+          $this->container->getParameter('wronglyNamedParameter');
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                      | Message                                                      |
       | NamingConventionViolation | Use snake_case for configuration parameter and service names |
     And I see no other errors
