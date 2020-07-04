@@ -20,7 +20,15 @@ Feature: Messenger Envelope
       <?php
 
       use Symfony\Component\Messenger\Envelope;
-      use Symfony\Component\Messenger\Stamp\ReceivedStamp;
+      use Symfony\Component\Messenger\Stamp\StampInterface;
+
+      class TestStamp implements StampInterface
+      {
+          public function getDummy(): string
+          {
+              return 'dummy';
+          }
+      }
 
       $envelope = new Envelope(new stdClass());
       """
@@ -39,9 +47,9 @@ Feature: Messenger Envelope
   Scenario: Envelope::last() returns a nullable object of the provided class name
     Given I have the following code
       """
-      $stamp = $envelope->last(ReceivedStamp::class);
+      $stamp = $envelope->last(TestStamp::class);
       if ($stamp !== null) {
-          $transport = $stamp->getTransportName();
+          $dummy = $stamp->getDummy();
       }
       """
     When I run Psalm
@@ -61,9 +69,9 @@ Feature: Messenger Envelope
   Scenario: Envelope::all() returns a list with objects of the provided class name
     Given I have the following code
       """
-      $stamps = $envelope->all(ReceivedStamp::class);
+      $stamps = $envelope->all(TestStamp::class);
       foreach ($stamps as $stamp) {
-          $transport = $stamp->getTransportName();
+          $dummy = $stamp->getDummy();
       }
       """
     When I run Psalm
@@ -83,7 +91,7 @@ Feature: Messenger Envelope
       $stamps = $envelope->all();
       foreach ($stamps as $className => $classStamps) {
           foreach ($classStamps as $stamp) {
-              if ($stamp instanceof Symfony\Component\Messenger\Stamp\StampInterface) {
+              if ($stamp instanceof StampInterface) {
                   echo 'always true';
               }
           }
