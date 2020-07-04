@@ -20,6 +20,7 @@
         "doctrine/orm": "^2.7",
         "phpunit/phpunit": "~7.5",
         "symfony/console": "*",
+        "symfony/messenger": "*",
         "weirdan/codeception-psalm-module": "~0.8"
     },
     "autoload": {
