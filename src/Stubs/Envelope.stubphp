@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Component\Messenger;
+
+use Symfony\Component\Messenger\Stamp\StampInterface;
+
+class Envelope
+{
+    /**
+     * @template T of StampInterface
+     * @psalm-param class-string<T> $stampFqcn
+     * @psalm-return ?T
+     */
+    public function last(string $stampFqcn): ?StampInterface {}
+
+    /**
+     * @template T of StampInterface
+     * @psalm-param class-string<T>|null $stampFqcn
+     * @psalm-return (
+     *     $stampFqcn is string
+     *     ? list<T>
+     *     : array<class-string<StampInterface>, list<StampInterface>>
+     * )
+     */
+    public function all(string $stampFqcn = null): array {}
+}
