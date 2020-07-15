@@ -92,3 +92,19 @@ Feature: Tainting
       | TaintedInput | Detected tainted html |
     And I see no other errors
 
+  Scenario: The user-agent is used in the body of a Response object
+    Given I have the following code
+      """
+      class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response($request->headers->get('user-agent'));
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message                 |
+      | TaintedInput | Detected tainted header |
+    And I see no other errors
