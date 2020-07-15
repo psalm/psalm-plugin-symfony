@@ -133,7 +133,6 @@ Feature: Tainting
         }
       }
       """
-    And I have Psalm newer than "3.12.1" (because of "string casting")
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
