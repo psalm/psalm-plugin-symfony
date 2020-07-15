@@ -1,0 +1,19 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+use Symfony\Component\HttpFoundation\Exception\BadRequestException;
+
+final class InputBag extends ParameterBag
+{
+    /**
+     * Returns a string input value by name.
+     *
+     * @param string|null $default The default value if the input key does not exist
+     *
+     * @return string|null
+     *
+     * @psalm-taint-source input
+     */
+    public function get(string $key, $default = null) {}
+}
