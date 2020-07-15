@@ -40,7 +40,6 @@ Feature: Tainting
       | TaintedInput | Detected tainted html |
     And I see no other errors
 
-
   Scenario: One parameter of the Request's request is used in the body of a Response object
     Given I have the following code
       """
@@ -105,6 +104,24 @@ Feature: Tainting
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message                 |
-      | TaintedInput | Detected tainted header |
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
+    And I see no other errors
+
+  Scenario: All headers are printed in the body of a Response object
+    Given I have the following code
+      """
+      class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response((string) $request->headers);
+        }
+      }
+      """
+    And I have Psalm newer than "3.12.1" (because of "string casting")
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
     And I see no other errors

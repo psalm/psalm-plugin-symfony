@@ -16,6 +16,7 @@ use Psalm\IssueBuffer;
 use Psalm\Plugin\Hook\AfterExpressionAnalysisInterface;
 use Psalm\StatementsSource;
 use PhpParser\PrettyPrinter\Standard;
+use Psalm\Type\TaintKindGroup;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\HeaderBag;
 use Symfony\Component\HttpFoundation\ParameterBag;
@@ -23,7 +24,7 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 class RequestTaint implements AfterExpressionAnalysisInterface
 {
 
-    public static function afterExpressionAnalysis(Expr $expr, Context $context, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [])
+    public static function afterExpressionAnalysis(Expr $expr, Context $context, StatementsSource $statementsSource, Codebase $codebase, array &$fileReplacements = [])
     {
         if(!$expr instanceof Expr\MethodCall || strval($expr->name) !== 'get') {
             return;
@@ -44,6 +45,12 @@ class RequestTaint implements AfterExpressionAnalysisInterface
             return;
         }
 
-        IssueBuffer::accepts(new TaintedInput('Detected tainted header', new CodeLocation($statements_source, $expr)));
+        $uniqId = $statementsSource->getFileName() . ':' . $expr->getLine() . '/' . $expr->getStartTokenPos();
+        $codebase->addTaintSource(
+            $statementsSource->getNodeTypeProvider()->getType($expr),
+            'tainted-header-'.$uniqId,
+            TaintKindGroup::ALL_INPUT,
+            new CodeLocation($statementsSource, $expr)
+        );
     }
 }
