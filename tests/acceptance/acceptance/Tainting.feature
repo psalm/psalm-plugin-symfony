@@ -47,9 +47,14 @@ Feature: Tainting
       | ->query   |
       | ->cookies |
 
+<<<<<<< b456bb500780440e287b18df20b41c7734ab4671
   Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
     Given I have the "symfony/framework-bundle" package satisfying the "^5.1"
     And I have the following code
+=======
+  Scenario: One parameter of the Request's request is used in the body of a Response object
+    Given I have the following code
+>>>>>>> Taint HeaderBag::__toString (and a fix of psalm taint api usage)
       """
       class MyController
       {
@@ -103,3 +108,41 @@ Feature: Tainting
       | Type         | Message               |
       | TaintedInput | Detected tainted html |
     And I see no other errors
+<<<<<<< b456bb500780440e287b18df20b41c7734ab4671
+=======
+
+  Scenario: The user-agent is used in the body of a Response object
+    Given I have the following code
+      """
+      class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response($request->headers->get('user-agent'));
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
+    And I see no other errors
+
+  Scenario: All headers are printed in the body of a Response object
+    Given I have the following code
+      """
+      class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response((string) $request->headers);
+        }
+      }
+      """
+    And I have Psalm newer than "3.12.1" (because of "string casting")
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
+    And I see no other errors
+>>>>>>> Taint HeaderBag::__toString (and a fix of psalm taint api usage)
