@@ -18,7 +18,6 @@ use Symfony\Component\HttpFoundation\HeaderBag;
 
 class RequestTaint implements AfterExpressionAnalysisInterface
 {
-
     public static function afterExpressionAnalysis(Expr $expr, Context $context, StatementsSource $statementsSource, Codebase $codebase, array &$fileReplacements = []): void
     {
         if(!$expr instanceof MethodCall || strval($expr->name) !== 'get' || !isset($expr->args[0])) {
