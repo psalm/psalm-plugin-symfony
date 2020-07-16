@@ -23,31 +23,14 @@ Feature: Tainting
       use Symfony\Component\HttpFoundation\Response;
       """
 
-  Scenario: One parameter of the Request is used in the body of a Response object
+  Scenario Outline: One parameter of the Request's request/query/cookies is printed in the body of a Response object
     Given I have the following code
       """
       class MyController
       {
         public function __invoke(Request $request): Response
         {
-          return new Response($request->get('untrusted'));
-        }
-      }
-      """
-    When I run Psalm with taint analysis
-    Then I see these errors
-      | Type         | Message               |
-      | TaintedInput | Detected tainted html |
-    And I see no other errors
-
-  Scenario Outline: One parameter of the Request's request/query/cookies is used in the body of a Response object
-    Given I have the following code
-      """
-      class MyController
-      {
-        public function __invoke(Request $request): Response
-        {
-          return new Response($request-><property>->get('untrusted'));
+          return new Response($request<property>->get('untrusted'));
         }
       }
       """
@@ -57,10 +40,11 @@ Feature: Tainting
       | TaintedInput | Detected tainted html |
     And I see no other errors
     Examples:
-      | property |
-      | request  |
-      | query    |
-      | cookies  |
+      | property  |
+      |           |
+      | ->request |
+      | ->query   |
+      | ->cookies |
 
   Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
     Given I have the following code

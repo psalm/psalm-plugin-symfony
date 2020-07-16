@@ -2,8 +2,6 @@
 
 namespace Symfony\Component\HttpFoundation;
 
-use Symfony\Component\HttpFoundation\Exception\BadRequestException;
-
 final class InputBag extends ParameterBag
 {
     /**
