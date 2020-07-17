@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Taint;
 
 
-use PhpParser\Node;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Scalar\String_;
@@ -15,12 +13,9 @@ use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
 use Psalm\FileManipulation;
-use Psalm\Plugin\Hook\AfterEveryFunctionCallAnalysisInterface;
 use Psalm\Plugin\Hook\AfterExpressionAnalysisInterface;
-use Psalm\Plugin\Hook\AfterFunctionLikeAnalysisInterface;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
-use Psalm\Storage\FunctionLikeStorage;
 use Psalm\Type\TaintKindGroup;
 use Psalm\Type\Union;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -62,6 +57,7 @@ class TwigTaint implements AfterMethodCallAnalysisInterface, AfterExpressionAnal
         if ($type === null) {
             throw new \RuntimeException('Can not guess the type of the expression.');
         }
+
         $uniqId = $statementsSource->getFileName() . ':' . $expr->getLine() . '/' . $expr->getStartTokenPos();
         $codebase->addTaintSink(
             $type,
