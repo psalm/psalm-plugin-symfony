@@ -5,71 +5,47 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Taint;
 
 
-use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Expr\StaticCall;
-use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
-use Psalm\FileManipulation;
-use Psalm\Plugin\Hook\AfterExpressionAnalysisInterface;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
 use Psalm\StatementsSource;
-use Psalm\Type\TaintKindGroup;
-use Psalm\Type\Union;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Psalm\SymfonyPsalmPlugin\Test\TwigBridge;
+use Twig\Environment;
 
-class TwigTaint implements AfterMethodCallAnalysisInterface, AfterExpressionAnalysisInterface
+class TwigTaint implements MethodReturnTypeProviderInterface
 {
-    /** @var Expr */
-    private static $nextTaintedNode;
+    public static function getClassLikeNames(): array
+    {
+        return [
+            Environment::class,
+        ];
+    }
+
+    public static function getMethodReturnType(StatementsSource $source, string $fq_classlike_name, string $method_name_lowercase, array $call_args, Context $context, CodeLocation $code_location, array $template_type_parameters = null, string $called_fq_classlike_name = null, string $called_method_name_lowercase = null)
+    {
+        if ($method_name_lowercase !== 'render') {
+            return;
+        }
+
+        $rootDir = __DIR__.'/../../tests/_run';
+        $twigEnvironment = TwigBridge::getEnvironment($rootDir, $rootDir.'/cache');
+
+        $templateName = $call_args[0]->value->value;
+        $template = $twigEnvironment->load($templateName);
+        $internalTemplate = $template->unwrap();
+
+        // The internal template is the real stuff, with calls to `twig_raw_filter` (the actual sink)
+        // $internalTemplate::display(...)
+    }
 
     /**
-     * This callback is used to spot the calls that may be a sink
+     * This method should be called by some hook happening before the ProjectAnalyzer scans the files
+     * Here in the test, as the template cache directory is located under the root directory, it will be analysed, but it will no longer be the case in a real world project
      */
-    public static function afterMethodCallAnalysis(Expr $expr, string $method_id, string $appearing_method_id, string $declaring_method_id, Context $context, StatementsSource $statementsSource, Codebase $codebase, array &$file_replacements = [], Union &$return_type_candidate = null): void
+    public function beforeCodebaseIsPopulated(Codebase $codebase)
     {
-        if($appearing_method_id !== AbstractController::class.'::render') {
-            return;
-        }
-
-        $templateName = $expr->args[0]->value;
-        if(!$templateName instanceof String_) {
-            return;
-        }
-
-        if(self::hasAutoescaping($templateName)) {
-            return;
-        }
-
-        static::$nextTaintedNode = $expr;
-    }
-
-    public static function afterExpressionAnalysis(Expr $expr, Context $context, StatementsSource $statementsSource, Codebase $codebase, array &$fileReplacements = []): void
-    {
-        if ($expr !== static::$nextTaintedNode) {
-            return;
-        }
-        static::$nextTaintedNode = null;
-
-        $type = $statementsSource->getNodeTypeProvider()->getType($expr);
-        if ($type === null) {
-            throw new \RuntimeException('Can not guess the type of the expression.');
-        }
-
-        $uniqId = $statementsSource->getFileName() . ':' . $expr->getLine() . '/' . $expr->getStartTokenPos();
-        $codebase->addTaintSink(
-            $type,
-            'tainted-' . $uniqId,
-            TaintKindGroup::ALL_INPUT,
-            new CodeLocation($statementsSource, $expr)
-        );
-    }
-
-    private static function hasAutoescaping(String_ $templateName): bool
-    {
-        //@todo: implement
-        return empty($templateName);
+        // Add some logic to find the twig cache directory (maybe simply using config ?)
+        // foreach twigCompiledClass : $codebase->addFilesToAnalyze();
     }
 }

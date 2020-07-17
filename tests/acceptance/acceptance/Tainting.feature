@@ -104,7 +104,6 @@ Feature: Tainting
       | TaintedInput | Detected tainted html |
     And I see no other errors
 
-  @current
   Scenario: One parameter of the Request is used in a twig template without escaping
     Given I have the following code
       """

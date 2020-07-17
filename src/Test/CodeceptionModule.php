@@ -29,15 +29,24 @@ class CodeceptionModule extends BaseModule
     private $fs;
 
     /**
-     * @Given I have the following :twig template :code
+     * @Given I have the following :templateName template :code
      */
-    public function haveTheFollowingTemplate(string $twig, string $code): void
+    public function haveTheFollowingTemplate(string $templateName, string $code): void
     {
-        $file = rtrim($this->config['default_dir'], '/') . '/' . $twig;
+        $rootDirectory = rtrim($this->config['default_dir'], '/');
+        $templateRootDirectory = $rootDirectory . '/' . TwigBridge::TEMPLATE_DIR;
+        if(!file_exists($templateRootDirectory)) {
+            mkdir($templateRootDirectory);
+        }
+
         $this->fs()->writeToFile(
-            $file,
+            $templateRootDirectory . '/' . $templateName,
             $code
         );
+
+        // Generate template compiled classes so psalm can analyse them
+        $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $rootDirectory.'/cache');
+        $twigEnvironment->load($templateName);
     }
 
     private function fs(): Filesystem
