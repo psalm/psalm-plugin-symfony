@@ -103,3 +103,31 @@ Feature: Tainting
       | Type         | Message               |
       | TaintedInput | Detected tainted html |
     And I see no other errors
+
+  @current
+  Scenario: One parameter of the Request is used in a twig template without escaping
+    Given I have the following code
+      """
+      use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+      class MyController extends AbstractController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return $this->render('index.html.twig', [
+            'untrusted' => $request->get('untrusted')
+          ]);
+        }
+      }
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message                 |
+      | TaintedInput | Detected tainted header |
+    And I see no other errors
