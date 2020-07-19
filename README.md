@@ -25,11 +25,11 @@ The plugin calculates real return type by checking the given argument and marks 
 
 ### Configuration
 
-If you followed installation instructions, psalm-plugin command would added plugin configuration to psalm.xml
+If you follow installation instructions, psalm-plugin command will add plugin configuration to psalm.xml
 
 ```xml
 <?xml version="1.0"?>
-<psalm totallyTyped="true">
+<psalm errorLevel="1">
     <!--  project configuration -->
 
     <plugins>
