@@ -54,7 +54,7 @@
         "phpunit": "phpunit --testdox",
         "codeception": [
             "codecept build",
-            "codecept run -v"
+            "codecept run -v -g symfony-common"
         ]
     },
     "suggest": {

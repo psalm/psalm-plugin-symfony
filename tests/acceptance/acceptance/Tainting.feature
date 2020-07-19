@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Tainting
 
   Background:

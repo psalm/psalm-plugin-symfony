@@ -12,12 +12,29 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use SimpleXMLElement;
+use Symfony\Component\HttpKernel\Kernel;
 
 /**
  * @psalm-suppress UnusedClass
  */
 class Plugin implements PluginEntryPointInterface
 {
+    /**
+     * @return string[]
+     */
+    protected function getCommonStubs(): array {
+        return glob(__DIR__ . '/Stubs/common/*.stubphp') ?: [];
+    }
+
+    /**
+     * @param int $majorVersion symfony major version
+     * @return string[]
+     */
+    protected function getStubsForMajorVersion(int $majorVersion): array {
+        $version = (string) $majorVersion;
+        return glob(__DIR__ . '/Stubs/' . $version . '/*.stubphp') ?: [];
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -45,7 +62,11 @@ class Plugin implements PluginEntryPointInterface
 
         $api->registerHooksFromClass(ContainerHandler::class);
 
-        foreach (glob(__DIR__.'/Stubs/*.stubphp') as $stubFilePath) {
+        $stubs = array_merge(
+            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
+        );
+
+        foreach ($stubs as $stubFilePath) {
             $api->addStubFile($stubFilePath);
         }
     }

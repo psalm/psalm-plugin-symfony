@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Request getContent
   Symfony Request has getContent method on which return type changes based on argument
 

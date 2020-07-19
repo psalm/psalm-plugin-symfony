@@ -1,0 +1,15 @@
+<?php
+
+namespace Symfony\Bundle\FrameworkBundle\Controller;
+
+use Symfony\Contracts\Service\ServiceSubscriberInterface;
+use Psr\Container\ContainerInterface;
+
+class AbstractController implements ServiceSubscriberInterface
+{
+    /**
+     * @var ContainerInterface
+     * @psalm-suppress PropertyNotSetInConstructor
+     */
+    protected $container;
+}

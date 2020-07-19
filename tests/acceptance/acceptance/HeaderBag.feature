@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Header get
 
   Background:

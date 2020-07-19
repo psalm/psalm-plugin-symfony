@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Container service
   Detect ContainerInterface::get() result type
 

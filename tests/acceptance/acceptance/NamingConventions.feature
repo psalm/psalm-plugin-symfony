@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Naming conventions
   Detect naming convention violations
 

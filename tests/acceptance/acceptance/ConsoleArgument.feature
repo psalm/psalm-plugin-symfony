@@ -1,3 +1,4 @@
+@symfony-common
 Feature: ConsoleArgument
 
   Background:
