@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Messenger Envelope
 
   Background:

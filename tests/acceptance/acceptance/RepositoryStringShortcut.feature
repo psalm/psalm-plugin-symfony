@@ -1,3 +1,4 @@
+@symfony-common
 Feature: RepositoryStringShortcut
   In order to follow best practices for Symfony
   As a Psalm user

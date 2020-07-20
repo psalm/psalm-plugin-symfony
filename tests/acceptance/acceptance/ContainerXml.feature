@@ -1,3 +1,4 @@
+@symfony-common
 Feature: Container XML config
   Detect ContainerInterface::get() result type
 
