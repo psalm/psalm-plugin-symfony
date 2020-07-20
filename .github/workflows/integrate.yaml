@@ -126,7 +126,7 @@ jobs:
         run: vendor/bin/codecept run -v -g symfony-3
 
       - name: "Run symfony 4 acceptance tests with codeception"
-        if: matrix.symfony == '4'
+        if: matrix.symfony-version == '4'
         run: vendor/bin/codecept run -v -g symfony-4
 
       - name: "Run Symfony 5 acceptance tests with codeception"
