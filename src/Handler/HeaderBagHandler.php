@@ -12,6 +12,7 @@ use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
+use Psalm\Type\TaintKindGroup;
 use Psalm\Type\Union;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
@@ -30,20 +31,40 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
             return null;
         }
 
-        if ('get' === $method_name_lowercase) {
-            if (3 === count($call_args) && (($arg = $call_args[2]->value) instanceof ConstFetch) && 'false' === $arg->name->parts[0]) {
-                return new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
-            }
-
-            if (isset($call_args[1])) {
-                if ($call_args[1]->value instanceof String_) {
-                    return new Union([new TString()]);
-                }
-            }
-
-            return new Union([new TString(), new TNull()]);
+        if ('get' !== $method_name_lowercase) {
+            return null;
         }
 
-        return null;
+        $type = static::makeReturnType($call_args);
+
+        if($call_args[0]->value instanceof String_ && $call_args[0]->value->value === 'user-agent') {
+            $uniqId = $source->getFileName() . ':' . $code_location->getLineNumber() . '-' . $code_location->getColumn();
+            $source->getCodebase()->addTaintSource(
+                $type,
+                'tainted-' . $uniqId,
+                TaintKindGroup::ALL_INPUT,
+                $code_location
+            );
+        }
+
+        return $type;
+    }
+
+    /**
+     * @param  array<\PhpParser\Node\Arg>    $call_args
+     */
+    private static function makeReturnType(array $call_args): Union
+    {
+        if (3 === count($call_args) && (($arg = $call_args[2]->value) instanceof ConstFetch) && 'false' === $arg->name->parts[0]) {
+            return new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+        }
+
+        if (isset($call_args[1])) {
+            if ($call_args[1]->value instanceof String_) {
+                return new Union([new TString()]);
+            }
+        }
+
+        return new Union([new TString(), new TNull()]);
     }
 }
