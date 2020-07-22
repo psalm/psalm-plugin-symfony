@@ -13,6 +13,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Taint\RequestTaint;
+use Psalm\SymfonyPsalmPlugin\Taint\TwigTaint;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -81,5 +82,8 @@ class Plugin implements PluginEntryPointInterface
 
         require_once __DIR__.'/Taint/RequestTaint.php';
         $api->registerHooksFromClass(RequestTaint::class);
+
+        require_once __DIR__.'/Taint/TwigTaint.php';
+        $api->registerHooksFromClass(TwigTaint::class);
     }
 }
