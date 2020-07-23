@@ -7,9 +7,9 @@ Feature: Tainting
       <psalm totallyTyped="true">
         <projectFiles>
           <directory name="."/>
+          <directory name="templates"/>
           <ignoreFiles>
             <directory name="../../vendor"/>
-            <!--<directory name="./cache"/> uncommenting this will have the taint input issues ignored -->
           </ignoreFiles>
         </projectFiles>
         <plugins>

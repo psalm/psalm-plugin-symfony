@@ -24,43 +24,27 @@ use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use RuntimeException;
 use Twig\Environment;
-use Twig\Template;
+use Twig\Node\ModuleNode;
+use Twig\NodeTraverser;
 
-class TwigTaint implements MethodReturnTypeProviderInterface, AfterCodebasePopulatedInterface
+class TwigTaint implements MethodReturnTypeProviderInterface
 {
-    /**
-     * Add compiled twig template for analysis
-     * @return void
-     */
-    public static function afterCodebasePopulated(Codebase $codebase)
-    {
-        if(!isset(Plugin::$twig_cache_path) || !is_dir(Plugin::$twig_cache_path)) {
-            return;
-        }
-
-        foreach (glob(Plugin::$twig_cache_path.'/*/*.php') as $compiledTemplate) {
-            // if we scan files that are already scanned, the taint analysis will not work
-            if(array_key_exists($compiledTemplate, $codebase->scanner->getScannedFiles())) {
-                continue;
-            }
-
-            if($codebase->config->mustBeIgnored($compiledTemplate)) {
-                // @todo: this mean that even if a taint is found on this file, the issue will be ignored; we have to bypass this.
-            }
-
-            $codebase->addFilesToAnalyze([$compiledTemplate => $compiledTemplate]);
-        }
-
-        $codebase->scanFiles();
-    }
-
     public static function getClassLikeNames(): array
     {
         return [Environment::class];
     }
 
-    public static function getMethodReturnType(StatementsSource $source, string $fq_classlike_name, string $method_name_lowercase, array $call_args, Context $context, CodeLocation $code_location, array $template_type_parameters = null, string $called_fq_classlike_name = null, string $called_method_name_lowercase = null)
-    {
+    public static function getMethodReturnType(
+        StatementsSource $source,
+        string $fq_classlike_name,
+        string $method_name_lowercase,
+        array $call_args,
+        Context $context,
+        CodeLocation $code_location,
+        array $template_type_parameters = null,
+        string $called_fq_classlike_name = null,
+        string $called_method_name_lowercase = null
+    ) {
         if(!$source instanceof StatementsAnalyzer) {
             throw new RuntimeException(sprintf('The %s::%s hook can only be called using a %s.', __CLASS__, __METHOD__, StatementsAnalyzer::class));
         }
@@ -69,53 +53,96 @@ class TwigTaint implements MethodReturnTypeProviderInterface, AfterCodebasePopul
             return;
         }
 
-        $fake_method_call = new MethodCall(
-            new Variable(
-                '__fake_twig_env_var__'
-            ),
-            new Identifier(
-                'doDisplay'
-            ),
-            [$call_args[1]]
-        );
-
         $firstArgument = $call_args[0]->value;
-        if(!$firstArgument instanceof String_) {
+
+        if (!$firstArgument instanceof String_) {
             return;
         }
 
-        $template = self::getTemplate($source->getCodebase()->config, $firstArgument->value);
+        $codebase = $source->getCodebase();
 
-        $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
-            new TNamedObject(get_class($template))
-        ]);
+        $config = $codebase->config;
 
-        MethodCallAnalyzer::analyze(
-            $source,
-            $fake_method_call,
-            $context
-        );
-    }
-
-    private static function getTemplate(Config $config, $templateName): Template
-    {
         $twigEnvironment = TwigBridge::getEnvironment($config->base_dir, $config->base_dir.'cache/twig');
 
-        $template = $twigEnvironment->load($templateName);
-//
-//        $templateClass = $twigEnvironment->getTemplateClass($templateName);
-//        $templatePath = $twigEnvironment->getCache()->generateKey($templateName, $templateClass);
-//        file_put_contents('/tmp/amod_source', var_export($templatePath, true), FILE_APPEND);
-        return $template->unwrap();
+        $node = self::getParsedTemplate($twigEnvironment, $firstArgument->value);
+
+        $printNodeTainter = new PrintNodeTainter();
+
+        $traverser = new NodeTraverser($twigEnvironment, [$printNodeTainter]);
+
+        $traverser->traverse($node);
+
+        if ($printNodeTainter->sinks) {
+            foreach ($printNodeTainter->sinks as ['name' => $name, 'location' => $location]) {
+                $file_analyzer = new \Psalm\Internal\Analyzer\FileAnalyzer(
+                    $source->getProjectAnalyzer(),
+                    $location->file_path,
+                    $location->file_name
+                );
+
+                $node_data = new \Psalm\Internal\Provider\NodeDataProvider();
+
+                $second_arg_type = $source->getNodeTypeProvider()->getType($call_args[1]->value);
+
+                $echo_statements_analyzer = new StatementsAnalyzer(
+                    $file_analyzer,
+                    $node_data
+                );
+
+                if (!$codebase->file_storage_provider->has($location->file_path)) {
+                    $codebase->file_storage_provider->create($location->file_path);
+                    $source->getProjectAnalyzer()->addProjectFile($location->file_path);
+                }
+
+                $context = new \Psalm\Context();
+
+                $context->vars_in_scope['$__twig_context__'] = clone $second_arg_type;
+
+                $fake_echo = new \PhpParser\Node\Stmt\Echo_(
+                    [
+                        new \PhpParser\Node\Expr\ArrayDimFetch(
+                            new \PhpParser\Node\Expr\Variable(
+                                '__twig_context__',
+                                [
+                                    'startLine' => $location->raw_line_number,
+                                    'startFilePos' => $location->raw_file_start,
+                                    'endFilePos' => $location->raw_file_end,
+                                ]
+                            ),
+                            new \PhpParser\Node\Scalar\String_(
+                                $name,
+                                [
+                                    'startLine' => $location->raw_line_number,
+                                    'startFilePos' => $location->raw_file_start,
+                                    'endFilePos' => $location->raw_file_end,
+                                ]
+                            ),
+                            [
+                                'startLine' => $location->raw_line_number,
+                                'startFilePos' => $location->raw_file_start,
+                                'endFilePos' => $location->raw_file_end,
+                            ]
+                        )
+                    ],
+                    [
+                        'startLine' => $location->raw_line_number,
+                        'startFilePos' => $location->raw_file_start,
+                        'endFilePos' => $location->raw_file_end,
+                    ]
+                );
+
+                $echo_statements_analyzer->analyze([$fake_echo], $context);
+            }
+        }
     }
 
-    /**
-     * This method should be called by some hook happening before the ProjectAnalyzer scans the files
-     * Here in the test, as the template cache directory is located under the root directory, it will be analysed, but it will no longer be the case in a real world project
-     */
-    public function beforeCodebaseIsPopulated(Codebase $codebase)
+    private static function getParsedTemplate(Environment $twigEnvironment, $templateName): ModuleNode
     {
-        // Add some logic to find the twig cache directory (maybe simply using config ?)
-        // foreach twigCompiledClass : $codebase->addFilesToAnalyze();
+        $template = $twigEnvironment->load($templateName);
+
+        $source = $twigEnvironment->getLoader()->getSourceContext($templateName);
+
+        return $twigEnvironment->parse($twigEnvironment->tokenize($source));
     }
 }
