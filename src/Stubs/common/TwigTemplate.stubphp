@@ -1,0 +1,13 @@
+<?php
+
+namespace Twig;
+
+
+class Template
+{
+    /**
+     * @psalm-return void
+     * @psalm-taint-specialize
+     */
+    protected function doDisplay(array $context, array $blocks = []) {}
+}

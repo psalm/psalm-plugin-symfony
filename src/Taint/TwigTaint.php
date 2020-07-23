@@ -28,6 +28,10 @@ use Twig\Template;
 
 class TwigTaint implements MethodReturnTypeProviderInterface, AfterCodebasePopulatedInterface
 {
+    /**
+     * Add compiled twig template for analysis
+     * @return void
+     */
     public static function afterCodebasePopulated(Codebase $codebase)
     {
         if(!isset(Plugin::$twig_cache_path) || !is_dir(Plugin::$twig_cache_path)) {
@@ -36,10 +40,15 @@ class TwigTaint implements MethodReturnTypeProviderInterface, AfterCodebasePopul
 
         foreach (glob(Plugin::$twig_cache_path.'/*/*.php') as $compiledTemplate) {
             // if we scan files that are already scanned, the taint analysis will not work
-            if(in_array($compiledTemplate, $codebase->scanner->getScannedFiles())) {
+            if(array_key_exists($compiledTemplate, $codebase->scanner->getScannedFiles())) {
                 continue;
             }
-            $codebase->scanner->addFileToDeepScan($compiledTemplate);
+
+            if($codebase->config->mustBeIgnored($compiledTemplate)) {
+                // @todo: this mean that even if a taint is found on this file, the issue will be ignored; we have to bypass this.
+            }
+
+            $codebase->addFilesToAnalyze([$compiledTemplate => $compiledTemplate]);
         }
 
         $codebase->scanFiles();
