@@ -34,9 +34,13 @@ class CodeceptionModule extends BaseModule
     public function haveTheFollowingTemplate(string $templateName, string $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], '/');
-        $templateRootDirectory = $rootDirectory . '/' . TwigBridge::TEMPLATE_DIR;
+        $templateRootDirectory = $rootDirectory . '/templates';
+        $cacheDirectory = $rootDirectory.'/cache/twig';
         if(!file_exists($templateRootDirectory)) {
             mkdir($templateRootDirectory);
+        }
+        if(!file_exists($cacheDirectory)) {
+            mkdir($cacheDirectory, 0777, true);
         }
 
         $this->fs()->writeToFile(
@@ -44,8 +48,8 @@ class CodeceptionModule extends BaseModule
             $code
         );
 
-        // Generate template compiled classes so psalm can analyse them
-        $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $rootDirectory.'/cache');
+//         Generate template compiled classes so psalm can analyse them
+        $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $cacheDirectory);
         $twigEnvironment->load($templateName);
     }
 

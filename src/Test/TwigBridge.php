@@ -28,6 +28,10 @@ class TwigBridge
         }
 
         $loader = new FilesystemLoader(self::TEMPLATE_DIR, $rootDirectory);
+
+        if (!is_dir($cacheDirectory)) {
+            throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
+        }
         $cache = new FilesystemCache($cacheDirectory);
 
         return $environment = new Environment($loader, [

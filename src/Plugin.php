@@ -83,7 +83,11 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Taint/RequestTaint.php';
         $api->registerHooksFromClass(RequestTaint::class);
 
-        require_once __DIR__.'/Taint/TwigTaint.php';
-        $api->registerHooksFromClass(TwigTaint::class);
+        if(isset($config->twigCachePath)) {
+            static::$twig_cache_path = (string) $config->twigCachePath;
+
+            require_once __DIR__.'/Taint/TwigTaint.php';
+            $api->registerHooksFromClass(TwigTaint::class);
+        }
     }
 }

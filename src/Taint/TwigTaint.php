@@ -11,11 +11,14 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
+use Psalm\Config;
 use Psalm\Context;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
+use Psalm\Plugin\Hook\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
 use Psalm\StatementsSource;
+use Psalm\SymfonyPsalmPlugin\Plugin;
 use Psalm\SymfonyPsalmPlugin\Test\TwigBridge;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
@@ -23,13 +26,28 @@ use RuntimeException;
 use Twig\Environment;
 use Twig\Template;
 
-class TwigTaint implements MethodReturnTypeProviderInterface
+class TwigTaint implements MethodReturnTypeProviderInterface, AfterCodebasePopulatedInterface
 {
+    public static function afterCodebasePopulated(Codebase $codebase)
+    {
+        if(!isset(Plugin::$twig_cache_path) || !is_dir(Plugin::$twig_cache_path)) {
+            return;
+        }
+
+        foreach (glob(Plugin::$twig_cache_path.'/*/*.php') as $compiledTemplate) {
+            // if we scan files that are already scanned, the taint analysis will not work
+            if(in_array($compiledTemplate, $codebase->scanner->getScannedFiles())) {
+                continue;
+            }
+            $codebase->scanner->addFileToDeepScan($compiledTemplate);
+        }
+
+        $codebase->scanFiles();
+    }
+
     public static function getClassLikeNames(): array
     {
-        return [
-            Environment::class,
-        ];
+        return [Environment::class];
     }
 
     public static function getMethodReturnType(StatementsSource $source, string $fq_classlike_name, string $method_name_lowercase, array $call_args, Context $context, CodeLocation $code_location, array $template_type_parameters = null, string $called_fq_classlike_name = null, string $called_method_name_lowercase = null)
@@ -57,7 +75,8 @@ class TwigTaint implements MethodReturnTypeProviderInterface
             return;
         }
 
-        $template = self::getTemplate($firstArgument->value);
+        $template = self::getTemplate($source->getCodebase()->config, $firstArgument->value);
+
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
             new TNamedObject(get_class($template))
         ]);
@@ -69,12 +88,15 @@ class TwigTaint implements MethodReturnTypeProviderInterface
         );
     }
 
-    private static function getTemplate($templateName): Template
+    private static function getTemplate(Config $config, $templateName): Template
     {
-        $rootDir = __DIR__.'/../../tests/_run';
-        $twigEnvironment = TwigBridge::getEnvironment($rootDir, $rootDir.'/cache');
+        $twigEnvironment = TwigBridge::getEnvironment($config->base_dir, $config->base_dir.'cache/twig');
 
         $template = $twigEnvironment->load($templateName);
+//
+//        $templateClass = $twigEnvironment->getTemplateClass($templateName);
+//        $templatePath = $twigEnvironment->getCache()->generateKey($templateName, $templateClass);
+//        file_put_contents('/tmp/amod_source', var_export($templatePath, true), FILE_APPEND);
         return $template->unwrap();
     }
 

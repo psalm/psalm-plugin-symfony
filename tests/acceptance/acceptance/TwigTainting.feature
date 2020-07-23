@@ -10,7 +10,9 @@ Feature: Tainting
           <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
         </projectFiles>
         <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <twigCachePath>./cache/twig</twigCachePath>
+          </pluginClass>
         </plugins>
       </psalm>
       """
@@ -27,8 +29,23 @@ Feature: Tainting
       function twig() {}
       """
 
+  Scenario: One parameter of the twig rendering is tainted but autoescaping is on
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
   @current
-  Scenario: One parameter of the Request is used in a twig template without escaping
+  Scenario: One parameter of the twig rendering is tainted
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
