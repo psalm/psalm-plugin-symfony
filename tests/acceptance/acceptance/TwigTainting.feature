@@ -10,8 +10,13 @@ Feature: Tainting
           <directory name="templates"/>
           <ignoreFiles>
             <directory name="../../vendor"/>
+            <!--<directory name="./cache"/> uncommenting this will have the taint input issues ignored -->
           </ignoreFiles>
         </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/TwigAnalyzer.php"/>
+        </fileExtensions>
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
             <twigCachePath>./cache/twig</twigCachePath>
