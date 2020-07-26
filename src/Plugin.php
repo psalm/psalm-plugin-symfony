@@ -23,6 +23,8 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class Plugin implements PluginEntryPointInterface
 {
+    public static $twig_cache_path;
+
     /**
      * @return string[]
      */
@@ -91,8 +93,11 @@ class Plugin implements PluginEntryPointInterface
             }
             static::$twig_cache_path = realpath($twig_cache_path);
 
-            require_once __DIR__.'/Taint/TwigTaint.php';
-            $api->registerHooksFromClass(TwigTaint::class);
+            require_once __DIR__.'/Taint/CachedTemplatesTainter.php';
+            $api->registerHooksFromClass(CachedTemplatesTainter::class);
         }
+
+        require_once __DIR__.'/Taint/AnalyzedTemplatesTainter.php';
+        $api->registerHooksFromClass(AnalyzedTemplatesTainter::class);
     }
 }

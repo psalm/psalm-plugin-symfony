@@ -10,17 +10,15 @@ Feature: Tainting
           <directory name="templates"/>
           <ignoreFiles>
             <directory name="../../vendor"/>
-            <!--<directory name="./cache"/> uncommenting this will have the taint input issues ignored -->
+            <directory name="./cache"/>
           </ignoreFiles>
         </projectFiles>
         <fileExtensions>
            <extension name=".php" />
-           <extension name=".twig" checker="../../src/TwigAnalyzer.php"/>
+           <extension name=".twig" checker="../../src/Taint/TemplateFileAnalyzer.php"/>
         </fileExtensions>
         <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <twigCachePath>./cache/twig</twigCachePath>
-          </pluginClass>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
         </plugins>
       </psalm>
       """
@@ -36,7 +34,7 @@ Feature: Tainting
        */
       function twig() {}
       """
-
+  @current
   Scenario: One parameter of the twig rendering is tainted
     Given I have the following code
       """

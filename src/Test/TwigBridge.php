@@ -6,6 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Test;
 
 
 use InvalidArgumentException;
+use Psalm\CodeLocation;
 use RuntimeException;
 use Twig\Cache\CacheInterface;
 use Twig\Cache\FilesystemCache;
@@ -37,7 +38,7 @@ class TwigBridge
         return $environment = new Environment($loader, [
             'cache' => $cache,
             'auto_reload' => true,
-            'debug' => false,
+            'debug' => true,
             'optimizations' => 0,
             'strict_variables' => false,
         ]);
@@ -55,5 +56,31 @@ class TwigBridge
         }
 
         return $cache = new FilesystemCache($directory);
+    }
+
+    public static function getLocation(\Twig\Source $sourceContext, int $lineNumber) : CodeLocation
+    {
+        $fileName = $sourceContext->getName();
+        $filePath = $sourceContext->getPath();
+        $fileCode = file_get_contents($filePath);
+
+        $lines = explode("\n", $fileCode);
+
+        $file_start = 0;
+
+        for ($i = 0; $i < $lineNumber - 1; $i++) {
+            $file_start += strlen($lines[$i]) + 1;
+        }
+
+        $file_start += strpos($lines[$lineNumber - 1], $fileCode);
+        $file_end = $file_start + strlen($fileCode);
+
+        return new CodeLocation\Raw(
+            $fileCode,
+            $filePath,
+            $fileName,
+            $file_start,
+            $file_end
+        );
     }
 }
