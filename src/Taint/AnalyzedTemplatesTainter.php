@@ -35,6 +35,10 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         $template_name = $expr->args[0]->value->value;
         $twig_arguments_type = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
 
+        if ($twig_arguments_type === null) {
+            return;
+        }
+
         foreach ($twig_arguments_type->parent_nodes as $source_taint) {
             preg_match('/array\[\'([a-zA-Z]+)\'\]/', $source_taint->label, $matches);
             $sink_taint = TemplateFileAnalyzer::getTaintNodeForTwigNamedVariable(

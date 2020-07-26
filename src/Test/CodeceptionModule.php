@@ -35,20 +35,26 @@ class CodeceptionModule extends BaseModule
     {
         $rootDirectory = rtrim($this->config['default_dir'], '/');
         $templateRootDirectory = $rootDirectory . '/templates';
-        $cacheDirectory = $rootDirectory.'/cache/twig';
-        if(!file_exists($templateRootDirectory)) {
+        if (!file_exists($templateRootDirectory)) {
             mkdir($templateRootDirectory);
-        }
-        if(!file_exists($cacheDirectory)) {
-            mkdir($cacheDirectory, 0777, true);
         }
 
         $this->fs()->writeToFile(
             $templateRootDirectory . '/' . $templateName,
             $code
         );
+    }
 
-//         Generate template compiled classes so psalm can analyse them
+    /**
+     * @Given the :templateName template is compiled in the :cacheDirectory directory
+     */
+    public function haveTheTemplateCompiled(string $templateName, string $cacheDirectory){
+        $rootDirectory = rtrim($this->config['default_dir'], '/');
+        $cacheDirectory = $rootDirectory . '/' .ltrim($cacheDirectory, '/');
+        if (!file_exists($cacheDirectory)) {
+            mkdir($cacheDirectory, 0777, true);
+        }
+
         $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $cacheDirectory);
         $twigEnvironment->load($templateName);
     }

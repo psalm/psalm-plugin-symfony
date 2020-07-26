@@ -89,7 +89,7 @@ class Plugin implements PluginEntryPointInterface
         if(isset($config->twigCachePath)) {
             $twig_cache_path = (string) $config->twigCachePath;
             if(!is_dir($twig_cache_path) || !is_readable($twig_cache_path)) {
-                throw new ConfigException('The twig directory is missing or not readable.');
+                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', $twig_cache_path));
             }
             static::$twig_cache_path = realpath($twig_cache_path);
 

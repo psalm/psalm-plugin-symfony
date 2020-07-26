@@ -1,4 +1,5 @@
-Feature: Tainting
+@tainting
+Feature: Twig tainting with analyzer
 
   Background:
     Given I have the following config
@@ -8,9 +9,9 @@ Feature: Tainting
         <projectFiles>
           <directory name="."/>
           <directory name="templates"/>
-          <ignoreFiles>
-            <directory name="../../vendor"/>
-            <directory name="./cache"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
           </ignoreFiles>
         </projectFiles>
         <fileExtensions>
@@ -34,7 +35,7 @@ Feature: Tainting
        */
       function twig() {}
       """
-  @current
+
   Scenario: One parameter of the twig rendering is tainted
     Given I have the following code
       """

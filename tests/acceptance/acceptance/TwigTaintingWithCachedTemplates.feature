@@ -1,4 +1,5 @@
-Feature: Tainting
+@tainting
+Feature: Twig tainting with cached templates
 
   Background:
     Given I have the following config
@@ -34,7 +35,7 @@ Feature: Tainting
        */
       function twig() {}
       """
-  @current
+
   Scenario: One parameter of the twig rendering is tainted
     Given I have the following code
       """
@@ -66,5 +67,6 @@ Feature: Tainting
         {{ untrusted }}
       </h1>
       """
+    And the "index.html.twig" template is compiled in the "cache/twig/" directory
     When I run Psalm with taint analysis
     And I see no errors

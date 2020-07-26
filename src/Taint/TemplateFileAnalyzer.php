@@ -22,6 +22,7 @@ use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ModuleNode;
 use Twig\Node\PrintNode;
+use Twig\Source;
 
 class TemplateFileAnalyzer extends FileAnalyzer
 {
@@ -29,6 +30,11 @@ class TemplateFileAnalyzer extends FileAnalyzer
      * @var Taint|null
      */
     private $taint;
+
+    /**
+     * @var Source
+     */
+    private $twig_source;
 
     public function analyze(
         Context $file_context = null,
@@ -43,14 +49,14 @@ class TemplateFileAnalyzer extends FileAnalyzer
         $twig = new Environment($loader, [
             'cache' => false,
             'auto_reload' => true,
-            'debug' => false,
+            'debug' => true,
             'optimizations' => 0,
             'strict_variables' => false,
         ]);
 
         $local_file_name = str_replace('templates/', '', $this->file_name);
-        $source = $loader->getSourceContext($local_file_name);
-        $tree = $twig->parse($twig->tokenize($source));
+        $this->twig_source = $loader->getSourceContext($local_file_name);
+        $tree = $twig->parse($twig->tokenize($this->twig_source));
 
         $this->taint = $codebase->taint;
         $this->context = new Context();
@@ -83,10 +89,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
 
     private function analyzePrintNode(PrintNode $node): Taintable
     {
-        $expression = $node->getNode('expr');
-        $expression_taint = $this->analyzeExpression($expression);
-
-        $codeLocation = self::getLocation($node->getSourceContext(), $node->getTemplateLine());
+        $codeLocation = self::getLocation($node->getSourceContext() ?? $this->twig_source, $node->getTemplateLine());
 
         $sink = Sink::getForMethodArgument(
             'twig_print', 'twig_print', 0, null, $codeLocation
@@ -100,7 +103,10 @@ class TemplateFileAnalyzer extends FileAnalyzer
 
         $this->taint->addSink($sink);
 
-        $this->taint->addPath($expression_taint, $sink, 'arg');
+        $expression = $node->getNode('expr');
+        if($expression_taint = $this->analyzeExpression($expression)) {
+            $this->taint->addPath($expression_taint, $sink, 'arg');
+        }
 
         return $sink;
     }
