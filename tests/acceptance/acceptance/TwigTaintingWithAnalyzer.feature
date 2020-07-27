@@ -16,7 +16,7 @@ Feature: Twig tainting with analyzer
         </projectFiles>
         <fileExtensions>
            <extension name=".php" />
-           <extension name=".twig" checker="../../src/Taint/TemplateFileAnalyzer.php"/>
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php"/>
         </fileExtensions>
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />

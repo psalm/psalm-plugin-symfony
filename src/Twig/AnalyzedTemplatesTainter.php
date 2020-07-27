@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Psalm\SymfonyPsalmPlugin\Taint;
+namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 
 use PhpParser\Node\Expr;

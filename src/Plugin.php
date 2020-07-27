@@ -14,6 +14,8 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Taint\RequestTaint;
+use Psalm\SymfonyPsalmPlugin\Taint\CachedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Taint\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Taint\TwigTaint;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
@@ -92,11 +94,11 @@ class Plugin implements PluginEntryPointInterface
                 throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', static::$twig_cache_path));
             }
 
-            require_once __DIR__.'/Taint/CachedTemplatesTainter.php';
+            require_once __DIR__.'/Twig/CachedTemplatesTainter.php';
             $api->registerHooksFromClass(CachedTemplatesTainter::class);
         }
 
-        require_once __DIR__.'/Taint/AnalyzedTemplatesTainter.php';
+        require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';
         $api->registerHooksFromClass(AnalyzedTemplatesTainter::class);
     }
 }
