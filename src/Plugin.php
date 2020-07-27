@@ -87,11 +87,10 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(RequestTaint::class);
 
         if(isset($config->twigCachePath)) {
-            $twig_cache_path = (string) $config->twigCachePath;
-            if(!is_dir($twig_cache_path) || !is_readable($twig_cache_path)) {
-                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', $twig_cache_path));
+            static::$twig_cache_path = getcwd() . DIRECTORY_SEPARATOR . ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
+            if(!is_dir(static::$twig_cache_path) || !is_readable(static::$twig_cache_path)) {
+                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', static::$twig_cache_path));
             }
-            static::$twig_cache_path = realpath($twig_cache_path);
 
             require_once __DIR__.'/Taint/CachedTemplatesTainter.php';
             $api->registerHooksFromClass(CachedTemplatesTainter::class);

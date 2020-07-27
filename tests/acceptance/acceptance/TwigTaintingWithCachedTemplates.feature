@@ -18,7 +18,7 @@ Feature: Twig tainting with cached templates
         </fileExtensions>
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <twigCachePath>./cache/twig</twigCachePath>
+            <twigCachePath>/cache/twig</twigCachePath>
           </pluginClass>
         </plugins>
       </psalm>
@@ -48,6 +48,7 @@ Feature: Twig tainting with cached templates
         {{ untrusted|raw }}
       </h1>
       """
+    And the "index.html.twig" template is compiled in the "cache/twig/" directory
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
