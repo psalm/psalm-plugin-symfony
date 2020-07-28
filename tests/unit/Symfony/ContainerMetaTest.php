@@ -29,7 +29,7 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox service attributes
+     * @testdox service attributes for > Symfony 3
      * @dataProvider publicServices
      */
     public function testServices($id, string $className, bool $isPublic)
@@ -71,7 +71,7 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox service attributes
+     * @testdox service attributes for Symfony 3
      * @dataProvider publicServices3
      */
     public function testServices3($id, string $className, bool $isPublic)
