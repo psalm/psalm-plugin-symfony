@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Symfony\Service;
+use Symfony\Component\HttpKernel\Kernel;
 
 /**
  * @testdox ContainerMetaTest
@@ -28,11 +29,15 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox service attributes
+     * @testdox service attributes for > Symfony 3
      * @dataProvider publicServices
      */
     public function testServices($id, string $className, bool $isPublic)
     {
+        if (3 === Kernel::MAJOR_VERSION) {
+            $this->markTestSkipped('Should run for > Symfony 3');
+        }
+
         $service = $this->containerMeta->get($id);
         $this->assertInstanceOf(Service::class, $service);
         $this->assertSame($className, $service->getClassName());
@@ -40,6 +45,48 @@ class ContainerMetaTest extends TestCase
     }
 
     public function publicServices()
+    {
+        return [
+            [
+                'id' => 'service_container',
+                'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
+                'isPublic' => true,
+            ],
+            [
+                'id' => 'Foo\Bar',
+                'className' => 'Foo\Bar',
+                'isPublic' => false,
+            ],
+            [
+                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
+                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
+                'isPublic' => true,
+            ],
+            [
+                'id' => 'public_service_wo_public_attr',
+                'className' => 'Foo\Bar',
+                'isPublic' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @testdox service attributes for Symfony 3
+     * @dataProvider publicServices3
+     */
+    public function testServices3($id, string $className, bool $isPublic)
+    {
+        if (Kernel::MAJOR_VERSION > 3) {
+            $this->markTestSkipped('Should run for Symfony 3');
+        }
+
+        $service = $this->containerMeta->get($id);
+        $this->assertInstanceOf(Service::class, $service);
+        $this->assertSame($className, $service->getClassName());
+        $this->assertSame($isPublic, $service->isPublic());
+    }
+
+    public function publicServices3()
     {
         return [
             [
