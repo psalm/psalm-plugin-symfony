@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
+use Symfony\Component\HttpKernel\Kernel;
 
 class ContainerMeta
 {
@@ -79,7 +80,12 @@ class ContainerMeta
                 if (isset($serviceAttributes->alias)) {
                     $service->setAlias((string) $serviceAttributes->alias);
                 }
-                $service->setIsPublic('false' !== (string) $serviceAttributes->public);
+
+                if (3 < Kernel::MAJOR_VERSION) {
+                    $service->setIsPublic('true' === (string) $serviceAttributes->public);
+                } else {
+                    $service->setIsPublic('false' !== (string) $serviceAttributes->public);
+                }
 
                 $this->add($service);
             }
