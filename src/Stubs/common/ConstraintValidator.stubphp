@@ -1,0 +1,14 @@
+<?php
+
+namespace Symfony\Component\Validator;
+
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
+
+abstract class ConstraintValidator implements ConstraintValidatorInterface
+{
+    /**
+     * @var ExecutionContextInterface
+     * @psalm-suppress PropertyNotSetInConstructor
+     */
+    protected $context;
+}

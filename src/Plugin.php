@@ -22,17 +22,21 @@ class Plugin implements PluginEntryPointInterface
     /**
      * @return string[]
      */
-    protected function getCommonStubs(): array {
-        return glob(__DIR__ . '/Stubs/common/*.stubphp') ?: [];
+    protected function getCommonStubs(): array
+    {
+        return glob(__DIR__.'/Stubs/common/*.stubphp') ?: [];
     }
 
     /**
      * @param int $majorVersion symfony major version
+     *
      * @return string[]
      */
-    protected function getStubsForMajorVersion(int $majorVersion): array {
+    protected function getStubsForMajorVersion(int $majorVersion): array
+    {
         $version = (string) $majorVersion;
-        return glob(__DIR__ . '/Stubs/' . $version . '/*.stubphp') ?: [];
+
+        return glob(__DIR__.'/Stubs/'.$version.'/*.stubphp') ?: [];
     }
 
     /**
