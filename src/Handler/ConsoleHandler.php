@@ -111,7 +111,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
     /**
      * @param Arg[] $args
-     * @param StatementsSource $statements_source
      */
     private static function analyseArgument(array $args, StatementsSource $statements_source): void
     {
@@ -151,7 +150,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
     /**
      * @param Arg[] $args
-     * @param StatementsSource $statements_source
      */
     private static function analyseOption(array $args, StatementsSource $statements_source): void
     {
