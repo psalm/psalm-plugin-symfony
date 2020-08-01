@@ -5,6 +5,7 @@ namespace Psalm\SymfonyPsalmPlugin;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
+use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
@@ -47,7 +48,6 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
-        require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
@@ -55,9 +55,13 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(ContainerDependencyHandler::class);
 
         if (class_exists(AnnotationRegistry::class)) {
+            require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
             /** @psalm-suppress DeprecatedMethod */
             AnnotationRegistry::registerLoader('class_exists');
             $api->registerHooksFromClass(DoctrineRepositoryHandler::class);
+
+            require_once __DIR__.'/Handler/AnnotationHandler.php';
+            $api->registerHooksFromClass(AnnotationHandler::class);
         }
 
         if (isset($config->containerXml)) {

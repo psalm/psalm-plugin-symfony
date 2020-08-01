@@ -22,6 +22,10 @@ The plugin calculates real return type by checking the given argument and marks 
 - Taint analysis for Symfony
 - Detects service and parameter [naming convention](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations
 - Complains when `Container` is injected to a service. Use dependency-injection.
+- Fix false positive `PropertyNotSetInConstructor` issues
+  - $container in AbstractController
+  - $context in ConstraintValidator classes
+  - properties in custom `@Annotation` classes
 
 ### Configuration
 
