@@ -23,8 +23,7 @@ class Plugin implements PluginEntryPointInterface
     /**
      * @return string[]
      */
-    protected function getCommonStubs(): array
-    {
+    protected function getCommonStubs(): array {
         return glob(__DIR__.'/Stubs/common/*.stubphp') ?: [];
     }
 
