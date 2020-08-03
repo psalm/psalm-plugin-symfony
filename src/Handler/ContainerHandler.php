@@ -21,6 +21,7 @@ use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
+use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
@@ -97,17 +98,20 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
                 );
             }
 
-            if ($service->isPublic()) {
-                $class = $service->getClassName();
-                if ($class) {
-                    $codebase->classlikes->addFullyQualifiedClassName($class);
-                    $return_type_candidate = new Union([new TNamedObject($class)]);
+            $class = $service->getClassName();
+            if ($class) {
+                $codebase->classlikes->addFullyQualifiedClassName($class);
+                $return_type_candidate = new Union([new TNamedObject($class)]);
+            }
+
+            if (!$service->isPublic()) {
+                $isTestContainer = $context->parent && (KernelTestCase::class === $context->parent || is_subclass_of($context->parent, KernelTestCase::class));
+                if (!$isTestContainer) {
+                    IssueBuffer::accepts(
+                        new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
+                        $statements_source->getSuppressedIssues()
+                    );
                 }
-            } else {
-                IssueBuffer::accepts(
-                    new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
-                    $statements_source->getSuppressedIssues()
-                );
             }
         } else {
             IssueBuffer::accepts(
