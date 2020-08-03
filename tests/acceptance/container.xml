@@ -16,6 +16,7 @@
         <service id="Symfony\Component\HttpKernel\HttpKernelInterface" alias="http_kernel" public="true"/>
         <service id="Foo\Bar" class="Foo\Bar" public="false"/>
         <service id="private_service" class="Foo\Bar" public="false"/>
+        <service id="dummy_private_service" class="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService" public="false"/>
         <service id="public_service_wo_public_attr" class="Foo\Bar"/>
         <service id="wronglyNamedService" class="Foo\Bar" public="true" />
     </services>
