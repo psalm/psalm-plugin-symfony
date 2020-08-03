@@ -35,7 +35,7 @@ Feature: Test Container service
       {
         public function testService(): void
         {
-          $service = $this->container->get('dummy_private_service');
+          $service = static::$container->get('dummy_private_service');
           trim($service->foo());
         }
       }
@@ -56,8 +56,8 @@ Feature: Test Container service
       {
         public function testService(): void
         {
-          $service = $this->container->get('dummy_private_service');
-          $service->foo();
+          $service = static::$container->get('dummy_private_service');
+          trim($service->foo());
         }
       }
       """
