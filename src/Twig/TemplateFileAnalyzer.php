@@ -21,6 +21,7 @@ use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ModuleNode;
+use Twig\Node\Node;
 use Twig\Node\PrintNode;
 use Twig\Source;
 
@@ -43,6 +44,10 @@ class TemplateFileAnalyzer extends FileAnalyzer
     ) {
         $codebase = $this->project_analyzer->getCodebase();
 
+        if($codebase->taint === null) {
+            return;
+        }
+
         $this->taint = $codebase->taint;
 
         $loader = new FilesystemLoader('templates', $codebase->config->base_dir);
@@ -58,27 +63,32 @@ class TemplateFileAnalyzer extends FileAnalyzer
         $this->twig_source = $loader->getSourceContext($local_file_name);
         $tree = $twig->parse($twig->tokenize($this->twig_source));
 
-        $this->taint = $codebase->taint;
         $this->context = new Context();
 
         $this->analyzeModule($tree);
-        foreach($this->context->vars_in_scope as $var_name => $var_type) {
+        foreach ($this->context->vars_in_scope as $var_name => $var_type) {
             $taint_source = self::getTaintNodeForTwigNamedVariable($local_file_name, $var_name, null);
             $this->taint->addTaintNode($taint_source);
-            foreach($var_type->parent_nodes as $taint_sink) {
+
+            if ($var_type->parent_nodes === null) {
+                continue;
+            }
+
+            foreach ($var_type->parent_nodes as $taint_sink) {
                 $this->taint->addPath($taint_source, $taint_sink, 'arg');
             }
         }
     }
 
-    private function analyzeModule(ModuleNode $node)
+    private function analyzeModule(ModuleNode $node): void
     {
         $this->analyzeBody($node->getNode('body'));
     }
 
-    private function analyzeBody(BodyNode $node)
+    private function analyzeBody(BodyNode $node): void
     {
         $children = $node->getIterator()[0]->getIterator();
+        /** @var Node $sub_node */
         while($sub_node = $children->current()) {
             if ($sub_node instanceof PrintNode) {
                 $this->analyzePrintNode($sub_node);
@@ -164,7 +174,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
         return $variable_taint;
     }
 
-    private static function getLocation(\Twig\Source $sourceContext, int $lineNumber) : CodeLocation
+    private static function getLocation(Source $sourceContext, int $lineNumber) : CodeLocation
     {
         $fileName = $sourceContext->getName();
         $filePath = $sourceContext->getPath();
@@ -195,7 +205,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
     public static function getTaintNodeForTwigNamedVariable(
         string $template_id,
         string $variable_name
-    ) {
+    ): TaintNode {
         $label = $arg_id = strtolower($template_id) . '#' . strtolower($variable_name);
 
         return new TaintNode($arg_id, $label, null, null);

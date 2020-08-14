@@ -25,7 +25,8 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     public static function afterMethodCallAnalysis(Expr $expr, string $method_id, string $appearing_method_id, string $declaring_method_id, Context $context, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [], Union &$return_type_candidate = null): void
     {
         if (
-            !$expr instanceof MethodCall || $method_id !== Environment::class . '::render' || empty($expr->args)
+            $codebase->taint === null
+            || !$expr instanceof MethodCall || $method_id !== Environment::class . '::render' || empty($expr->args)
             || !isset($expr->args[0]->value) || !$expr->args[0]->value instanceof String_
             || !isset($expr->args[1]->value) || !$expr->args[1]->value instanceof Array_
         ) {
@@ -35,7 +36,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         $template_name = $expr->args[0]->value->value;
         $twig_arguments_type = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
 
-        if ($twig_arguments_type === null) {
+        if ($twig_arguments_type === null || $twig_arguments_type->parent_nodes === null) {
             return;
         }
 

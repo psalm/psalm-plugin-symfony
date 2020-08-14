@@ -17,11 +17,15 @@ class TwigBridge
 {
     public const TEMPLATE_DIR = 'templates';
 
+    /**
+     * @var Environment|null
+     */
+    static private $environment;
+
     public static function getEnvironment(string $rootDirectory, string $cacheDirectory): Environment
     {
-        static $environment = null;
-        if($environment !== null){
-            return $environment;
+        if(self::$environment !== null){
+            return self::$environment;
         }
 
         if (!file_exists($rootDirectory.'/'.self::TEMPLATE_DIR)) {
@@ -35,7 +39,7 @@ class TwigBridge
         }
         $cache = new FilesystemCache($cacheDirectory);
 
-        return $environment = new Environment($loader, [
+        return self::$environment = new Environment($loader, [
             'cache' => $cache,
             'auto_reload' => true,
             'debug' => true,

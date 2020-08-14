@@ -25,6 +25,9 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class Plugin implements PluginEntryPointInterface
 {
+    /**
+     * @var string
+     */
     public static $twig_cache_path;
 
     /**

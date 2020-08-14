@@ -25,9 +25,6 @@ class CodeceptionModule extends BaseModule
         'default_dir' => 'tests/_run/',
     ];
 
-    /** @var FileSystem */
-    private $fs;
-
     /**
      * @Given I have the following :templateName template :code
      */
@@ -39,7 +36,7 @@ class CodeceptionModule extends BaseModule
             mkdir($templateRootDirectory);
         }
 
-        $this->fs()->writeToFile(
+        file_put_contents(
             $templateRootDirectory . '/' . $templateName,
             $code
         );
@@ -48,7 +45,8 @@ class CodeceptionModule extends BaseModule
     /**
      * @Given the :templateName template is compiled in the :cacheDirectory directory
      */
-    public function haveTheTemplateCompiled(string $templateName, string $cacheDirectory){
+    public function haveTheTemplateCompiled(string $templateName, string $cacheDirectory): void
+    {
         $rootDirectory = rtrim($this->config['default_dir'], '/');
         $cacheDirectory = $rootDirectory . '/' .ltrim($cacheDirectory, '/');
         if (!file_exists($cacheDirectory)) {
@@ -57,18 +55,6 @@ class CodeceptionModule extends BaseModule
 
         $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $cacheDirectory);
         $twigEnvironment->load($templateName);
-    }
-
-    private function fs(): Filesystem
-    {
-        if (null === $this->fs) {
-            $fs = $this->getModule('Filesystem');
-            if (!$fs instanceof Filesystem) {
-                throw new ModuleRequireException($this, 'Needs Filesystem module');
-            }
-            $this->fs = $fs;
-        }
-        return $this->fs;
     }
 
     /**
