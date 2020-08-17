@@ -1,0 +1,14 @@
+<?php
+
+namespace Symfony\Component\Console\Command;
+
+use Symfony\Component\Lock\Lock;
+
+trait LockableTrait
+{
+    /**
+     * @var Lock
+     * @psalm-suppress PropertyNotSetInConstructor
+     */
+    private $lock;
+}
