@@ -34,6 +34,89 @@ Feature: Messenger Envelope
       $envelope = new Envelope(new stdClass());
       """
 
+  Scenario: Envelope is aware of the message class
+    Given I have the following code
+      """
+      /** @psalm-trace $envelope */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                   |
+      | Trace | $envelope: Symfony\Component\Messenger\Envelope<stdClass> |
+    And I see no other errors
+
+  Scenario: Wrapped envelope has the same message class
+    Given I have the following code
+      """
+      $newEnvelope = Envelope::wrap($envelope);
+      /** @psalm-trace $newEnvelope */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                      |
+      | Trace | $newEnvelope: Symfony\Component\Messenger\Envelope<stdClass> |
+    And I see no other errors
+
+  Scenario: Envelope::with returns an envelope with the same message class
+    Given I have the following code
+      """
+      $newEnvelope = $envelope->with();
+      /** @psalm-trace $newEnvelope */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                      |
+      | Trace | $newEnvelope: Symfony\Component\Messenger\Envelope<stdClass> |
+    And I see no other errors
+
+  Scenario: Envelope::withoutAll returns an envelope with the same message class
+    Given I have the following code
+      """
+      $newEnvelope = $envelope->withoutAll(TestStamp::class);
+      /** @psalm-trace $newEnvelope */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                      |
+      | Trace | $newEnvelope: Symfony\Component\Messenger\Envelope<stdClass> |
+    And I see no other errors
+
+  Scenario: Envelope::withoutAll accepts only a FQCN
+    Given I have the following code
+      """
+      $newEnvelope = $envelope->withoutAll('type');
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                 | Message                                                                                                                |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, parent type string(type) provided |
+      | UndefinedClass       | Class or interface type does not exist                                                                                 |
+    And I see no other errors
+
+  Scenario: Envelope::withoutStampsOfType returns an envelope with the same message class
+    Given I have the following code
+      """
+      $newEnvelope = $envelope->withoutStampsOfType(TestStamp::class);
+      /** @psalm-trace $newEnvelope */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                      |
+      | Trace | $newEnvelope: Symfony\Component\Messenger\Envelope<stdClass> |
+    And I see no other errors
+
+  Scenario: Envelope::withoutStampsOfType accepts only a FQCN
+    Given I have the following code
+      """
+      $newEnvelope = $envelope->withoutStampsOfType('type');
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                 | Message                                                                                                                         |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, parent type string(type) provided |
+      | UndefinedClass       | Class or interface type does not exist                                                                                          |
+    And I see no other errors
+
   Scenario: Envelope::last() expects a class name implementing StampInterface
     Given I have the following code
       """
@@ -102,4 +185,16 @@ Feature: Messenger Envelope
     Then I see these errors
       | Type                                | Message                                                                                                                                                                                                      |
       | RedundantConditionGivenDocblockType | Found a redundant condition when evaluating docblock-defined type $stamp and trying to reconcile type 'Symfony\Component\Messenger\Stamp\StampInterface' to Symfony\Component\Messenger\Stamp\StampInterface |
+    And I see no other errors
+
+  Scenario: Envelope::getMessage returns a message of a valid class
+    Given I have the following code
+      """
+      $message = $envelope->getMessage();
+      /** @psalm-trace $message */
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message            |
+      | Trace | $message: stdClass |
     And I see no other errors
