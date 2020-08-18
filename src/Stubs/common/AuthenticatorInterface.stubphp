@@ -1,0 +1,37 @@
+<?php
+
+namespace Symfony\Component\Security\Guard;
+
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
+use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
+
+/**
+ * @template Credentials
+ * @template User of UserInterface
+ */
+interface AuthenticatorInterface extends AuthenticationEntryPointInterface
+{
+    /**
+     * @psalm-return Credentials
+     */
+    public function getCredentials(Request $request);
+
+    /**
+     * @psalm-param Credentials $credentials
+     * @psalm-return ?User
+     */
+    public function getUser($credentials, UserProviderInterface $userProvider);
+
+    /**
+     * @psalm-param Credentials $credentials
+     * @psalm-param User $user
+     */
+    public function checkCredentials($credentials, UserInterface $user);
+
+    /**
+     * @psalm-param User $user
+     */
+    public function createAuthenticatedToken(UserInterface $user, string $providerKey);
+}

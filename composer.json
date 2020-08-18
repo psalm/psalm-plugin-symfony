@@ -20,6 +20,7 @@
         "phpunit/phpunit": "~7.5",
         "symfony/console": "*",
         "symfony/messenger": "^4.2 || ^5.0",
+        "symfony/security-guard": "^4.0 || ^5.0",
         "symfony/validator": "*",
         "weirdan/codeception-psalm-module": "~0.8"
     },
