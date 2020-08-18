@@ -4,8 +4,42 @@ namespace Symfony\Component\Messenger;
 
 use Symfony\Component\Messenger\Stamp\StampInterface;
 
-class Envelope
+/**
+ * @template M of object
+ */
+final class Envelope
 {
+    /**
+     * @psalm-param M $message
+     * @psalm-param array<StampInterface> $stamps
+     */
+    public function __construct($message, array $stamps = []) {}
+
+    /**
+     * @template M1 of object
+     * @psalm-param M1|self<M1> $message
+     * @psalm-param list<StampInterface> $stamps
+     * @psalm-return self<M1>
+     */
+    public static function wrap($message, array $stamps = []): self {}
+
+    /**
+     * @psalm-return self<M>
+     */
+    public function with(StampInterface ...$stamps): self {}
+
+    /**
+     * @psalm-param class-string $stampFqcn
+     * @psalm-return self<M>
+     */
+    public function withoutAll(string $stampFqcn): self {}
+
+    /**
+     * @psalm-param class-string $type
+     * @psalm-return self<M>
+     */
+    public function withoutStampsOfType(string $type): self {}
+
     /**
      * @template T of StampInterface
      * @psalm-param class-string<T> $stampFqcn
@@ -23,4 +57,9 @@ class Envelope
      * )
      */
     public function all(string $stampFqcn = null): array {}
+
+    /**
+     * @psalm-return M
+     */
+    public function getMessage(): object {}
 }
