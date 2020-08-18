@@ -125,13 +125,13 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
      * {@inheritdoc}
      */
     public static function afterClassLikeVisit(
-        ClassLike $class_node,
-        ClassLikeStorage $class_storage,
+        ClassLike $stmt,
+        ClassLikeStorage $storage,
         FileSource $statements_source,
         Codebase $codebase,
         array &$file_replacements = []
     ) {
-        if (\in_array($class_storage->name, ContainerHandler::GET_CLASSLIKES)) {
+        if (\in_array($storage->name, ContainerHandler::GET_CLASSLIKES)) {
             if (self::$containerMeta) {
                 $file_path = $statements_source->getFilePath();
                 $file_storage = $codebase->file_storage_provider->get($file_path);
