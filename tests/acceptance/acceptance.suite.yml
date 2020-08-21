@@ -5,3 +5,4 @@ modules:
     - Cli
     - Filesystem
     - \Weirdan\Codeception\Psalm\Module
+    - \Psalm\SymfonyPsalmPlugin\Test\CodeceptionModule

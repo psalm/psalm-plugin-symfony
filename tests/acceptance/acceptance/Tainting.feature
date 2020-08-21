@@ -24,7 +24,8 @@ Feature: Tainting
       """
 
   Scenario Outline: One parameter of the Request's request/query/cookies is printed in the body of a Response object
-    Given I have the following code
+    Given I have the "symfony/framework-bundle" package satisfying the "^5.1"
+    And I have the following code
       """
       class MyController
       {
@@ -47,7 +48,8 @@ Feature: Tainting
       | ->cookies |
 
   Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
-    Given I have the following code
+    Given I have the "symfony/framework-bundle" package satisfying the "^5.1"
+    And I have the following code
       """
       class MyController
       {
