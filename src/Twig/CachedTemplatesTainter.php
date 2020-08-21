@@ -76,7 +76,7 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
         $twigEnvironment = TwigBridge::getEnvironment($config->base_dir, $config->base_dir.'cache/twig');
         $template = $twigEnvironment->load($templateName);
 
-
+        /** @psalm-suppress InternalMethod This is mandatory to be able to link back to corresponding PHP class */
         return $template->unwrap();
     }
 }

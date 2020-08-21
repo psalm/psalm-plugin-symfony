@@ -13,10 +13,8 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\SymfonyPsalmPlugin\Taint\RequestTaint;
-use Psalm\SymfonyPsalmPlugin\Taint\CachedTemplatesTainter;
-use Psalm\SymfonyPsalmPlugin\Taint\AnalyzedTemplatesTainter;
-use Psalm\SymfonyPsalmPlugin\Taint\TwigTaint;
+use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -87,9 +85,6 @@ class Plugin implements PluginEntryPointInterface
         foreach ($stubs as $stubFilePath) {
             $api->addStubFile($stubFilePath);
         }
-
-        require_once __DIR__.'/Taint/RequestTaint.php';
-        $api->registerHooksFromClass(RequestTaint::class);
 
         if(isset($config->twigCachePath)) {
             static::$twig_cache_path = getcwd() . DIRECTORY_SEPARATOR . ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
