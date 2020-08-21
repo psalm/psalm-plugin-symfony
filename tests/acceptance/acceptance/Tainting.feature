@@ -50,7 +50,6 @@ Feature: Tainting
   Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
     Given I have the "symfony/framework-bundle" package satisfying the "^5.1"
     And I have the following code
-    Given I have the following code
       """
       class MyController
       {
