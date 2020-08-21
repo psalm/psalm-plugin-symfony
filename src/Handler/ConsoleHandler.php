@@ -174,13 +174,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes = new Union([new TBool()]);
         }
 
-        if ($mode & InputOption::VALUE_REQUIRED) {
+        if ($mode & InputOption::VALUE_REQUIRED &&
+            ($mode & InputOption::VALUE_IS_ARRAY || isset($args[4]))) {
             $returnTypes->removeType('null');
         }
 
         if ($mode & InputOption::VALUE_IS_ARRAY) {
-            $returnTypes->removeType('string');
-            $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
+            $returnTypes = new Union([new TArray([new Union([new TInt()]), $returnTypes])]);
         }
 
         $identifier = self::getNodeIdentifier($args[0]->value);
