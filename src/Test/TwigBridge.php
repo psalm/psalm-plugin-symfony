@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
-
 use InvalidArgumentException;
-use Psalm\CodeLocation;
-use RuntimeException;
-use Twig\Cache\CacheInterface;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
@@ -20,11 +16,11 @@ class TwigBridge
     /**
      * @var Environment|null
      */
-    static private $environment;
+    private static $environment;
 
     public static function getEnvironment(string $rootDirectory, string $cacheDirectory): Environment
     {
-        if(self::$environment !== null){
+        if (null !== self::$environment) {
             return self::$environment;
         }
 

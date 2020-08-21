@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
@@ -35,11 +34,11 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
 
     public static function getMethodReturnType(StatementsSource $source, string $fq_classlike_name, string $method_name_lowercase, array $call_args, Context $context, CodeLocation $code_location, array $template_type_parameters = null, string $called_fq_classlike_name = null, string $called_method_name_lowercase = null): void
     {
-        if(!$source instanceof StatementsAnalyzer) {
+        if (!$source instanceof StatementsAnalyzer) {
             throw new RuntimeException(sprintf('The %s::%s hook can only be called using a %s.', __CLASS__, __METHOD__, StatementsAnalyzer::class));
         }
 
-        if ($method_name_lowercase !== 'render') {
+        if ('render' !== $method_name_lowercase) {
             return;
         }
 
@@ -54,14 +53,14 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
         );
 
         $firstArgument = $call_args[0]->value;
-        if(!$firstArgument instanceof String_) {
+        if (!$firstArgument instanceof String_) {
             return;
         }
 
         $template = self::getTemplate($source->getCodebase()->config, $firstArgument->value);
 
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
-            new TNamedObject(get_class($template))
+            new TNamedObject(get_class($template)),
         ]);
 
         MethodCallAnalyzer::analyze(

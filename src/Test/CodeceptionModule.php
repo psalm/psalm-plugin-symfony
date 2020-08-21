@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
-
-use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
-use Codeception\Module\Filesystem;
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
 use PackageVersions\Versions;
@@ -31,13 +28,13 @@ class CodeceptionModule extends BaseModule
     public function haveTheFollowingTemplate(string $templateName, string $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], '/');
-        $templateRootDirectory = $rootDirectory . '/templates';
+        $templateRootDirectory = $rootDirectory.'/templates';
         if (!file_exists($templateRootDirectory)) {
             mkdir($templateRootDirectory);
         }
 
         file_put_contents(
-            $templateRootDirectory . '/' . $templateName,
+            $templateRootDirectory.'/'.$templateName,
             $code
         );
     }
@@ -48,7 +45,7 @@ class CodeceptionModule extends BaseModule
     public function haveTheTemplateCompiled(string $templateName, string $cacheDirectory): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], '/');
-        $cacheDirectory = $rootDirectory . '/' .ltrim($cacheDirectory, '/');
+        $cacheDirectory = $rootDirectory.'/'.ltrim($cacheDirectory, '/');
         if (!file_exists($cacheDirectory)) {
             mkdir($cacheDirectory, 0777, true);
         }

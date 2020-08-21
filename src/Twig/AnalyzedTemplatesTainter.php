@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
@@ -25,8 +24,8 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     public static function afterMethodCallAnalysis(Expr $expr, string $method_id, string $appearing_method_id, string $declaring_method_id, Context $context, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [], Union &$return_type_candidate = null): void
     {
         if (
-            $codebase->taint === null
-            || !$expr instanceof MethodCall || $method_id !== Environment::class . '::render' || empty($expr->args)
+            null === $codebase->taint
+            || !$expr instanceof MethodCall || $method_id !== Environment::class.'::render' || empty($expr->args)
             || !isset($expr->args[0]->value) || !$expr->args[0]->value instanceof String_
             || !isset($expr->args[1]->value) || !$expr->args[1]->value instanceof Array_
         ) {
@@ -36,7 +35,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         $template_name = $expr->args[0]->value->value;
         $twig_arguments_type = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
 
-        if ($twig_arguments_type === null || $twig_arguments_type->parent_nodes === null) {
+        if (null === $twig_arguments_type || null === $twig_arguments_type->parent_nodes) {
             return;
         }
 

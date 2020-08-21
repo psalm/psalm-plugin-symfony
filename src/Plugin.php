@@ -13,8 +13,8 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -86,9 +86,9 @@ class Plugin implements PluginEntryPointInterface
             $api->addStubFile($stubFilePath);
         }
 
-        if(isset($config->twigCachePath)) {
-            static::$twig_cache_path = getcwd() . DIRECTORY_SEPARATOR . ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
-            if(!is_dir(static::$twig_cache_path) || !is_readable(static::$twig_cache_path)) {
+        if (isset($config->twigCachePath)) {
+            static::$twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
+            if (!is_dir(static::$twig_cache_path) || !is_readable(static::$twig_cache_path)) {
                 throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', static::$twig_cache_path));
             }
 

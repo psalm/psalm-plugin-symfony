@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-
 use Psalm\Context;
 use Psalm\Internal\Analyzer\FileAnalyzer;
 use Psalm\Internal\Codebase\Taint;
@@ -26,7 +25,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
     ) {
         $codebase = $this->project_analyzer->getCodebase();
 
-        if($codebase->taint === null) {
+        if (null === $codebase->taint) {
             return;
         }
 
@@ -54,7 +53,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
             $taint_source = self::getTaintNodeForTwigNamedVariable($local_file_name, $var_name);
             $this->taint->addTaintNode($taint_source);
 
-            if ($var_type->parent_nodes === null) {
+            if (null === $var_type->parent_nodes) {
                 continue;
             }
 
@@ -68,7 +67,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
         string $template_id,
         string $variable_name
     ): TaintNode {
-        $label = $arg_id = strtolower($template_id) . '#' . strtolower($variable_name);
+        $label = $arg_id = strtolower($template_id).'#'.strtolower($variable_name);
 
         return new TaintNode($arg_id, $label, null, null);
     }

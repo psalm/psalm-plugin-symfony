@@ -85,7 +85,7 @@ class TwigModuleAnalyzer
         $sink->taints = [
             TaintKind::INPUT_HTML,
             TaintKind::USER_SECRET,
-            TaintKind::SYSTEM_SECRET
+            TaintKind::SYSTEM_SECRET,
         ];
 
         $this->taint->addSink($sink);
@@ -95,7 +95,7 @@ class TwigModuleAnalyzer
             throw new RuntimeException('The expr node has an expected type.');
         }
 
-        if($expression_taint = $this->analyzeExpression($expression)) {
+        if ($expression_taint = $this->analyzeExpression($expression)) {
             $this->taint->addPath($expression_taint, $sink, 'arg');
         }
 
@@ -106,14 +106,14 @@ class TwigModuleAnalyzer
     {
         if ($expression instanceof FilterExpression) {
             return $this->analyzeFilter($expression);
-        } else {
-            return null;
         }
+
+        return null;
     }
 
     private function analyzeFilter(FilterExpression $expression): ?Taintable
     {
-        if ($expression->getNode('filter')->getAttribute('value') !== 'raw') {
+        if ('raw' !== $expression->getNode('filter')->getAttribute('value')) {
             return null;
         }
 
@@ -155,7 +155,7 @@ class TwigModuleAnalyzer
         return $variable_taint;
     }
 
-    private static function getLocation(Source $sourceContext, int $lineNumber) : CodeLocation
+    private static function getLocation(Source $sourceContext, int $lineNumber): CodeLocation
     {
         $fileName = $sourceContext->getName();
         $filePath = $sourceContext->getPath();
@@ -166,7 +166,7 @@ class TwigModuleAnalyzer
 
         $file_start = 0;
 
-        for ($i = 0; $i < $lineNumber - 1; $i++) {
+        for ($i = 0; $i < $lineNumber - 1; ++$i) {
             $file_start += strlen($lines[$i]) + 1;
         }
 
