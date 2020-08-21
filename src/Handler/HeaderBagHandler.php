@@ -37,11 +37,11 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
 
         $type = static::makeReturnType($call_args);
 
-        if($call_args[0]->value instanceof String_ && $call_args[0]->value->value === 'user-agent') {
-            $uniqId = $source->getFileName() . ':' . $code_location->getLineNumber() . '-' . $code_location->getColumn();
+        if ($call_args[0]->value instanceof String_ && 'user-agent' === $call_args[0]->value->value) {
+            $uniqId = $source->getFileName().':'.$code_location->getLineNumber().'-'.$code_location->getColumn();
             $source->getCodebase()->addTaintSource(
                 $type,
-                'tainted-' . $uniqId,
+                'tainted-'.$uniqId,
                 TaintKindGroup::ALL_INPUT,
                 $code_location
             );
@@ -51,7 +51,7 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
     }
 
     /**
-     * @param  array<\PhpParser\Node\Arg>    $call_args
+     * @param array<\PhpParser\Node\Arg> $call_args
      */
     private static function makeReturnType(array $call_args): Union
     {
