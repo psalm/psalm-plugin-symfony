@@ -1,0 +1,18 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\PropertyAccess\PropertyPathInterface;
+
+/**
+ * @template T
+ * @template-extends FormConfigInterface<T>
+ */
+interface FormConfigBuilderInterface extends FormConfigInterface
+{
+    /**
+     * @psalm-return FormConfigInterface<T>
+     */
+    public function getFormConfig();
+}
