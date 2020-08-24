@@ -57,10 +57,47 @@ Feature: ConsoleOption
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
+          $output->writeLn(sprintf('%s', $string ?? 'default'));
+
+          $array = $input->getOption('required_array');
+          foreach ($array as $value) {
+            $output->writeLn(sprintf('%s', $value));
+          };
+
+          $this->boolean($input->getOption('boolean'));
+
+          return 0;
+        }
+
+        private function boolean(bool $input): void
+        {
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: Asserting options return types have inferred (without error), with a default value
+    Given I have the following code
+      """
+      class MyCommand extends Command
+      {
+        public function configure(): void
+        {
+          $this->addOption('required_array', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
+          $this->addOption('required_string', null, InputOption::VALUE_REQUIRED, '', 'default');
+          $this->addOption('boolean', null, InputOption::VALUE_NONE, '', true);
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          $string = $input->getOption('required_string');
           $output->writeLn(sprintf('%s', $string));
 
           $array = $input->getOption('required_array');
-          shuffle($array);
+          foreach ($array as $value) {
+            $output->writeLn(sprintf('%s', $value));
+          };
 
           $this->boolean($input->getOption('boolean'));
 
@@ -94,10 +131,12 @@ Feature: ConsoleOption
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          $output->writeLn(sprintf('%s', $string ?? 'default'));
 
           $array = $input->getOption('required_array');
-          shuffle($array);
+          foreach ($array as $value) {
+            $output->writeLn(sprintf('%s', $value));
+          };
 
           $this->boolean($input->getOption('boolean'));
 
@@ -131,10 +170,12 @@ Feature: ConsoleOption
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          $output->writeLn(sprintf('%s', $string ?? 'default'));
 
           $array = $input->getOption('required_array');
-          shuffle($array);
+          foreach ($array as $value) {
+            $output->writeLn(sprintf('%s', $value));
+          };
 
           $this->boolean($input->getOption('boolean'));
 
@@ -158,14 +199,25 @@ Feature: ConsoleOption
         {
           $this->addOption('optional_string1');
           $this->addOption('optional_string2', null, InputOption::VALUE_OPTIONAL);
+          $this->addOption('required_string3', null, InputOption::VALUE_REQUIRED);
+          $this->addOption('optional_array', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY);
         }
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string1 = $input->getOption('optional_string1');
           $output->writeLn(sprintf('%s', $string1));
+
           $string2 = $input->getOption('optional_string2');
           $output->writeLn(sprintf('%s', $string2));
+
+          $string3 = $input->getOption('required_string3');
+          $output->writeLn(sprintf('%s', $string3));
+
+          $array = $input->getOption('optional_array');
+          foreach ($array as $value) {
+            $output->writeLn(sprintf('%s', $value));
+          };
 
           return 0;
         }
@@ -174,6 +226,8 @@ Feature: ConsoleOption
     When I run Psalm
     Then I see these errors
       | Type                 | Message                                                            |
+      | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
+      | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
       | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
       | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
     And I see no other errors
