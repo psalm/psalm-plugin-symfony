@@ -13,6 +13,7 @@ use PHPUnit\Framework\SkippedTestError;
 use RuntimeException;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
+use Twig\Extension\AbstractExtension;
 use Twig\Loader\FilesystemLoader;
 
 /**
@@ -109,6 +110,7 @@ class CodeceptionModule extends BaseModule
         ]);
 
         // the following is a trick to force the twig env to change
+        /** @var AbstractExtension $ext */
         $ext = eval('use Twig\Extension\AbstractExtension; return new class() extends AbstractExtension {};');
         $twigEnvironment->addExtension($ext);
 
