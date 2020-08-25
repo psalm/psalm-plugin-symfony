@@ -36,6 +36,21 @@ Feature: Twig tainting with analyzer
       function twig() {}
       """
 
+  Scenario: One parameter of the twig rendering is tainted but autoescaping is on
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
   Scenario: One parameter of the twig rendering is tainted
     Given I have the following code
       """
@@ -53,19 +68,3 @@ Feature: Twig tainting with analyzer
       | Type         | Message               |
       | TaintedInput | Detected tainted html |
     And I see no other errors
-
-  # @todo : move this scenario in first position when taint-specialize is working
-  Scenario: One parameter of the twig rendering is tainted but autoescaping is on
-    Given I have the following code
-      """
-      $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
-      """
-    And I have the following "index.html.twig" template
-      """
-      <h1>
-        {{ untrusted }}
-      </h1>
-      """
-    When I run Psalm with taint analysis
-    And I see no errors

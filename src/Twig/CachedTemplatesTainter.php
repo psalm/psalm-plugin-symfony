@@ -9,13 +9,11 @@ use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
-use Psalm\Config;
 use Psalm\Context;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
 use Psalm\StatementsSource;
-use Psalm\SymfonyPsalmPlugin\Test\TwigBridge;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use RuntimeException;
@@ -57,10 +55,10 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             return;
         }
 
-        $template = self::getTemplate($source->getCodebase()->config, $firstArgument->value);
+        $cacheClassName = CachedTemplatesMapping::getCacheClassName($firstArgument->value);
 
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
-            new TNamedObject(get_class($template)),
+            new TNamedObject($cacheClassName),
         ]);
 
         MethodCallAnalyzer::analyze(
@@ -68,14 +66,5 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             $fake_method_call,
             $context
         );
-    }
-
-    private static function getTemplate(Config $config, string $templateName): Template
-    {
-        $twigEnvironment = TwigBridge::getEnvironment($config->base_dir, $config->base_dir.'cache/twig');
-        $template = $twigEnvironment->load($templateName);
-
-        /** @psalm-suppress InternalMethod This is mandatory to be able to link back to corresponding PHP class */
-        return $template->unwrap();
     }
 }

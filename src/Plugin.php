@@ -14,6 +14,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
@@ -94,6 +95,9 @@ class Plugin implements PluginEntryPointInterface
 
             require_once __DIR__.'/Twig/CachedTemplatesTainter.php';
             $api->registerHooksFromClass(CachedTemplatesTainter::class);
+
+            require_once __DIR__.'/Twig/CachedTemplatesMapping.php';
+            $api->registerHooksFromClass(CachedTemplatesMapping::class);
         }
 
         require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';

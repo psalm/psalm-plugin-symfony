@@ -7,9 +7,13 @@ namespace Psalm\SymfonyPsalmPlugin\Test;
 use Codeception\Module as BaseModule;
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
+use InvalidArgumentException;
 use PackageVersions\Versions;
 use PHPUnit\Framework\SkippedTestError;
 use RuntimeException;
+use Twig\Cache\FilesystemCache;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
 
 /**
  * @psalm-suppress UnusedClass
@@ -50,7 +54,7 @@ class CodeceptionModule extends BaseModule
             mkdir($cacheDirectory, 0777, true);
         }
 
-        $twigEnvironment = TwigBridge::getEnvironment($rootDirectory, $cacheDirectory);
+        $twigEnvironment = self::getEnvironment($rootDirectory, $cacheDirectory);
         $twigEnvironment->load($templateName);
     }
 
@@ -79,5 +83,35 @@ class CodeceptionModule extends BaseModule
         if (!isset($isSatisfied) || !$isSatisfied) {
             throw new SkippedTestError("This scenario requires $package to match $versionConstraint");
         }
+    }
+
+    public const TEMPLATE_DIR = 'templates';
+
+    public static function getEnvironment(string $rootDirectory, string $cacheDirectory): Environment
+    {
+        if (!file_exists($rootDirectory.'/'.self::TEMPLATE_DIR)) {
+            mkdir($rootDirectory.'/'.self::TEMPLATE_DIR);
+        }
+
+        $loader = new FilesystemLoader(self::TEMPLATE_DIR, $rootDirectory);
+
+        if (!is_dir($cacheDirectory)) {
+            throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
+        }
+        $cache = new FilesystemCache($cacheDirectory);
+
+        $twigEnvironment = new Environment($loader, [
+            'cache' => $cache,
+            'auto_reload' => true,
+            'debug' => true,
+            'optimizations' => 0,
+            'strict_variables' => false,
+        ]);
+
+        // the following is a trick to force the twig env to change
+        $ext = eval('use Twig\Extension\AbstractExtension; return new class() extends AbstractExtension {};');
+        $twigEnvironment->addExtension($ext);
+
+        return $twigEnvironment;
     }
 }
