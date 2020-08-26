@@ -9,7 +9,6 @@ use Psalm\Context;
 use Psalm\Plugin\Hook\AfterFileAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\FileStorage;
-use Psalm\SymfonyPsalmPlugin\Plugin;
 use RuntimeException;
 
 /**
@@ -23,14 +22,18 @@ class CachedTemplatesMapping implements AfterFileAnalysisInterface
     private const CACHED_TEMPLATE_HEADER_PATTERN = 'use Twig\\\\Template;\n\n\/\* (@?.+\.twig) \*\/\nclass __TwigTemplate';
 
     /**
+     * @var string|null
+     */
+    public static $cache_path;
+
+    /**
      * @var array<string, string>
      */
     private static $mapping = [];
 
     public static function afterAnalyzeFile(StatementsSource $statements_source, Context $file_context, FileStorage $file_storage, Codebase $codebase): void
     {
-        $basePath = Plugin::$twig_cache_path;
-        if (null === $basePath || 0 !== strpos($file_storage->file_path, $basePath)) {
+        if (null === self::$cache_path || 0 !== strpos($file_storage->file_path, self::$cache_path)) {
             return;
         }
 
@@ -46,6 +49,11 @@ class CachedTemplatesMapping implements AfterFileAnalysisInterface
         }
 
         self::registerNewCache($cacheClassName, $matchingParts[1]);
+    }
+
+    public static function setCachePath(string $cache_path): void
+    {
+        static::$cache_path = $cache_path;
     }
 
     private static function registerNewCache(string $cacheClassName, string $templateName): void

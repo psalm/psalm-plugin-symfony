@@ -16,7 +16,7 @@ use Psalm\Type\Union;
 use Twig\Environment;
 
 /**
- * This hook add paths from all taint sources of a `Twig\Environment::render()` call to all taint sinks of the corresponding template.
+ * This hook adds paths from all taint sources going to a `Twig\Environment::render()` call to all taint sinks of the corresponding template.
  * The TemplateFileAnalyzer should be declared in configuration.
  */
 class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface

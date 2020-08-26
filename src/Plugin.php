@@ -25,11 +25,6 @@ use Symfony\Component\HttpKernel\Kernel;
 class Plugin implements PluginEntryPointInterface
 {
     /**
-     * @var string|null
-     */
-    public static $twig_cache_path;
-
-    /**
      * @return string[]
      */
     protected function getCommonStubs(): array
@@ -88,9 +83,9 @@ class Plugin implements PluginEntryPointInterface
         }
 
         if (isset($config->twigCachePath)) {
-            static::$twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
-            if (!is_dir(static::$twig_cache_path) || !is_readable(static::$twig_cache_path)) {
-                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', static::$twig_cache_path));
+            $twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
+            if (!is_dir($twig_cache_path) || !is_readable($twig_cache_path)) {
+                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', $twig_cache_path));
             }
 
             require_once __DIR__.'/Twig/CachedTemplatesTainter.php';
@@ -98,6 +93,7 @@ class Plugin implements PluginEntryPointInterface
 
             require_once __DIR__.'/Twig/CachedTemplatesMapping.php';
             $api->registerHooksFromClass(CachedTemplatesMapping::class);
+            CachedTemplatesMapping::setCachePath($twig_cache_path);
         }
 
         require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';
