@@ -2,10 +2,9 @@
 
 namespace Symfony\Component\Form;
 
-use Symfony\Component\PropertyAccess\PropertyPathInterface;
-
 /**
  * @template T
+ * @method void clearErrors(bool $deep)
  */
 interface FormInterface extends \ArrayAccess, \Traversable, \Countable
 {
@@ -15,7 +14,7 @@ interface FormInterface extends \ArrayAccess, \Traversable, \Countable
     public function getData();
 
     /**
-     * @psalm-return FormView<?T>
+     * @psalm-param FormView<?T>
      */
     public function createView(FormView $parent = null);
 }

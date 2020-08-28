@@ -3,7 +3,6 @@
 namespace Psalm\SymfonyPsalmPlugin;
 
 use Doctrine\Common\Annotations\AnnotationRegistry;
-use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
@@ -12,11 +11,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
-use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
-use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
-use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -25,14 +20,6 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class Plugin implements PluginEntryPointInterface
 {
-    /**
-     * @return string[]
-     */
-    protected function getFormStubs(): array
-    {
-        return glob(__DIR__.'/Stubs/Form/*.stubphp') ?: [];
-    }
-
     /**
      * @return string[]
      */
@@ -56,18 +43,16 @@ class Plugin implements PluginEntryPointInterface
     /**
      * {@inheritdoc}
      */
-    public function __invoke(RegistrationInterface $api, SimpleXMLElement $config = null): void
+    public function __invoke(RegistrationInterface $api, SimpleXMLElement $config = null)
     {
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
-        require_once __DIR__.'/Handler/RequiredSetterHandler.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
         $api->registerHooksFromClass(ContainerDependencyHandler::class);
-        $api->registerHooksFromClass(RequiredSetterHandler::class);
 
         if (class_exists(AnnotationRegistry::class)) {
             require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
@@ -86,30 +71,11 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(ContainerHandler::class);
 
         $stubs = array_merge(
-            $this->getCommonStubs(),
-            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION),
-            $this->getFormStubs()
+            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
         );
 
         foreach ($stubs as $stubFilePath) {
             $api->addStubFile($stubFilePath);
         }
-
-        if (isset($config->twigCachePath)) {
-            $twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
-            if (!is_dir($twig_cache_path) || !is_readable($twig_cache_path)) {
-                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', $twig_cache_path));
-            }
-
-            require_once __DIR__.'/Twig/CachedTemplatesTainter.php';
-            $api->registerHooksFromClass(CachedTemplatesTainter::class);
-
-            require_once __DIR__.'/Twig/CachedTemplatesMapping.php';
-            $api->registerHooksFromClass(CachedTemplatesMapping::class);
-            CachedTemplatesMapping::setCachePath($twig_cache_path);
-        }
-
-        require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';
-        $api->registerHooksFromClass(AnalyzedTemplatesTainter::class);
     }
 }
