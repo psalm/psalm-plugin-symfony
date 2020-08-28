@@ -41,6 +41,14 @@ class Plugin implements PluginEntryPointInterface
     }
 
     /**
+     * @return string[]
+     */
+    protected function getFormStubs(): array
+    {
+        return glob(__DIR__.'/Stubs/Forms/*.stubphp') ?: [];
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function __invoke(RegistrationInterface $api, SimpleXMLElement $config = null)
@@ -71,7 +79,7 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(ContainerHandler::class);
 
         $stubs = array_merge(
-            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
+            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION), $this->getFormStubs()
         );
 
         foreach ($stubs as $stubFilePath) {

@@ -32,26 +32,4 @@ abstract class AbstractType implements FormTypeInterface
     {
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function configureOptions(OptionsResolver $resolver)
-    {
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getBlockPrefix()
-    {
-        return StringUtil::fqcnToBlockPrefix(\get_class($this)) ?: '';
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getParent()
-    {
-        return 'Symfony\Component\Form\Extension\Core\Type\FormType';
-    }
 }
