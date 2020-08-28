@@ -11,5 +11,12 @@ use Symfony\Component\Form\FormEvent;
  */
 class PreSetDataEvent extends FormEvent
 {
+    /**
+     * @psalm-return ?T
+     */
+    public function getData()
+    {
+
+    }
 }
 

@@ -25,6 +25,8 @@ class FormEvent extends Event
      */
     public function __construct(FormInterface $form, $data)
     {
+        $this->form = $form;
+        $this->data = $data;
     }
 
     /**
@@ -32,6 +34,7 @@ class FormEvent extends Event
      */
     public function getForm()
     {
+        return $this->form;
     }
 
     /**
@@ -39,5 +42,6 @@ class FormEvent extends Event
      */
     public function getData()
     {
+        return $this->data;
     }
 }
