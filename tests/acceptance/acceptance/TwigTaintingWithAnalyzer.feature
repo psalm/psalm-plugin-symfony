@@ -1,4 +1,4 @@
-@tainting
+@symfony-common
 Feature: Twig tainting with analyzer
 
   Background:
