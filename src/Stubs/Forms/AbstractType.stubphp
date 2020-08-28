@@ -2,32 +2,10 @@
 
 namespace Symfony\Component\Form;
 
-
 /**
  * @template T
  * @implements FormTypeInterface<T>
  */
 abstract class AbstractType implements FormTypeInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function buildForm(FormBuilderInterface $builder, array $options)
-    {
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function buildView(FormView $view, FormInterface $form, array $options)
-    {
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function finishView(FormView $view, FormInterface $form, array $options)
-    {
-    }
-
 }
