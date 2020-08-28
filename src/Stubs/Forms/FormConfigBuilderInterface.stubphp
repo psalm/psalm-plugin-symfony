@@ -18,16 +18,7 @@ interface FormConfigBuilderInterface extends FormConfigInterface
     public function getFormConfig();
 
     /**
-     * @template C of FormEvent<T>
-     *
      * @psalm-param FormEvents::* $eventName
-     * @psalm-param callable(C) $listener
-     */
-    public function x_addEventListener($eventName, $listener, $priority = 0);
-
-    /**
-     * @psalm-param FormEvents::* $eventName
-     *
      *
      * @psalm-param callable(PreSetDataEvent<T>)|callable(PreSubmitEvent<T>)|callable(SubmitEvent<T>) $listener
      */

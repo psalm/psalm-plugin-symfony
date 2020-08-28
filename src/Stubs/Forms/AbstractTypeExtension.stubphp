@@ -8,7 +8,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * @template T
- * @extends FormTypeExtensionInterface<T>
+ * @implements FormTypeExtensionInterface<T>
  */
 abstract class AbstractTypeExtension implements FormTypeExtensionInterface
 {
