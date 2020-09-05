@@ -8,7 +8,6 @@ use Symfony\Component\Form\FormEvent;
  * @template T
  *
  * @template-extends FormEvent<T>
- *
  */
 class PreSubmitEvent extends FormEvent
 {
