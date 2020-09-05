@@ -21,7 +21,7 @@ interface FormConfigBuilderInterface extends FormConfigInterface
      * @psalm-suppress MismatchingDocblockParamType
      * @psalm-param FormEvents::* $eventName
      *
-     * @psalm-param callable(PreSetDataEvent<T>)||callable(PreSubmitEvent<T>)||callable(SubmitEvent<T>) $listener
+     * @psalm-param callable(PreSetDataEvent<T>)|callable(PreSubmitEvent<T>)|callable(SubmitEvent<T>) $listener
      */
     public function addEventListener($eventName, $listener, $priority = 0);
 }
