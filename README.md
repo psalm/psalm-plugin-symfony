@@ -14,7 +14,7 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 - Detect `ContainerInterface::get()` result type. Works better if you [configure](#configuration) compiled container XML file.
 - Detect return type of console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`). Enforces
 to use InputArgument and InputOption constants as a part of best practise.
-- Detects correct Doctrine repository class if entities are configured with annotations. 
+- Detects correct Doctrine repository class if entities are configured with annotations.
 - Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
 The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
 - Detect return type of `Symfony\Component\HttpFoundation\HeaderBag::get` (by checking default value and third argument for < Symfony 4.4)
@@ -64,6 +64,30 @@ Example:
 <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
     <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
     <containerXml>var/cache/dev/App_KernelTestDebugContainer.xml</containerXml>
+</pluginClass>
+```
+
+#### Twig tainting configuration
+
+There are two approaches to including twig templates for taint analysis  :
+
+ - one based on a specific file analyzer which uses the twig parser to taint twig's AST nodes
+ - one based on the already compiled twig templates
+
+To leverage the real Twig file analyzer, you have to configure the `.twig` extension as follows :
+
+```xml
+<fileExtensions>
+   <extension name=".php" />
+   <extension name=".twig" checker="./vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
+</fileExtensions>
+```
+
+To allow the analysis through the cached template files, you have to add the `twigCachePath` entry to the plugin configuration :
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigCachePath>/cache/twig</twigCachePath>
 </pluginClass>
 ```
 
