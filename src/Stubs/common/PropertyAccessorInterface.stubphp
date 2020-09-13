@@ -9,7 +9,7 @@ interface PropertyAccessorInterface
      * @psalm-param T $objectOrArray
      * @psalm-param string|PropertyPathInterface $propertyPath
      * @psalm-param mixed $value
-     * @psalm-out T $objectOrArray
+     * @psalm-self-out T $objectOrArray
      */
     public function setValue(&$objectOrArray, $propertyPath, $value);
 
