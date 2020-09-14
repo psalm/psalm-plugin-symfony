@@ -59,6 +59,26 @@ Feature: Naming conventions
       | NamingConventionViolation | Use snake_case for configuration parameter and service names |
     And I see no other errors
 
+  Scenario: No service naming convention violation when using FQCNs
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Component\HttpKernel\HttpKernelInterface;
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function __invoke(): void
+        {
+          $this->container->get(HttpKernelInterface::class);
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
   Scenario: No naming convention violation for parameter
     Given I have the following code
       """
