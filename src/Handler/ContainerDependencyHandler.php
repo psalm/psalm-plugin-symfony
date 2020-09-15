@@ -23,7 +23,8 @@ class ContainerDependencyHandler implements AfterFunctionLikeAnalysisInterface
         StatementsSource $statements_source,
         Codebase $codebase,
         array &$file_replacements = []
-    ) {
+    ): ?bool
+    {
         if ($stmt instanceof Node\Stmt\ClassMethod && '__construct' === $stmt->name->name) {
             foreach ($stmt->params as $param) {
                 if ($param->type instanceof Node\Name && ContainerInterface::class === $param->type->getAttribute('resolvedName')) {
@@ -34,5 +35,7 @@ class ContainerDependencyHandler implements AfterFunctionLikeAnalysisInterface
                 }
             }
         }
+
+        return null;
     }
 }
