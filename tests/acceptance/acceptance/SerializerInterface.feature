@@ -1,6 +1,6 @@
 @symfony-common
-Feature: Denormalizer interface
-  Detect DenormalizerInterface::denormalize() result type
+Feature: Serializer interface
+  Detect SerializerInterface::deserialize() result type
 
   Background:
     Given I have the following config
