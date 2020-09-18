@@ -20,7 +20,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
 
     public function analyze(
         Context $file_context = null,
-        $preserve_analyzers = false,
+        bool $preserve_analyzers = false,
         Context $global_context = null
     ) {
         $codebase = $this->project_analyzer->getCodebase();

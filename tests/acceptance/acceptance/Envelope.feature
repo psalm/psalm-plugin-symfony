@@ -184,7 +184,7 @@ Feature: Messenger Envelope
     When I run Psalm
     Then I see these errors
       | Type                                | Message                                                                                                                                                                                                      |
-      | RedundantConditionGivenDocblockType | Found a redundant condition when evaluating docblock-defined type $stamp and trying to reconcile type 'Symfony\Component\Messenger\Stamp\StampInterface' to Symfony\Component\Messenger\Stamp\StampInterface |
+      | RedundantConditionGivenDocblockType | Docblock-defined type Symfony\Component\Messenger\Stamp\StampInterface for $stamp is always Symfony\Component\Messenger\Stamp\StampInterface |
     And I see no other errors
 
   Scenario: Envelope::getMessage returns a message of a valid class
