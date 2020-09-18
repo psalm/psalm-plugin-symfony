@@ -2,9 +2,6 @@
 
 namespace Symfony\Component\Serializer\Normalizer;
 
-/**
- *
- */
 interface DenormalizerInterface
 {
     /**
