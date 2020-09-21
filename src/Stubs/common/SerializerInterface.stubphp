@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\Serializer;
+
+interface SerializerInterface
+{
+    /**
+     * @template     T
+     * @psalm-param  class-string<T> $type
+     * @psalm-return T
+     */
+    public function deserialize($data, string $type, string $format, array $context = []);
+}
