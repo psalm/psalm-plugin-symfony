@@ -36,6 +36,20 @@ Feature: Twig tainting with analyzer
       function twig() {}
       """
 
+  Scenario: The twig rendering has no parameters
+    Given I have the following code
+      """
+      twig()->render('index.html.twig');
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        Nothing.
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
   Scenario: One parameter of the twig rendering is tainted but autoescaping is on
     Given I have the following code
       """

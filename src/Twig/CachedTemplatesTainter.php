@@ -56,7 +56,7 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             new Identifier(
                 'doDisplay'
             ),
-            [$call_args[1]]
+            isset($call_args[1]) ? [$call_args[1]] : []
         );
 
         $firstArgument = $call_args[0]->value;

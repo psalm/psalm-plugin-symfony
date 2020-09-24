@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
 use Codeception\Module as BaseModule;
+use Codeception\TestInterface;
 use InvalidArgumentException;
+use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
 use Twig\Extension\AbstractExtension;
@@ -25,20 +27,38 @@ class CodeceptionModule extends BaseModule
     public const TWIG_TEMPLATES_DIR = 'templates';
 
     /**
+     * @var FilesystemCache|null
+     */
+    private $twigCache;
+
+    /**
+     * @var string|null
+     */
+    private $lastCachePath;
+
+    public function _after(TestInterface $test): void
+    {
+        $this->twigCache = $this->lastCachePath = null;
+    }
+
+    /**
      * @Given I have the following :templateName template :code
      */
     public function haveTheFollowingTemplate(string $templateName, string $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
-        $templateRootDirectory = $rootDirectory.DIRECTORY_SEPARATOR.self::TWIG_TEMPLATES_DIR;
-        if (!file_exists($templateRootDirectory)) {
-            mkdir($templateRootDirectory);
+        $templatePath = (
+            $rootDirectory.DIRECTORY_SEPARATOR.
+            self::TWIG_TEMPLATES_DIR.DIRECTORY_SEPARATOR.
+            $templateName
+        );
+
+        $templateDirectory = dirname($templatePath);
+        if (!file_exists($templateDirectory)) {
+            mkdir($templateDirectory, 0755, true);
         }
 
-        file_put_contents(
-            $templateRootDirectory.DIRECTORY_SEPARATOR.$templateName,
-            $code
-        );
+        file_put_contents($templatePath, $code);
     }
 
     /**
@@ -52,11 +72,48 @@ class CodeceptionModule extends BaseModule
             mkdir($cacheDirectory, 0755, true);
         }
 
-        $twigEnvironment = self::getEnvironment($rootDirectory, $cacheDirectory);
-        $twigEnvironment->load($templateName);
+        $this->loadTemplate($templateName, $rootDirectory, $cacheDirectory);
     }
 
-    private static function getEnvironment(string $rootDirectory, string $cacheDirectory): Environment
+    /**
+     * @Given the last compiled template got his alias changed to :newAlias
+     */
+    public function changeTheLastTemplateAlias(string $newAlias): void
+    {
+        if (null === $this->lastCachePath) {
+            throw new \RuntimeException('You have to compile a template first.');
+        }
+
+        $cacheContent = file_get_contents($this->lastCachePath);
+
+        if (!preg_match('/'.CachedTemplatesMapping::CACHED_TEMPLATE_HEADER_PATTERN.'/m', $cacheContent, $cacheHeadParts)) {
+            throw new \RuntimeException('The cache file is somehow malformed.');
+        }
+
+        file_put_contents($this->lastCachePath, str_replace(
+            $cacheHeadParts[0],
+            str_replace($cacheHeadParts['name'], $newAlias, $cacheHeadParts[0]),
+            $cacheContent
+        ));
+    }
+
+    private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void
+    {
+        if (null === $this->twigCache) {
+            if (!is_dir($cacheDirectory)) {
+                throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
+            }
+            $this->twigCache = new FilesystemCache($cacheDirectory);
+        }
+
+        $twigEnvironment = self::getEnvironment($rootDirectory, $this->twigCache);
+        $template = $twigEnvironment->load($templateName);
+
+        /** @psalm-suppress InternalMethod */
+        $this->lastCachePath = $this->twigCache->generateKey($templateName, get_class($template->unwrap()));
+    }
+
+    private static function getEnvironment(string $rootDirectory, FilesystemCache $twigCache): Environment
     {
         if (!file_exists($rootDirectory.DIRECTORY_SEPARATOR.self::TWIG_TEMPLATES_DIR)) {
             mkdir($rootDirectory.DIRECTORY_SEPARATOR.self::TWIG_TEMPLATES_DIR);
@@ -64,13 +121,8 @@ class CodeceptionModule extends BaseModule
 
         $loader = new FilesystemLoader(self::TWIG_TEMPLATES_DIR, $rootDirectory);
 
-        if (!is_dir($cacheDirectory)) {
-            throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
-        }
-        $cache = new FilesystemCache($cacheDirectory);
-
         $twigEnvironment = new Environment($loader, [
-            'cache' => $cache,
+            'cache' => $twigCache,
             'auto_reload' => true,
             'debug' => true,
             'optimizations' => 0,
