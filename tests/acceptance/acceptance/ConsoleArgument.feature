@@ -150,30 +150,42 @@ Feature: ConsoleArgument
     When I run Psalm
     Then I see no errors
 
-  Scenario: Asserting arguments return types have inferred (with errors)
+  Scenario: Asserting string arguments return types have inferred
     Given I have the following code
       """
       class MyCommand extends Command
       {
         public function configure(): void
         {
-          $this->addArgument('optional_string1');
-          $this->addArgument('optional_string2', InputArgument::OPTIONAL);
-          $this->addArgument('optional_array1', InputArgument::OPTIONAL | InputArgument::IS_ARRAY);
-          $this->addArgument('optional_array2', InputArgument::IS_ARRAY);
+          $this
+            ->addArgument('arg1', InputArgument::REQUIRED)
+            ->addArgument('arg2')
+            ->addArgument('arg3', InputArgument::OPTIONAL)
+            ->addArgument('arg4', InputArgument::OPTIONAL)
+            ->addArgument('arg5', InputArgument::OPTIONAL, '', 'default value')
+            ->addArgument('arg6', InputArgument::OPTIONAL)
+          ;
         }
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string1 = $input->getArgument('optional_string1');
-          $output->writeLn(sprintf('%s', $string1));
-          $string2 = $input->getArgument('optional_string2');
-          $output->writeLn(sprintf('%s', $string2));
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument('arg1');
 
-          $array1 = $input->getArgument('optional_array1');
-          shuffle($array1);
-          $array2 = $input->getArgument('optional_array2');
-          shuffle($array2);
+          /** @psalm-trace $arg2 */
+          $arg2 = $input->getArgument('arg2');
+
+          /** @psalm-trace $arg3 */
+          $arg3 = $input->getArgument('arg3');
+
+          /** @psalm-trace $arg4 */
+          $arg4 = $input->getArgument('arg4');
+
+          /** @psalm-trace $arg5 */
+          $arg5 = $input->getArgument('arg5');
+
+          /** @psalm-trace $arg6 */
+          $arg6 = $input->getArgument('arg6');
 
           return 0;
         }
@@ -181,9 +193,43 @@ Feature: ConsoleArgument
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                            |
-      | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
-      | PossiblyNullArgument | Argument 2 of sprintf cannot be null, possibly null value provided |
-      | PossiblyNullArgument | Argument 1 of shuffle cannot be null, possibly null value provided |
-      | PossiblyNullArgument | Argument 1 of shuffle cannot be null, possibly null value provided |
+      | Type  | Message             |
+      | Trace | $arg1: string       |
+      | Trace | $arg2: null\|string |
+      | Trace | $arg3: null\|string |
+      | Trace | $arg4: null\|string |
+      | Trace | $arg5: string       |
+      | Trace | $arg6: null\|string |
     And I see no other errors
+
+  Scenario Outline: Asserting array arguments return types have inferred
+    Given I have the following code
+      """
+      class MyCommand extends Command
+      {
+        public function configure(): void
+        {
+          $this
+            <arg>
+          ;
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument('arg1');
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                   |
+      | Trace | $arg1: array<int, string> |
+    And I see no other errors
+    Examples:
+      | arg                                                                       |
+      | ->addArgument('arg1', InputArgument::IS_ARRAY)                            |
+      | ->addArgument('arg1', InputArgument::IS_ARRAY \| InputArgument::REQUIRED) |
+      | ->addArgument('arg1', InputArgument::IS_ARRAY \| InputArgument::OPTIONAL) |

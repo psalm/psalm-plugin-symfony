@@ -114,6 +114,11 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static function analyseArgument(array $args, StatementsSource $statements_source): void
     {
+        $identifier = self::getNodeIdentifier($args[0]->value);
+        if (!$identifier) {
+            return;
+        }
+
         if (count($args) > 1) {
             try {
                 $mode = self::getModeValue($args[1]->value);
@@ -129,20 +134,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $mode = InputArgument::OPTIONAL;
         }
 
-        $returnTypes = new Union([new TString(), new TNull()]);
-
-        if ($mode & InputArgument::REQUIRED) {
-            $returnTypes->removeType('null');
-        }
-
         if ($mode & InputArgument::IS_ARRAY) {
-            $returnTypes->removeType('string');
-            $returnTypes->addType(new TArray([new Union([new TInt()]), new Union([new TString()])]));
-        }
-
-        $identifier = self::getNodeIdentifier($args[0]->value);
-        if (!$identifier) {
-            return;
+            $returnTypes = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+        } elseif ($mode & InputArgument::REQUIRED || isset($args[3])) {
+            $returnTypes = new Union([new TString()]);
+        } else {
+            $returnTypes = new Union([new TString(), new TNull()]);
         }
 
         self::$arguments[$identifier] = $returnTypes;
