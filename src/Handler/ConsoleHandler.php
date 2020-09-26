@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Arg;
@@ -136,10 +138,18 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         if ($mode & InputArgument::IS_ARRAY) {
             $returnTypes = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
-        } elseif ($mode & InputArgument::REQUIRED || isset($args[3])) {
+        } elseif ($mode & InputArgument::REQUIRED) {
             $returnTypes = new Union([new TString()]);
         } else {
             $returnTypes = new Union([new TString(), new TNull()]);
+        }
+
+        if (isset($args[3])) {
+            $defaultArg = $args[3];
+            $returnTypes->removeType('null');
+            if ($defaultArg->value instanceof Expr\ConstFetch && 'null' === $defaultArg->value->name->parts[0]) {
+                $returnTypes->addType(new TNull());
+            }
         }
 
         self::$arguments[$identifier] = $returnTypes;
@@ -150,6 +160,11 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static function analyseOption(array $args, StatementsSource $statements_source): void
     {
+        $identifier = self::getNodeIdentifier($args[0]->value);
+        if (!$identifier) {
+            return;
+        }
+
         if (isset($args[2])) {
             try {
                 $mode = self::getModeValue($args[2]->value);
@@ -167,22 +182,32 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         $returnTypes = new Union([new TString(), new TNull()]);
 
+        if (isset($args[4])) {
+            $defaultArg = $args[4];
+            $returnTypes->removeType('null');
+            if ($defaultArg->value instanceof Expr\ConstFetch) {
+                switch ($defaultArg->value->name->parts[0]) {
+                    case 'null':
+                        $returnTypes->addType(new TNull());
+                        break;
+                    case 'false':
+                    case 'true':
+                        $returnTypes->addType(new TBool());
+                        break;
+                }
+            }
+        }
+
         if ($mode & InputOption::VALUE_NONE) {
             $returnTypes = new Union([new TBool()]);
         }
 
-        if ($mode & InputOption::VALUE_REQUIRED &&
-            ($mode & InputOption::VALUE_IS_ARRAY || isset($args[4]))) {
+        if ($mode & InputOption::VALUE_REQUIRED && $mode & InputOption::VALUE_IS_ARRAY) {
             $returnTypes->removeType('null');
         }
 
         if ($mode & InputOption::VALUE_IS_ARRAY) {
             $returnTypes = new Union([new TArray([new Union([new TInt()]), $returnTypes])]);
-        }
-
-        $identifier = self::getNodeIdentifier($args[0]->value);
-        if (!$identifier) {
-            return;
         }
 
         self::$options[$identifier] = $returnTypes;

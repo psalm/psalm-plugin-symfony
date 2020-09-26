@@ -55,18 +55,22 @@ Feature: ConsoleArgument
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string = $input->getArgument('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument('required_string');
 
-          $array = $input->getArgument('required_array');
-          shuffle($array);
+          /** @psalm-trace $arg2 */
+          $arg2 = $input->getArgument('required_array');
 
           return 0;
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message                   |
+      | Trace | $arg1: string             |
+      | Trace | $arg2: array<int, string> |
+    And I see no other errors
 
   Scenario: Asserting arguments return types have inferred (without error) using Definition array
     Given I have the following code
@@ -83,18 +87,22 @@ Feature: ConsoleArgument
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string = $input->getArgument('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument('required_string');
 
-          $array = $input->getArgument('required_array');
-          shuffle($array);
+          /** @psalm-trace $arg2 */
+          $arg2 = $input->getArgument('required_array');
 
           return 0;
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message                   |
+      | Trace | $arg1: string             |
+      | Trace | $arg2: array<int, string> |
+    And I see no other errors
 
   Scenario: Asserting arguments return types have inferred (without error) using Definition
     Given I have the following code
@@ -113,20 +121,24 @@ Feature: ConsoleArgument
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string = $input->getArgument('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument('required_string');
 
-          $array = $input->getArgument('required_array');
-          shuffle($array);
+          /** @psalm-trace $arg2 */
+          $arg2 = $input->getArgument('required_array');
 
           return 0;
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message                   |
+      | Trace | $arg1: string             |
+      | Trace | $arg2: array<int, string> |
+    And I see no other errors
 
-  Scenario: Asserting arguments return types have inferred (without error) 2
+  Scenario: Asserting arguments return types have inferred with const name
     Given I have the following code
       """
       class MyCommand extends Command
@@ -140,15 +152,18 @@ Feature: ConsoleArgument
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string = $input->getArgument(self::FOO_ARGUMENT_NAME);
-          $output->writeLn(sprintf('%s', $string));
+          /** @psalm-trace $arg1 */
+          $arg1 = $input->getArgument(self::FOO_ARGUMENT_NAME);
 
           return 0;
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message             |
+      | Trace | $arg1: string       |
+    And I see no other errors
 
   Scenario: Asserting string arguments return types have inferred
     Given I have the following code
@@ -164,6 +179,7 @@ Feature: ConsoleArgument
             ->addArgument('arg4', InputArgument::OPTIONAL)
             ->addArgument('arg5', InputArgument::OPTIONAL, '', 'default value')
             ->addArgument('arg6', InputArgument::OPTIONAL)
+            ->addArgument('arg7', InputArgument::OPTIONAL, '', null)
           ;
         }
 
@@ -187,6 +203,9 @@ Feature: ConsoleArgument
           /** @psalm-trace $arg6 */
           $arg6 = $input->getArgument('arg6');
 
+          /** @psalm-trace $arg7 */
+          $arg7 = $input->getArgument('arg7');
+
           return 0;
         }
       }
@@ -200,6 +219,7 @@ Feature: ConsoleArgument
       | Trace | $arg4: null\|string |
       | Trace | $arg5: string       |
       | Trace | $arg6: null\|string |
+      | Trace | $arg7: null\|string |
     And I see no other errors
 
   Scenario Outline: Asserting array arguments return types have inferred
