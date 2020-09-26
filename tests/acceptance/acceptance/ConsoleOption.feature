@@ -84,33 +84,43 @@ Feature: ConsoleOption
       {
         public function configure(): void
         {
-          $this->addOption('required_array', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
-          $this->addOption('required_string', null, InputOption::VALUE_REQUIRED, '', 'default');
-          $this->addOption('boolean', null, InputOption::VALUE_NONE, '', true);
+          $this->addOption('option1', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
+          $this->addOption('option2', null, InputOption::VALUE_REQUIRED, '', 'default');
+          $this->addOption('option3', null, InputOption::VALUE_NONE, '', true);
+          $this->addOption('option4', null, InputOption::VALUE_OPTIONAL, '', false);
+          $this->addOption('option5', null, InputOption::VALUE_OPTIONAL, '', null);
         }
 
         public function execute(InputInterface $input, OutputInterface $output): int
         {
-          $string = $input->getOption('required_string');
-          $output->writeLn(sprintf('%s', $string));
+          /** @psalm-trace $option1 */
+          $option1 = $input->getOption('option1');
 
-          $array = $input->getOption('required_array');
-          foreach ($array as $value) {
-            $output->writeLn(sprintf('%s', $value));
-          };
+          /** @psalm-trace $option2 */
+          $option2 = $input->getOption('option2');
 
-          $this->boolean($input->getOption('boolean'));
+          /** @psalm-trace $option3 */
+          $option3 = $input->getOption('option3');
+
+          /** @psalm-trace $option4 */
+          $option4 = $input->getOption('option4');
+
+          /** @psalm-trace $option5 */
+          $option5 = $input->getOption('option5');
 
           return 0;
-        }
-
-        private function boolean(bool $input): void
-        {
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message                      |
+      | Trace | $option1: array<int, string> |
+      | Trace | $option2: string             |
+      | Trace | $option3: bool               |
+      | Trace | $option4: bool               |
+      | Trace | $option5: null\|string       |
+    And I see no other errors
 
   Scenario: Asserting options return types have inferred (without error) using Definition
     Given I have the following code

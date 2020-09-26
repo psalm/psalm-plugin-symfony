@@ -164,6 +164,7 @@ Feature: ConsoleArgument
             ->addArgument('arg4', InputArgument::OPTIONAL)
             ->addArgument('arg5', InputArgument::OPTIONAL, '', 'default value')
             ->addArgument('arg6', InputArgument::OPTIONAL)
+            ->addArgument('arg7', InputArgument::OPTIONAL, '', null)
           ;
         }
 
@@ -187,6 +188,9 @@ Feature: ConsoleArgument
           /** @psalm-trace $arg6 */
           $arg6 = $input->getArgument('arg6');
 
+          /** @psalm-trace $arg7 */
+          $arg7 = $input->getArgument('arg7');
+
           return 0;
         }
       }
@@ -200,6 +204,7 @@ Feature: ConsoleArgument
       | Trace | $arg4: null\|string |
       | Trace | $arg5: string       |
       | Trace | $arg6: null\|string |
+      | Trace | $arg7: null\|string |
     And I see no other errors
 
   Scenario Outline: Asserting array arguments return types have inferred
