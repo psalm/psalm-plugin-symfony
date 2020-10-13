@@ -18,9 +18,11 @@ jobs:
       matrix:
         php-version:
           - 7.4
+          - 7.3
 
         dependencies:
           - highest
+          - lowest
 
     steps:
       - name: "Checkout"
@@ -42,6 +44,10 @@ jobs:
           path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
           key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
+
+      - name: "Install lowest dependencies from composer.json"
+        if: matrix.dependencies == 'lowest'
+        run: composer install --no-interaction --no-progress --no-suggest --prefer-lowest
 
       - name: "Install highest dependencies from composer.json"
         if: matrix.dependencies == 'highest'
