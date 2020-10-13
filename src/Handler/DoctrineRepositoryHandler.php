@@ -4,7 +4,6 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\ORM\Mapping\Entity as EntityAnnotation;
-use function GuzzleHttp\Psr7\parse_query;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\ClassLike;
@@ -75,14 +74,9 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         $docblock = $stmt->getDocComment();
         if ($docblock && false !== strpos((string) $docblock, 'repositoryClass')) {
             try {
-                /** @psalm-suppress DeprecatedMethod */
-                $parsedComment = DocComment::parse(
-                    (string) $docblock->getReformattedText()
-                );
-                if (isset($parsedComment['specials']['Entity'][0])) {
-                    $entitySpecial = trim($parsedComment['specials']['Entity'][0], '()');
-                    /** @psalm-suppress MixedArgument */
-                    $repositoryClassName = trim(parse_query($entitySpecial)['repositoryClass'], '"');
+                $parsedComment = DocComment::parsePreservingLength($docblock);
+                if (isset($parsedComment->tags['Entity'])) {
+                    $repositoryClassName = str_replace(['"', '(', ')', 'repositoryClass', '\'', '='], '', array_values($parsedComment->tags['Entity'])[0]);
 
                     $file_path = $statements_source->getFilePath();
                     $file_storage = $codebase->file_storage_provider->get($file_path);
