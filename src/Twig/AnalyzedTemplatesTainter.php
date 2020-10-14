@@ -24,7 +24,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     public static function afterMethodCallAnalysis(Expr $expr, string $method_id, string $appearing_method_id, string $declaring_method_id, Context $context, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [], Union &$return_type_candidate = null): void
     {
         if (
-            null === $codebase->taint
+            null === $codebase->taint_flow_graph
             || !$expr instanceof MethodCall || $method_id !== Environment::class.'::render' || empty($expr->args)
             || !isset($expr->args[0]->value) || !$expr->args[0]->value instanceof String_
             || !isset($expr->args[1]->value) || !$expr->args[1]->value instanceof Array_
@@ -35,7 +35,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         $template_name = $expr->args[0]->value->value;
         $twig_arguments_type = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
 
-        if (null === $twig_arguments_type || null === $twig_arguments_type->parent_nodes) {
+        if (null === $twig_arguments_type) {
             return;
         }
 
@@ -44,7 +44,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             $sink_taint = TemplateFileAnalyzer::getTaintNodeForTwigNamedVariable(
                 $template_name, $matches[1]
             );
-            $codebase->taint->addPath($source_taint, $sink_taint, 'arg');
+            $codebase->taint_flow_graph->addPath($source_taint, $sink_taint, 'arg');
         }
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-use Psalm\Internal\Taint\Taintable;
+use Psalm\Internal\ControlFlow\ControlFlowNode;
 use RuntimeException;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\FilterExpression;
@@ -47,7 +47,7 @@ class PrintNodeAnalyzer
         return false;
     }
 
-    private function getTaintSource(AbstractExpression $expression): ?Taintable
+    private function getTaintSource(AbstractExpression $expression): ?ControlFlowNode
     {
         if ($expression instanceof FilterExpression) {
             /** @var AbstractExpression $filteredExpression */

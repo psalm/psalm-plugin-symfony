@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\CodeLocation;
-use Psalm\Internal\Codebase\Taint;
-use Psalm\Internal\Taint\Sink;
-use Psalm\Internal\Taint\Taintable;
-use Psalm\Internal\Taint\TaintNode;
+use Psalm\Internal\Codebase\TaintFlowGraph;
+use Psalm\Internal\ControlFlow\ControlFlowNode;
+use Psalm\Internal\ControlFlow\TaintSink;
+use Psalm\Internal\ControlFlow\TaintSource;
 use Psalm\Type\TaintKind;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
@@ -18,25 +18,25 @@ use Twig\Source;
 
 class Context
 {
-    /** @var array<string, Taintable> */
+    /** @var array<string, ControlFlowNode> */
     private $unassignedVariables = [];
 
-    /** @var array<string, Taintable> */
+    /** @var array<string, ControlFlowNode> */
     private $localVariables = [];
 
     /** @var Source */
     private $sourceContext;
 
-    /** @var Taint */
+    /** @var TaintFlowGraph */
     private $taint;
 
-    public function __construct(Source $sourceContext, Taint $taint)
+    public function __construct(Source $sourceContext, TaintFlowGraph $taint)
     {
         $this->sourceContext = $sourceContext;
         $this->taint = $taint;
     }
 
-    public function addSink(Node $node, Taintable $source): void
+    public function addSink(Node $node, ControlFlowNode $source): void
     {
         $codeLocation = $this->getNodeLocation($node);
 
@@ -45,7 +45,7 @@ class Context
             $sinkName = 'twig_print';
         }
 
-        $sink = Sink::getForMethodArgument(
+        $sink = TaintSink::getForMethodArgument(
             $sinkName, $sinkName, 0, null, $codeLocation
         );
 
@@ -59,28 +59,28 @@ class Context
         $this->taint->addPath($source, $sink, 'arg');
     }
 
-    public function taintVariable(NameExpression $expression): Taintable
+    public function taintVariable(NameExpression $expression): ControlFlowNode
     {
         /** @var string $variableName */
         $variableName = $expression->getAttribute('name');
 
-        $sinkNode = TaintNode::getForAssignment($variableName, $this->getNodeLocation($expression));
+        $sinkNode = TaintSource::getForAssignment($variableName, $this->getNodeLocation($expression));
 
-        $this->taint->addTaintNode($sinkNode);
+        $this->taint->addNode($sinkNode);
         $sinkNode = $this->addVariableTaintNode($expression);
 
         return $this->addVariableUsage($variableName, $sinkNode);
     }
 
-    public function getTaintDestination(Taintable $taintSource, FilterExpression $expression): TaintNode
+    public function getTaintDestination(ControlFlowNode $taintSource, FilterExpression $expression): ControlFlowNode
     {
         /** @var string $filterName */
         $filterName = $expression->getNode('filter')->getAttribute('value');
 
         $returnLocation = $this->getNodeLocation($expression);
-        $taintDestination = TaintNode::getForMethodReturn('filter_'.$filterName, 'filter_'.$filterName, $returnLocation, $returnLocation);
+        $taintDestination = TaintSource::getForMethodReturn('filter_'.$filterName, 'filter_'.$filterName, $returnLocation, $returnLocation);
 
-        $this->taint->addTaintNode($taintDestination);
+        $this->taint->addNode($taintDestination);
         $this->taint->addPath($taintSource, $taintDestination, 'arg');
 
         return $taintDestination;
@@ -110,25 +110,25 @@ class Context
     {
         foreach ($this->unassignedVariables as $variableName => $taintable) {
             $label = strtolower($templateName).'#'.strtolower($variableName);
-            $taintSource = new TaintNode($label, $label, null, null);
+            $taintSource = new TaintSource($label, $label, null, null);
 
-            $this->taint->addTaintNode($taintSource);
+            $this->taint->addNode($taintSource);
             $this->taint->addPath($taintSource, $taintable, 'arg');
         }
     }
 
-    private function addVariableTaintNode(NameExpression $variableNode): TaintNode
+    private function addVariableTaintNode(NameExpression $variableNode): ControlFlowNode
     {
         /** @var string $variableName */
         $variableName = $variableNode->getAttribute('name');
-        $taintNode = TaintNode::getForAssignment($variableName, $this->getNodeLocation($variableNode));
+        $taintNode = TaintSource::getForAssignment($variableName, $this->getNodeLocation($variableNode));
 
-        $this->taint->addTaintNode($taintNode);
+        $this->taint->addNode($taintNode);
 
         return $taintNode;
     }
 
-    private function addVariableUsage(string $variableName, Taintable $variableTaint): Taintable
+    private function addVariableUsage(string $variableName, ControlFlowNode $variableTaint): ControlFlowNode
     {
         if (!isset($this->localVariables[$variableName])) {
             return $this->unassignedVariables[$variableName] = $variableTaint;
@@ -139,10 +139,12 @@ class Context
 
     private function getNodeLocation(Node $node): CodeLocation
     {
+        /** @psalm-var string $fileName */
         $fileName = $this->sourceContext->getName();
         $filePath = $this->sourceContext->getPath();
         $snippet = $this->sourceContext->getCode(); // warning : the getCode method returns the whole template, not only the statement
         $fileCode = file_get_contents($filePath);
+        /** @psalm-var int $lineNumber */
         $lineNumber = $node->getTemplateLine();
         $lines = explode("\n", $fileCode);
 

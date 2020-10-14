@@ -21,7 +21,6 @@ use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
@@ -105,7 +104,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             }
 
             if (!$service->isPublic()) {
-                $isTestContainer = $context->parent && (KernelTestCase::class === $context->parent || is_subclass_of($context->parent, KernelTestCase::class));
+                $isTestContainer = $context->parent && ('Symfony\Bundle\FrameworkBundle\Test\KernelTestCase' === $context->parent || is_subclass_of($context->parent, 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase'));
                 if (!$isTestContainer) {
                     IssueBuffer::accepts(
                         new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),

@@ -6,7 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\FileAnalyzer;
-use Psalm\Internal\Taint\TaintNode;
+use Psalm\Internal\ControlFlow\TaintSource;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
@@ -19,12 +19,11 @@ class TemplateFileAnalyzer extends FileAnalyzer
         PsalmContext $global_context = null
     ) {
         $codebase = $this->project_analyzer->getCodebase();
+        $taint = $codebase->taint_flow_graph;
 
-        if (null === $codebase->taint) {
+        if (null === $taint) {
             return;
         }
-
-        $taint = $codebase->taint;
 
         $loader = new FilesystemLoader('templates', $codebase->config->base_dir);
         $twig = new Environment($loader, [
@@ -53,9 +52,9 @@ class TemplateFileAnalyzer extends FileAnalyzer
     public static function getTaintNodeForTwigNamedVariable(
         string $template_id,
         string $variable_name
-    ): TaintNode {
+    ): TaintSource {
         $label = $arg_id = strtolower($template_id).'#'.strtolower($variable_name);
 
-        return new TaintNode($arg_id, $label, null, null);
+        return new TaintSource($arg_id, $label, null, null);
     }
 }
