@@ -139,10 +139,12 @@ class Context
 
     private function getNodeLocation(Node $node): CodeLocation
     {
+        /** @psalm-var string $fileName */
         $fileName = $this->sourceContext->getName();
         $filePath = $this->sourceContext->getPath();
         $snippet = $this->sourceContext->getCode(); // warning : the getCode method returns the whole template, not only the statement
         $fileCode = file_get_contents($filePath);
+        /** @psalm-var int $lineNumber */
         $lineNumber = $node->getTemplateLine();
         $lines = explode("\n", $fileCode);
 
