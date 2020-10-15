@@ -7,7 +7,6 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
-use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
 use Psalm\Context;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
@@ -59,12 +58,8 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             isset($call_args[1]) ? [$call_args[1]] : []
         );
 
-        $firstArgument = $call_args[0]->value;
-        if (!$firstArgument instanceof String_) {
-            return null;
-        }
-
-        $cacheClassName = CachedTemplatesMapping::getCacheClassName($firstArgument->value);
+        $templateName = TwigUtils::extractTemplateNameFromExpression($call_args[0]->value, $source);
+        $cacheClassName = CachedTemplatesMapping::getCacheClassName($templateName);
 
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
             new TNamedObject($cacheClassName),

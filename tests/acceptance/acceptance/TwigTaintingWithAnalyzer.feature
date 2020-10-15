@@ -83,6 +83,26 @@ Feature: Twig tainting with analyzer
       | TaintedInput | Detected tainted html |
     And I see no other errors
 
+  Scenario: One tainted parameter (in a variable) of the twig template (named in a variable) is displayed with only the raw filter
+    Given I have the following code
+      """
+      $untrustedParameters = ['untrusted' => $_GET['untrusted']];
+      $template = 'index.html.twig';
+
+      twig()->render($template, $untrustedParameters);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
+    And I see no other errors
+
   Scenario: One tainted parameter of the twig rendering is displayed with some filter followed by the raw filter
     Given I have the following code
       """

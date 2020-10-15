@@ -86,6 +86,27 @@ Feature: Twig tainting with cached templates
       | TaintedInput | Detected tainted html |
     And I see no other errors
 
+  Scenario: One tainted parameter (in a variable) of the twig template (named in a variable) is displayed with only the raw filter
+    Given I have the following code
+      """
+      $untrustedParameters = ['untrusted' => $_GET['untrusted']];
+      $template = 'index.html.twig';
+
+      twig()->render($template, $untrustedParameters);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    And the "index.html.twig" template is compiled in the "cache/twig/" directory
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedInput | Detected tainted html |
+    And I see no other errors
+
   Scenario: The template has a taint sink and is aliased
     Given I have the following code
       """
