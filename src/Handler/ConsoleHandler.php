@@ -50,7 +50,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         Codebase $codebase,
         array &$file_replacements = [],
         Union &$return_type_candidate = null
-    ) {
+    ): void {
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
                 self::analyseArgument($expr->args, $statements_source);
