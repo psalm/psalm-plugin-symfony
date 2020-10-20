@@ -37,7 +37,7 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         Codebase $codebase,
         array &$file_replacements = [],
         Union &$return_type_candidate = null
-    ) {
+    ): void {
         if (in_array($declaring_method_id, ['Doctrine\ORM\EntityManagerInterface::getrepository', 'Doctrine\Persistence\ObjectManager::getrepository'])) {
             $entityName = $expr->args[0]->value;
             if ($entityName instanceof String_) {

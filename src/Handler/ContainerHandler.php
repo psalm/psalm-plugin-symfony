@@ -54,7 +54,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         Codebase $codebase,
         array &$file_replacements = [],
         Union &$return_type_candidate = null
-    ) {
+    ): void {
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
                 $argument = $expr->args[0]->value;
