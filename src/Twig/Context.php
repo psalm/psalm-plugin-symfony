@@ -6,9 +6,9 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
-use Psalm\Internal\ControlFlow\ControlFlowNode;
-use Psalm\Internal\ControlFlow\TaintSink;
-use Psalm\Internal\ControlFlow\TaintSource;
+use Psalm\Internal\DataFlow\DataFlowNode;
+use Psalm\Internal\DataFlow\TaintSink;
+use Psalm\Internal\DataFlow\TaintSource;
 use Psalm\Type\TaintKind;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
@@ -18,10 +18,10 @@ use Twig\Source;
 
 class Context
 {
-    /** @var array<string, ControlFlowNode> */
+    /** @var array<string, DataFlowNode> */
     private $unassignedVariables = [];
 
-    /** @var array<string, ControlFlowNode> */
+    /** @var array<string, DataFlowNode> */
     private $localVariables = [];
 
     /** @var Source */
@@ -36,7 +36,7 @@ class Context
         $this->taint = $taint;
     }
 
-    public function addSink(Node $node, ControlFlowNode $source): void
+    public function addSink(Node $node, DataFlowNode $source): void
     {
         $codeLocation = $this->getNodeLocation($node);
 
@@ -59,7 +59,7 @@ class Context
         $this->taint->addPath($source, $sink, 'arg');
     }
 
-    public function taintVariable(NameExpression $expression): ControlFlowNode
+    public function taintVariable(NameExpression $expression): DataFlowNode
     {
         /** @var string $variableName */
         $variableName = $expression->getAttribute('name');
@@ -72,7 +72,7 @@ class Context
         return $this->addVariableUsage($variableName, $sinkNode);
     }
 
-    public function getTaintDestination(ControlFlowNode $taintSource, FilterExpression $expression): ControlFlowNode
+    public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
     {
         /** @var string $filterName */
         $filterName = $expression->getNode('filter')->getAttribute('value');
@@ -117,7 +117,7 @@ class Context
         }
     }
 
-    private function addVariableTaintNode(NameExpression $variableNode): ControlFlowNode
+    private function addVariableTaintNode(NameExpression $variableNode): DataFlowNode
     {
         /** @var string $variableName */
         $variableName = $variableNode->getAttribute('name');
@@ -128,7 +128,7 @@ class Context
         return $taintNode;
     }
 
-    private function addVariableUsage(string $variableName, ControlFlowNode $variableTaint): ControlFlowNode
+    private function addVariableUsage(string $variableName, DataFlowNode $variableTaint): DataFlowNode
     {
         if (!isset($this->localVariables[$variableName])) {
             return $this->unassignedVariables[$variableName] = $variableTaint;
