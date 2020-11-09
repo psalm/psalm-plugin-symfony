@@ -52,6 +52,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
         $traverser->traverse($tree);
 
         $twigContext->taintUnassignedVariables($local_file_name);
+        $twigContext->taintSinks($local_file_name);
     }
 
     public static function getTaintNodeForTwigNamedVariable(
