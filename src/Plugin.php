@@ -12,6 +12,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
@@ -53,10 +54,12 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
+        require_once __DIR__.'/Handler/RequiredSetterHandler.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
         $api->registerHooksFromClass(ContainerDependencyHandler::class);
+        $api->registerHooksFromClass(RequiredSetterHandler::class);
 
         if (class_exists(AnnotationRegistry::class)) {
             require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
