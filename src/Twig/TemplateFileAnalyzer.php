@@ -11,6 +11,11 @@ use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
 
+/**
+ * This class is to be used as a "checker" for the `.twig` files in the psalm configuration.
+ *
+ * @psalm-suppress UnusedClass
+ */
 class TemplateFileAnalyzer extends FileAnalyzer
 {
     public function analyze(

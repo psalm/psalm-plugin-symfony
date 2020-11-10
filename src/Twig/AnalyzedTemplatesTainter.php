@@ -7,12 +7,16 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Expr\Variable;
 use Psalm\Codebase;
 use Psalm\Context;
+use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
+use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Union;
+use RuntimeException;
+use SplObjectStorage;
 use Twig\Environment;
 
 /**
@@ -26,25 +30,60 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         if (
             null === $codebase->taint_flow_graph
             || !$expr instanceof MethodCall || $method_id !== Environment::class.'::render' || empty($expr->args)
-            || !isset($expr->args[0]->value) || !$expr->args[0]->value instanceof String_
-            || !isset($expr->args[1]->value) || !$expr->args[1]->value instanceof Array_
+            || !isset($expr->args[0]->value)
+            || !isset($expr->args[1]->value)
         ) {
             return;
         }
 
-        $template_name = $expr->args[0]->value->value;
-        $twig_arguments_type = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
+        $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+        $templateParameters = self::generateTemplateParameters($expr->args[1]->value, $statements_source);
+        foreach ($templateParameters as $sourceNode) {
+            $parameterName = $templateParameters[$sourceNode];
+            $label = $argumentId = strtolower($templateName).'#'.strtolower($parameterName);
+            $destinationNode = new DataFlowNode($argumentId, $label, null, null);
 
-        if (null === $twig_arguments_type) {
-            return;
+            $codebase->taint_flow_graph->addPath($sourceNode, $destinationNode, 'arg');
+        }
+    }
+
+    /**
+     * @return SplObjectStorage<DataFlowNode, string>
+     */
+    private static function generateTemplateParameters(Expr $templateParameters, StatementsSource $source): SplObjectStorage
+    {
+        $type = $source->getNodeTypeProvider()->getType($templateParameters);
+        if (null === $type) {
+            throw new RuntimeException(sprintf('Can not retrieve type for the given expression (%s)', get_class($templateParameters)));
         }
 
-        foreach ($twig_arguments_type->parent_nodes as $source_taint) {
-            preg_match('/array\[\'([a-zA-Z]+)\'\]/', $source_taint->label, $matches);
-            $sink_taint = TemplateFileAnalyzer::getTaintNodeForTwigNamedVariable(
-                $template_name, $matches[1]
-            );
-            $codebase->taint_flow_graph->addPath($source_taint, $sink_taint, 'arg');
+        if ($templateParameters instanceof Array_) {
+            /** @var SplObjectStorage<DataFlowNode, string> $parameters */
+            $parameters = new SplObjectStorage();
+            foreach ($type->parent_nodes as $node) {
+                if (preg_match('/array\[\'([a-zA-Z]+)\'\]/', $node->label, $matches)) {
+                    $parameters[$node] = $matches[1];
+                }
+            }
+
+            return $parameters;
         }
+
+        if ($templateParameters instanceof Variable && array_key_exists('array', $type->getAtomicTypes())) {
+            /** @var TKeyedArray $arrayValues */
+            $arrayValues = $type->getAtomicTypes()['array'];
+
+            /** @var SplObjectStorage<DataFlowNode, string> $parameters */
+            $parameters = new SplObjectStorage();
+            foreach ($arrayValues->properties as $parameterName => $parameterType) {
+                foreach ($parameterType->parent_nodes as $node) {
+                    $parameters[$node] = (string) $parameterName;
+                }
+            }
+
+            return $parameters;
+        }
+
+        throw new RuntimeException(sprintf('Can not retrieve template parameters from given expression (%s)', get_class($templateParameters)));
     }
 }
