@@ -33,7 +33,7 @@ class ContainerMeta
         return null;
     }
 
-    private function add(Service $service): void
+    public function add(Service $service): void
     {
         if (($alias = $service->getAlias()) && isset($this->services[$alias])) {
             $aliasedService = $this->services[$alias];

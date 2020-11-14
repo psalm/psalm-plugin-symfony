@@ -12,6 +12,7 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 ### Features
 
 - Detect `ContainerInterface::get()` result type. Works better if you [configure](#configuration) compiled container XML file.
+- Support [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20).
 - Detect return type of console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`). Enforces
 to use InputArgument and InputOption constants as a part of best practise.
 - Detects correct Doctrine repository class if entities are configured with annotations.
