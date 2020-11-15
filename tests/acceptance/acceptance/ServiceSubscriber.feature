@@ -62,3 +62,34 @@ Feature: Service Subscriber
       | Trace | $entityManager: Doctrine\ORM\EntityManagerInterface                  |
       | Trace | $validator: Symfony\Component\Validator\Validator\ValidatorInterface |
     And I see no other errors
+
+
+  Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices using array_merge
+    Given I have the following code
+      """
+      <?php
+
+      use Doctrine\ORM\EntityManagerInterface;
+      use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+      class SomeController extends AbstractController
+      {
+        public function __invoke()
+        {
+          /** @psalm-trace $entityManager */
+          $entityManager = $this->container->get('custom_service');
+        }
+
+        public static function getSubscribedServices(): array
+        {
+          return array_merge([
+            'custom_service' => EntityManagerInterface::class,
+          ], parent::getSubscribedServices());
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                             |
+      | Trace | $entityManager: Doctrine\ORM\EntityManagerInterface |
+    And I see no other errors
