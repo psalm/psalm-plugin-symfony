@@ -4,6 +4,7 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ClassConstFetch;
+use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassLike;
@@ -18,6 +19,7 @@ use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\ClassLikeStorage;
+use Psalm\Storage\FileStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
@@ -146,35 +148,58 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
 
         // see https://symfony.com/doc/current/service_container/service_subscribers_locators.html
-        if (self::$containerMeta && $stmt instanceof Class_ && isset($storage->class_implements['symfony\contracts\service\servicesubscriberinterface'])) {
+        if (self::$containerMeta && $stmt instanceof Class_ && in_array('getsubscribedservices', array_keys($storage->methods))) {
             foreach ($stmt->stmts as $classStmt) {
                 if ($classStmt instanceof ClassMethod && 'getSubscribedServices' === $classStmt->name->name && $classStmt->stmts) {
                     foreach ($classStmt->stmts as $methodStmt) {
-                        if ($methodStmt instanceof Return_ && ($return = $methodStmt->expr) && $return instanceof Expr\Array_) {
-                            foreach ($return->items as $arrayItem) {
-                                if ($arrayItem instanceof Expr\ArrayItem) {
-                                    $value = $arrayItem->value;
-                                    if (!$value instanceof Expr\ClassConstFetch) {
-                                        continue;
+                        if (!$methodStmt instanceof Return_) {
+                            continue;
+                        }
+
+                        $return = $methodStmt->expr;
+                        if ($return instanceof Expr\Array_) {
+                            self::addSubscribedServicesArray($return, $codebase, $fileStorage);
+                        } elseif ($return instanceof Expr\FuncCall) {
+                            $funcName = $return->name;
+                            if ($funcName instanceof Name && in_array('array_merge', $funcName->parts)) {
+                                foreach ($return->args as $arg) {
+                                    if ($arg->value instanceof Expr\Array_) {
+                                        self::addSubscribedServicesArray($arg->value, $codebase, $fileStorage);
                                     }
-
-                                    /** @var string $className */
-                                    $className = $value->class->getAttribute('resolvedName');
-
-                                    $key = $arrayItem->key;
-                                    $serviceId = $key instanceof String_ ? $key->value : $className;
-
-                                    $service = new Service($serviceId, $className);
-                                    $service->setIsPublic(true);
-                                    self::$containerMeta->add($service);
-
-                                    $codebase->queueClassLikeForScanning($className);
-                                    $fileStorage->referenced_classlikes[strtolower($className)] = $className;
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private static function addSubscribedServicesArray(Expr\Array_ $array, Codebase $codebase, FileStorage $fileStorage): void
+    {
+        if (!self::$containerMeta) {
+            return;
+        }
+
+        foreach ($array->items as $arrayItem) {
+            if ($arrayItem instanceof Expr\ArrayItem) {
+                $value = $arrayItem->value;
+                if (!$value instanceof Expr\ClassConstFetch) {
+                    continue;
+                }
+
+                /** @var string $className */
+                $className = $value->class->getAttribute('resolvedName');
+
+                $key = $arrayItem->key;
+                $serviceId = $key instanceof String_ ? $key->value : $className;
+
+                $service = new Service($serviceId, $className);
+                $service->setIsPublic(true);
+                self::$containerMeta->add($service);
+
+                $codebase->queueClassLikeForScanning($className);
+                $fileStorage->referenced_classlikes[strtolower($className)] = $className;
             }
         }
     }
