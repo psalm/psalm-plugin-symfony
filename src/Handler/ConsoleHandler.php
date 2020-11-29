@@ -165,6 +165,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             return;
         }
 
+        if (0 === strpos($identifier, '--')) {
+            $identifier = substr($identifier, 2);
+        }
+
         if (isset($args[2])) {
             try {
                 $mode = self::getModeValue($args[2]->value);
