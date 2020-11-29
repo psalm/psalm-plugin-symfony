@@ -122,6 +122,41 @@ Feature: ConsoleOption
       | Trace | $option5: null\|string       |
     And I see no other errors
 
+  Scenario: Asserting options return types have inferred with -- prefix in names
+    Given I have the following code
+      """
+      class MyCommand extends Command
+      {
+        public function configure(): void
+        {
+          $this->addOption('--option1', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
+          $this->addOption('--option2', null, InputOption::VALUE_REQUIRED, '', 'default');
+          $this->addOption('--option3', null, InputOption::VALUE_NONE, '', true);
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          /** @psalm-trace $option1 */
+          $option1 = $input->getOption('option1');
+
+          /** @psalm-trace $option2 */
+          $option2 = $input->getOption('option2');
+
+          /** @psalm-trace $option3 */
+          $option3 = $input->getOption('option3');
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                      |
+      | Trace | $option1: array<int, string> |
+      | Trace | $option2: string             |
+      | Trace | $option3: bool               |
+    And I see no other errors
+
   Scenario: Asserting options return types have inferred (without error) using Definition
     Given I have the following code
       """
