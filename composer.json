@@ -38,9 +38,6 @@
             "Psalm\\SymfonyPsalmPlugin\\Tests\\": ["tests/unit"]
         }
     },
-    "conflict": {
-        "vimeo/psalm": "~4.2"
-    },
     "config": {
         "sort-packages": true
     },

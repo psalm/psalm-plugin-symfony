@@ -87,7 +87,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
 
         if ($expr->args[0]->value instanceof String_) {
-            $serviceId = (string) $expr->args[0]->value->value;
+            $serviceId = $expr->args[0]->value->value;
         } elseif ($expr->args[0]->value instanceof ClassConstFetch) {
             $serviceId = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
         } else {

@@ -55,7 +55,7 @@ class ContainerMeta
     {
         /** @var string $containerXmlPath */
         foreach ($containerXmlPaths as $containerXmlPath) {
-            $xmlPath = realpath((string) $containerXmlPath);
+            $xmlPath = realpath($containerXmlPath);
             if (!$xmlPath || !file_exists($xmlPath)) {
                 continue;
             }
