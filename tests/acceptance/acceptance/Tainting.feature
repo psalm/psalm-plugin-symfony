@@ -37,7 +37,7 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:
       | property  |
@@ -60,7 +60,7 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:
       | property |
@@ -82,7 +82,7 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
 
   Scenario: All headers are printed in the body of a Response object
@@ -99,5 +99,5 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors

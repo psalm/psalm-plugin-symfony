@@ -83,7 +83,7 @@ Feature: Twig tainting with cached templates
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
 
   Scenario: One tainted parameter (in a variable) of the twig template (named in a variable) is displayed with only the raw filter
@@ -104,7 +104,7 @@ Feature: Twig tainting with cached templates
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
 
   Scenario: The template has a taint sink and is aliased
@@ -124,7 +124,7 @@ Feature: Twig tainting with cached templates
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
 
   Scenario: The template has a taint sink and is aliased using the old notation
@@ -144,7 +144,7 @@ Feature: Twig tainting with cached templates
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
 
   Scenario: The template has a taint sink and is rendered using the old alias notation
@@ -164,5 +164,5 @@ Feature: Twig tainting with cached templates
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedInput | Detected tainted html |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
