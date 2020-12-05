@@ -93,6 +93,7 @@ jobs:
         with:
           coverage: none
           php-version: ${{ matrix.php-version }}
+          tools: flex
 
       - name: "Determine composer cache directory"
         id: determine-composer-cache-directory
@@ -105,17 +106,11 @@ jobs:
           key: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-
 
-      - name: "Install symfony 3 dependencies from composer.json"
-        if: matrix.symfony-version == '3'
-        run: composer require symfony/framework-bundle ^3.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
+      - name: "Restrict symfony dependencies to the correct version"
+        run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
-      - name: "Install Symfony 4 dependencies from composer.json"
-        if: matrix.symfony-version == '4'
-        run: composer require symfony/framework-bundle ^4.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
-
-      - name: "Install Symfony 5 dependencies from composer.json"
-        if: matrix.symfony-version == '5'
-        run: composer require symfony/framework-bundle ^5.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
+      - name: "Update dependencies with restricted symfony version"
+        run: composer update --prefer-stable --no-interaction --no-progress
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml
