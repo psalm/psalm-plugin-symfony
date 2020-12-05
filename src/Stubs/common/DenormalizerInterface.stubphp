@@ -5,15 +5,10 @@ namespace Symfony\Component\Serializer\Normalizer;
 interface DenormalizerInterface
 {
     /**
-     * @template     T
-     * @psalm-param  class-string<T> $type
-     * @psalm-return T
+     * @template TObject of object
+     * @template TType of string|class-string<TObject>
+     * @psalm-param TType $type
+     * @psalm-return (TType is class-string<TObject> ? TObject : mixed)
      */
     public function denormalize($data, string $type, string $format = null, array $context = []);
-
-    /**
-     * @template    T
-     * @psalm-param class-string<T> $type
-     */
-    public function supportsDenormalization($data, string $type, string $format = null);
 }
