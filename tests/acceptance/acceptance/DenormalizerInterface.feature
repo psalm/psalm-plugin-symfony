@@ -22,7 +22,9 @@ Feature: Denormalizer interface
     Given I have the following code
       """
       <?php
-      function test(\Symfony\Component\Serializer\Normalizer\DenormalizerInterface $denormalizer): void
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      function test(DenormalizerInterface $denormalizer): void
       {
         $result = $denormalizer->denormalize([], stdClass::class);
         /** @psalm-trace $result */
@@ -38,7 +40,9 @@ Feature: Denormalizer interface
     Given I have the following code
       """
       <?php
-      function test(\Symfony\Component\Serializer\Normalizer\DenormalizerInterface $denormalizer): void
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      function test(DenormalizerInterface $denormalizer): void
       {
         $result = $denormalizer->denormalize([], 'stdClass[]');
         /** @psalm-trace $result */
@@ -50,3 +54,25 @@ Feature: Denormalizer interface
       | MixedAssignment        | Unable to determine the type that $result is being assigned to |
       | Trace                  | $result: mixed                                                 |
     And I see no other errors
+
+  Scenario: Psalm does not complain about the missing $data parameter type in the denormalizer implementation
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      final class Denormalizer implements DenormalizerInterface
+      {
+        public function supportsDenormalization($data, string $type, string $format = null)
+        {
+          return true;
+        }
+
+        public function denormalize($data, string $type, string $format = null, array $context = [])
+        {
+          return null;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors

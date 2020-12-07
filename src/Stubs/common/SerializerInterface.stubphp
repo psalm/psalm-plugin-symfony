@@ -7,6 +7,7 @@ interface SerializerInterface
     /**
      * @template TObject of object
      * @template TType of string|class-string<TObject>
+     * @psalm-param mixed $data
      * @psalm-param TType $type
      * @psalm-return (TType is class-string<TObject> ? TObject : mixed)
      */
