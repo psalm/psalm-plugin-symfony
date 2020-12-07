@@ -18,12 +18,12 @@ class ContainerMetaTest extends TestCase
      */
     private $containerMeta;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->containerMeta = new ContainerMeta([__DIR__.'/../../acceptance/container.xml']);
     }
 
-    public function tearDown()
+    public function tearDown(): void
     {
         unset($this->containerMeta);
     }
