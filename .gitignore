@@ -5,3 +5,4 @@ composer.lock
 .php_cs.cache
 tests/_run
 /.idea
+/.phpunit.result.cache

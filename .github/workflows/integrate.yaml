@@ -17,8 +17,9 @@ jobs:
     strategy:
       matrix:
         php-version:
-          - 7.4
           - 7.3
+          - 7.4
+          - 8.0
 
         dependencies:
           - highest
@@ -73,7 +74,7 @@ jobs:
         php-version:
           - 7.3
           - 7.4
-          - nightly
+          - 8.0
 
         symfony-version:
           - 3
@@ -81,8 +82,8 @@ jobs:
           - 5
 
         exclude:
-          - php-version: 7.1
-            symfony-version: 5
+          - php-version: 8.0
+            symfony-version: 3
 
     steps:
       - name: "Checkout"
