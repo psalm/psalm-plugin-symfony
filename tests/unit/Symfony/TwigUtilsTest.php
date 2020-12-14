@@ -50,6 +50,8 @@ class TwigUtilsTest extends TestCase
             ['dummy("expected.twig");'],
             ['dummy(\'expected.twig\');'],
             ['$a = "expected.twig"; dummy($a);'],
+            ['$a = "expected"; $b = ".twig"; dummy($a.$b);'],
+            ['$a = "pected"; dummy("ex".$a.".twig");'],
         ];
     }
 
