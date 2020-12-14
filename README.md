@@ -68,14 +68,19 @@ Example:
 </pluginClass>
 ```
 
-#### Twig tainting configuration
+### Twig tainting (experimental)
 
-There are two approaches to including twig templates for taint analysis  :
+When it comes to taint analysis for twig templates, there are currently two approaches :
 
- - one based on a specific file analyzer which uses the twig parser to taint twig's AST nodes
- - one based on the already compiled twig templates
+ - The first is based on a specific file analyzer (`Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer`) which leverages the twig parser and visits the AST nodes.
+ - The second one is based on the already compiled twig templates, it only bridges calls to `Twig\Environment::render` to the actual `doRender` method of the compiled template.
 
-To leverage the real Twig file analyzer, you have to configure the `.twig` extension as follows :
+#### Twig Analyzer
+
+This approach is more robust as it relies on the official twig parser and node visitors mechanisms.
+For the moment it can only detects simple taints paths.
+
+To leverage the real Twig file analyzer, you have to configure a checker for the `.twig` extension as follows :
 
 ```xml
 <fileExtensions>
@@ -83,6 +88,11 @@ To leverage the real Twig file analyzer, you have to configure the `.twig` exten
    <extension name=".twig" checker="./vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
 </fileExtensions>
 ```
+
+#### Cache Analyzer
+
+This approach is more "dirty" as it tries to connect the taints from the application code to the compiled PHP code representing a given template.
+It is theoricaly able to detect more taints than the previous approach out-of-the-box, but it still lakes ways to handle inheritance and stuff like that.
 
 To allow the analysis through the cached template files, you have to add the `twigCachePath` entry to the plugin configuration :
 
