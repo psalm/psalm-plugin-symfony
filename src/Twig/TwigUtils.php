@@ -17,6 +17,18 @@ class TwigUtils
 {
     public static function extractTemplateNameFromExpression(Expr $templateName, StatementsSource $source): string
     {
+        return self::resolveStringFromExpression($templateName, $source);
+    }
+
+    private static function resolveStringFromExpression(Expr $templateName, StatementsSource $source): string
+    {
+        if ($templateName instanceof Expr\BinaryOp\Concat) {
+            $right = self::resolveStringFromExpression($templateName->right, $source);
+            $left = self::resolveStringFromExpression($templateName->left, $source);
+
+            return $left.$right;
+        }
+
         if ($templateName instanceof Variable) {
             $type = $source->getNodeTypeProvider()->getType($templateName) ?? new Union([new TNull()]);
             $templateName = array_values($type->getAtomicTypes())[0];
