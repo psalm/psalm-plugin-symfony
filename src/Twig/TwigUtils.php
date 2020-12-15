@@ -25,7 +25,8 @@ class TwigUtils
         if ($templateName instanceof Expr\BinaryOp\Concat) {
             $right = self::resolveStringFromExpression($templateName->right, $source);
             $left = self::resolveStringFromExpression($templateName->left, $source);
-            return $left . $right;
+
+            return $left.$right;
         }
 
         if ($templateName instanceof Variable) {
