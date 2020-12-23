@@ -27,6 +27,7 @@ The plugin calculates real return type by checking the given argument and marks 
   - $container in AbstractController
   - $context in ConstraintValidator classes
   - properties in custom `@Annotation` classes
+- And [much more](https://github.com/psalm/psalm-plugin-symfony/tree/master/tests/acceptance/acceptance)!
 
 ### Configuration
 
