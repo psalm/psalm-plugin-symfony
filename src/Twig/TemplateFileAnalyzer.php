@@ -20,7 +20,6 @@ class TemplateFileAnalyzer extends FileAnalyzer
 {
     public function analyze(
         PsalmContext $file_context = null,
-        bool $preserve_analyzers = false,
         PsalmContext $global_context = null
     ): void {
         $codebase = $this->project_analyzer->getCodebase();
