@@ -11,19 +11,19 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 
 ### Features
 
-- Detect `ContainerInterface::get()` result type. Works better if you [configure](#configuration) compiled container XML file.
-- Support [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20). Works only if you [configure](#configuration) compiled container XML file.
-- Detect return type of console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`). Enforces
-to use InputArgument and InputOption constants as a part of best practise.
-- Detects correct Doctrine repository class if entities are configured with annotations.
-- Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent`.
-The plugin calculates real return type by checking the given argument and marks return type as either string or resource.
-- Detect return type of `Symfony\Component\HttpFoundation\HeaderBag::get` (by checking default value and third argument for < Symfony 4.4)
-- Detect return type of `Symfony\Component\Messenger\Envelope::last` and `Symfony\Component\Messenger\Envelope::all`, based on the provided argument.
-- Taint analysis for Symfony
-- Detects service and parameter [naming convention](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations
-- Complains when `Container` is injected to a service. Use dependency-injection.
-- Fix false positive `PropertyNotSetInConstructor` issues
+- Detects the `ContainerInterface::get()` result type. Works better if you [configure](#configuration) a compiled container XML file.
+- Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20). Works only if you [configure](#configuration) a compiled container XML file.
+- Detects return types from console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`).
+Enforces to use "InputArgument" and "InputOption" constants as a best practise.
+- Detects Doctrine repository classes associated to entities when configured via annotations.
+- Fixes `PossiblyInvalidArgument` for `Symfony\Component\HttpFoundation\Request::getContent()`.
+The plugin determines the real return type by checking the given argument and marks it as either "string" or "resource".
+- Detects the return type of `Symfony\Component\HttpFoundation\HeaderBag::get()` by checking the default value (third argument for < Symfony 4.4).
+- Detects the return types of `Symfony\Component\Messenger\Envelope::last` and `Symfony\Component\Messenger\Envelope::all`, based on the provided argument.
+- Taint analysis for Symfony.
+- Detects services and parameters [naming conventions](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations.
+- Complains when `Container` is injected in a service, and asks to use dependency-injection instead.
+- Fixes `PropertyNotSetInConstructor` false positive issues:
   - $container in AbstractController
   - $context in ConstraintValidator classes
   - properties in custom `@Annotation` classes
@@ -31,7 +31,7 @@ The plugin calculates real return type by checking the given argument and marks 
 
 ### Configuration
 
-If you follow installation instructions, psalm-plugin command will add plugin configuration to psalm.xml
+If you follow the installation instructions, the psalm-plugin command will add this plugin configuration to the psalm.xml configuration file.
 
 ```xml
 <?xml version="1.0"?>
@@ -45,7 +45,9 @@ If you follow installation instructions, psalm-plugin command will add plugin co
 ```
 
 To be able to detect return types of services using ID (generally starts with `@` in Symfony YAML config files. Ex: `logger` service)
-`containerXml` must be provided. Example:
+`containerXml` must be provided.
+Example:
+
 ```xml
 <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
     <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
@@ -53,13 +55,13 @@ To be able to detect return types of services using ID (generally starts with `@
 ```
 
 This file path may change based on your Symfony version, file structure and environment settings.
-Default file for Symfony versions:
+Default files according to Symfony versions are:
 - Symfony 3: var/cache/dev/srcDevDebugProjectContainer.xml
 - Symfony 4: var/cache/dev/srcApp_KernelDevDebugContainer.xml
 - Symfony 5: var/cache/dev/App_KernelDevDebugContainer.xml
 
-Multiple container files can be configured. In this case, first valid file is taken into account.
-If none of the given files is valid, configuration exception is thrown.
+Multiple container files can be configured. In this case, the first valid file is taken into account.
+If none of the given files is valid, a configuration exception is thrown.
 Example:
 
 ```xml
@@ -71,17 +73,17 @@ Example:
 
 ### Twig tainting (experimental)
 
-When it comes to taint analysis for twig templates, there are currently two approaches :
+When it comes to taint analysis for Twig templates, there are currently two approaches:
 
- - The first is based on a specific file analyzer (`Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer`) which leverages the twig parser and visits the AST nodes.
- - The second one is based on the already compiled twig templates, it only bridges calls to `Twig\Environment::render` to the actual `doRender` method of the compiled template.
+ - The first one is based on a specific file analyzer (`Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer`) which leverages the Twig parser and visits the AST nodes.
+ - The second one is based on the already compiled Twig templates, it only bridges calls from `Twig\Environment::render` to the actual `doRender` method of the compiled template.
 
 #### Twig Analyzer
 
-This approach is more robust as it relies on the official twig parser and node visitors mechanisms.
-For the moment it can only detects simple taints paths.
+This approach is more robust since it relies on the official Twig parser and node visitor mechanisms.
+For the moment, it is only able to detect simple tainted paths.
 
-To leverage the real Twig file analyzer, you have to configure a checker for the `.twig` extension as follows :
+To leverage the real Twig file analyzer, you have to configure a checker for the `.twig` extension as follows:
 
 ```xml
 <fileExtensions>
@@ -92,8 +94,8 @@ To leverage the real Twig file analyzer, you have to configure a checker for the
 
 #### Cache Analyzer
 
-This approach is more "dirty" as it tries to connect the taints from the application code to the compiled PHP code representing a given template.
-It is theoricaly able to detect more taints than the previous approach out-of-the-box, but it still lakes ways to handle inheritance and stuff like that.
+This approach is "dirtier", since it tries to connect the taints from the application code to the compiled PHP code representing a given template.
+It is theoretically able to detect more taints than the previous approach out-of-the-box, but it still lacks ways to handle inheritance and stuff like that.
 
 To allow the analysis through the cached template files, you have to add the `twigCachePath` entry to the plugin configuration :
 
