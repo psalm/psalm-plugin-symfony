@@ -29,18 +29,17 @@ Feature: FormType templates
       /** @extends AbstractType<User> */
       class UserType extends AbstractType
       {
-          public function buildView(FormView $view, FormInterface $form, array $options)
+          public function buildView(FormView $view, FormInterface $form, array $options): void
           {
               $user = $form->getData();
               /** @psalm-trace $user */
           }
       }
-
       """
 
-  Scenario: Asserting arguments return types have inferred (without error) using Definition
+  Scenario: Assert form with return ?User
     When I run Psalm
     Then I see these errors
       | Type  | Message                   |
-      | Trace | $user: User               |
+      | Trace | $user: User\|null         |
     And I see no other errors
