@@ -54,7 +54,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """
@@ -65,11 +65,26 @@ Feature: Twig tainting with analyzer
     When I run Psalm with taint analysis
     And I see no errors
 
-  Scenario: One tainted parameter of the twig template is displayed with only the raw filter
+  Scenario: One tainted parameter of the twig template is rendered with only the raw filter but the not displayed
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
       twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: One tainted parameter of the twig template is displayed with only the raw filter
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """
@@ -89,7 +104,7 @@ Feature: Twig tainting with analyzer
       $untrustedParameters = ['untrusted' => $_GET['untrusted']];
       $template = 'index.html.twig';
 
-      twig()->render($template, $untrustedParameters);
+      echo twig()->render($template, $untrustedParameters);
       """
     And I have the following "index.html.twig" template
       """
@@ -107,7 +122,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """
@@ -125,7 +140,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """
@@ -140,7 +155,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "base.html.twig" template
       """
@@ -167,7 +182,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """
@@ -187,7 +202,7 @@ Feature: Twig tainting with analyzer
     Given I have the following code
       """
       $untrusted = $_GET['untrusted'];
-      twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
       """
     And I have the following "index.html.twig" template
       """

@@ -37,6 +37,8 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         }
 
         $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+
+        // Taints going _in_ the template
         $templateParameters = self::generateTemplateParameters($expr->args[1]->value, $statements_source);
         foreach ($templateParameters as $sourceNode) {
             $parameterName = $templateParameters[$sourceNode];
@@ -44,6 +46,14 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             $destinationNode = new DataFlowNode($argumentId, $label, null, null);
 
             $codebase->taint_flow_graph->addPath($sourceNode, $destinationNode, 'arg');
+        }
+
+        // Taints going _out_ of the template
+        $source = new DataFlowNode($templateName, $templateName, null);
+        if (null !== $return_type_candidate) {
+            foreach ($return_type_candidate->parent_nodes as $sink) {
+                $codebase->taint_flow_graph->addPath($source, $sink, '=');
+            }
         }
     }
 

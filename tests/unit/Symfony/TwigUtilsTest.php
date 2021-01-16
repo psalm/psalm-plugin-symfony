@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 
-use PhpParser\Node\Expr\FuncCall;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
-use Psalm\Codebase;
 use Psalm\Config;
 use Psalm\Context;
 use Psalm\Internal\Analyzer\FileAnalyzer;
@@ -17,8 +15,8 @@ use Psalm\Internal\Provider\FileProvider;
 use Psalm\Internal\Provider\NodeDataProvider;
 use Psalm\Internal\Provider\Providers;
 use Psalm\Internal\Provider\StatementsProvider;
-use Psalm\Plugin\Hook\AfterEveryFunctionCallAnalysisInterface;
-use Psalm\StatementsSource;
+use Psalm\Plugin\EventHandler\AfterEveryFunctionCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterEveryFunctionCallAnalysisEvent;
 use Psalm\Storage\FunctionStorage;
 use Psalm\SymfonyPsalmPlugin\Twig\TwigUtils;
 use RuntimeException;
@@ -34,9 +32,12 @@ class TwigUtilsTest extends TestCase
         $statements = StatementsProvider::parseStatements($code, '7.1');
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
-            public static function afterEveryFunctionCallAnalysis(FuncCall $expr, string $function_id, Context $context, StatementsSource $statements_source, Codebase $codebase): void
+            public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
             {
-                Assert::assertSame('expected.twig', TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source));
+                Assert::assertSame('expected.twig', TwigUtils::extractTemplateNameFromExpression(
+                    $event->getExpr()->args[0]->value,
+                    $event->getStatementsSource()
+                ));
             }
         };
 
@@ -61,9 +62,12 @@ class TwigUtilsTest extends TestCase
         $statements = StatementsProvider::parseStatements($code, '7.1');
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
-            public static function afterEveryFunctionCallAnalysis(FuncCall $expr, string $function_id, Context $context, StatementsSource $statements_source, Codebase $codebase): void
+            public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
             {
-                TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+                TwigUtils::extractTemplateNameFromExpression(
+                    $event->getExpr()->args[0]->value,
+                    $event->getStatementsSource()
+                );
             }
         };
 
@@ -75,8 +79,9 @@ class TwigUtilsTest extends TestCase
 
     private static function createStatementsAnalyzer(AfterEveryFunctionCallAnalysisInterface $hook): StatementsAnalyzer
     {
+        /** @var Config $config */
         $config = (function () { return new self(); })->bindTo(null, Config::class)();
-        $config->after_every_function_checks[] = $hook;
+        $config->eventDispatcher->registerClass(get_class($hook));
 
         $nullFileAnalyzer = new FileAnalyzer(new ProjectAnalyzer($config, new Providers(new FileProvider())), '', '');
         $nullFileAnalyzer->codebase->functions->addGlobalFunction('dummy', new FunctionStorage());

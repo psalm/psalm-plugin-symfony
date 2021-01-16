@@ -7,8 +7,6 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
-use Psalm\Internal\DataFlow\TaintSink;
-use Psalm\Internal\DataFlow\TaintSource;
 use Psalm\Type\TaintKind;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
@@ -30,6 +28,9 @@ class Context
     /** @var TaintFlowGraph */
     private $taint;
 
+    /** @var array<DataFlowNode> */
+    private $parentNodes = [];
+
     public function __construct(Source $sourceContext, TaintFlowGraph $taint)
     {
         $this->sourceContext = $sourceContext;
@@ -45,7 +46,7 @@ class Context
             $sinkName = 'twig_print';
         }
 
-        $sink = TaintSink::getForMethodArgument(
+        $sink = DataFlowNode::getForMethodArgument(
             $sinkName, $sinkName, 0, null, $codeLocation
         );
 
@@ -55,8 +56,9 @@ class Context
             TaintKind::SYSTEM_SECRET,
         ];
 
-        $this->taint->addSink($sink);
+        $this->taint->addNode($sink);
         $this->taint->addPath($source, $sink, 'arg');
+        $this->parentNodes[] = $sink;
     }
 
     public function taintVariable(NameExpression $expression): DataFlowNode
@@ -64,7 +66,7 @@ class Context
         /** @var string $variableName */
         $variableName = $expression->getAttribute('name');
 
-        $sinkNode = TaintSource::getForAssignment($variableName, $this->getNodeLocation($expression));
+        $sinkNode = DataFlowNode::getForAssignment($variableName, $this->getNodeLocation($expression));
 
         $this->taint->addNode($sinkNode);
         $sinkNode = $this->addVariableTaintNode($expression);
@@ -78,7 +80,7 @@ class Context
         $filterName = $expression->getNode('filter')->getAttribute('value');
 
         $returnLocation = $this->getNodeLocation($expression);
-        $taintDestination = TaintSource::getForMethodReturn('filter_'.$filterName, 'filter_'.$filterName, $returnLocation, $returnLocation);
+        $taintDestination = DataFlowNode::getForMethodReturn('filter_'.$filterName, 'filter_'.$filterName, $returnLocation, $returnLocation);
 
         $this->taint->addNode($taintDestination);
         $this->taint->addPath($taintSource, $taintDestination, 'arg');
@@ -110,10 +112,19 @@ class Context
     {
         foreach ($this->unassignedVariables as $variableName => $taintable) {
             $label = strtolower($templateName).'#'.strtolower($variableName);
-            $taintSource = new TaintSource($label, $label, null, null);
+            $taintSource = new DataFlowNode($label, $label, null);
 
             $this->taint->addNode($taintSource);
             $this->taint->addPath($taintSource, $taintable, 'arg');
+        }
+    }
+
+    public function taintSinks(string $templateName): void
+    {
+        $sink = new DataFlowNode($templateName, $templateName, null);
+        $this->taint->addNode($sink);
+        foreach ($this->parentNodes as $source) {
+            $this->taint->addPath($source, $sink, 'return');
         }
     }
 
@@ -121,7 +132,7 @@ class Context
     {
         /** @var string $variableName */
         $variableName = $variableNode->getAttribute('name');
-        $taintNode = TaintSource::getForAssignment($variableName, $this->getNodeLocation($variableNode));
+        $taintNode = DataFlowNode::getForAssignment($variableName, $this->getNodeLocation($variableNode));
 
         $this->taint->addNode($taintNode);
 

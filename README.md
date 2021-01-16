@@ -92,6 +92,8 @@ To leverage the real Twig file analyzer, you have to configure a checker for the
 </fileExtensions>
 ```
 
+[See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
+
 #### Cache Analyzer
 
 This approach is "dirtier", since it tries to connect the taints from the application code to the compiled PHP code representing a given template.
@@ -104,6 +106,8 @@ To allow the analysis through the cached template files, you have to add the `tw
     <twigCachePath>/cache/twig</twigCachePath>
 </pluginClass>
 ```
+
+[See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithCachedTemplates.feature)
 
 ### Credits
 
