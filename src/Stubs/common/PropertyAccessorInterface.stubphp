@@ -1,0 +1,39 @@
+<?php
+
+namespace Symfony\Component\PropertyAccess;
+
+interface PropertyAccessorInterface
+{
+    /**
+     * @template T as object|array
+     * @psalm-param T $objectOrArray
+     * @psalm-param string|PropertyPathInterface $propertyPath
+     * @psalm-param mixed $value
+     * @psalm-self-out T $objectOrArray
+     */
+    public function setValue(&$objectOrArray, $propertyPath, $value);
+
+    /**
+     * @param object|array $objectOrArray
+     * @param string|PropertyPathInterface $propertyPath
+     *
+     * @return mixed
+     */
+    public function getValue($objectOrArray, $propertyPath);
+
+    /**
+     * @param object|array $objectOrArray
+     * @param string|PropertyPathInterface $propertyPath
+     *
+     * @return bool
+     */
+    public function isWritable($objectOrArray, $propertyPath);
+
+    /**
+     * @param object|array $objectOrArray
+     * @param string|PropertyPathInterface $propertyPath
+     *
+     * @return bool
+     */
+    public function isReadable($objectOrArray, $propertyPath);
+}

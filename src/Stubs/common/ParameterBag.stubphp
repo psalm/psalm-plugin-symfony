@@ -2,14 +2,15 @@
 
 namespace Symfony\Component\HttpFoundation;
 
-final class InputBag extends ParameterBag
+class ParameterBag implements \IteratorAggregate, \Countable
 {
     /**
-     * Returns a string input value by name.
+     * Returns a parameter by name.
      *
-     * @template D of string|null
-     * @psalm-param D $default
-     * @psalm-return string|D
+     * @param string $key     The key
+     * @param mixed  $default The default value if the parameter key does not exist
+     *
+     * @return mixed
      * @psalm-taint-source input
      */
     public function get(string $key, $default = null) {}

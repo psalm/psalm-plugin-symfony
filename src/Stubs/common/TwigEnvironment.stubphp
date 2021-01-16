@@ -1,0 +1,14 @@
+<?php
+
+namespace Twig;
+
+
+class Environment
+{
+    /**
+     * @param string|TemplateWrapper $name
+     *
+     * @psalm-taint-specialize
+     */
+    public function render($name, array $context = []): string {}
+}

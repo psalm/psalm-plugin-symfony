@@ -33,7 +33,7 @@ class ContainerMeta
         return null;
     }
 
-    private function add(Service $service): void
+    public function add(Service $service): void
     {
         if (($alias = $service->getAlias()) && isset($this->services[$alias])) {
             $aliasedService = $this->services[$alias];
@@ -55,7 +55,7 @@ class ContainerMeta
     {
         /** @var string $containerXmlPath */
         foreach ($containerXmlPaths as $containerXmlPath) {
-            $xmlPath = realpath((string) $containerXmlPath);
+            $xmlPath = realpath($containerXmlPath);
             if (!$xmlPath || !file_exists($xmlPath)) {
                 continue;
             }

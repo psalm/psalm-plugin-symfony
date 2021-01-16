@@ -1,5 +1,3 @@
-# https://help.github.com/en/categories/automating-your-workflow-with-github-actions
-
 name: "Integrate"
 
 on:
@@ -7,6 +5,8 @@ on:
   push:
     branches:
       - master
+  schedule:
+    - cron: "0 10 * * *"
 
 jobs:
   static-code-analysis:
@@ -17,10 +17,13 @@ jobs:
     strategy:
       matrix:
         php-version:
+          - 7.3
           - 7.4
+          - 8.0
 
         dependencies:
           - highest
+          - lowest
 
     steps:
       - name: "Checkout"
@@ -43,6 +46,10 @@ jobs:
           key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
 
+      - name: "Install lowest dependencies from composer.json"
+        if: matrix.dependencies == 'lowest'
+        run: composer update --no-interaction --no-progress --no-suggest --prefer-lowest
+
       - name: "Install highest dependencies from composer.json"
         if: matrix.dependencies == 'highest'
         run: composer install --no-interaction --no-progress --no-suggest
@@ -55,7 +62,7 @@ jobs:
           restore-keys: php-${{ matrix.php-version }}-psalm-
 
       - name: "Run vimeo/psalm"
-        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --diff --diff-methods --shepherd --show-info=false --stats --output-format=github
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github
 
   tests:
     name: "Tests"
@@ -69,6 +76,7 @@ jobs:
           - 7.2
           - 7.3
           - 7.4
+          - 8.0
 
         symfony-version:
           - 3
@@ -78,6 +86,8 @@ jobs:
         exclude:
           - php-version: 7.1
             symfony-version: 5
+          - php-version: 8.0
+            symfony-version: 3
 
     steps:
       - name: "Checkout"
@@ -88,6 +98,7 @@ jobs:
         with:
           coverage: none
           php-version: ${{ matrix.php-version }}
+          tools: flex
 
       - name: "Determine composer cache directory"
         id: determine-composer-cache-directory
@@ -100,17 +111,11 @@ jobs:
           key: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-${{ hashFiles('composer.json') }}
           restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-
 
-      - name: "Install symfony 3 dependencies from composer.json"
-        if: matrix.symfony-version == '3'
-        run: composer require symfony/framework-bundle ^3.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
+      - name: "Restrict symfony dependencies to the correct version"
+        run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
-      - name: "Install Symfony 4 dependencies from composer.json"
-        if: matrix.symfony-version == '4'
-        run: composer require symfony/framework-bundle ^4.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
-
-      - name: "Install Symfony 5 dependencies from composer.json"
-        if: matrix.symfony-version == '5'
-        run: composer require symfony/framework-bundle ^5.0 --prefer-stable --update-with-all-dependencies --no-interaction --no-progress --no-suggest
+      - name: "Update dependencies with restricted symfony version"
+        run: composer update --prefer-stable --no-interaction --no-progress
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml

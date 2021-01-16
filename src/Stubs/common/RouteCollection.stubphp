@@ -1,0 +1,24 @@
+<?php
+
+namespace Symfony\Component\Routing;
+
+class RouteCollection implements \IteratorAggregate, \Countable
+{
+    /**
+     * Gets the current RouteCollection as an Iterator that includes all routes.
+     *
+     * It implements \IteratorAggregate.
+     *
+     * @see all()
+     *
+     * @return \ArrayIterator<string, Route>
+     */
+    public function getIterator() {}
+
+    /**
+     * Returns all routes in this collection.
+     *
+     * @return array<string, Route>
+     */
+    public function all() {}
+}
