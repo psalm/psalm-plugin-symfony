@@ -12,7 +12,7 @@
     "require": {
         "php": "^7.1 || ^8.0",
         "ext-simplexml": "*",
-        "symfony/form": "^5.2",
+        "symfony/form": "^4.0 || ^5.0",
         "symfony/framework-bundle": "^3.0 || ^4.0 || ^5.0",
         "vimeo/psalm": "^4.4.1"
     },

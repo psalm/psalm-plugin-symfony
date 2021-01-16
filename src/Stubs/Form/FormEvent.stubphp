@@ -10,38 +10,18 @@ use Symfony\Component\EventDispatcher\Event;
 class FormEvent extends Event
 {
     /**
-     * @psalm-var FormInterface<T>
-     */
-    private $form;
-
-    /**
      * @psalm-var T
      */
     protected $data;
 
-    /**
-     * @psalm-param FormInterface<T> $form
-     * @psalm-param T $data
-     */
-    public function __construct(FormInterface $form, $data)
-    {
-        $this->form = $form;
-        $this->data = $data;
-    }
 
     /**
      * @psalm-return FormInterface<T>
      */
-    public function getForm()
-    {
-        return $this->form;
-    }
+    public function getForm() {}
 
     /**
      * @psalm-return ?T
      */
-    public function getData()
-    {
-        return $this->data;
-    }
+    public function getData() {}
 }
