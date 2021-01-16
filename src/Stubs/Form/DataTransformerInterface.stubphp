@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\Form\Exception\TransformationFailedException;
+
+/**
+ * @template T
+ * @template R
+ */
+interface DataTransformerInterface
+{
+    /**
+     * @psalm-param ?T $value The value in the original representation
+     *
+     * @psalm-return ?R The value in the transformed representation
+     */
+    public function transform($value);
+
+    /**
+     * @psalm-param ?R $value The value in the transformed representation
+     *
+     * @psalm-return ?T The value in the original representation
+     */
+    public function reverseTransform($value);
+}

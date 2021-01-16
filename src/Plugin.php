@@ -28,6 +28,14 @@ class Plugin implements PluginEntryPointInterface
     /**
      * @return string[]
      */
+    protected function getFormStubs(): array
+    {
+        return glob(__DIR__.'/Stubs/Form/*.stubphp') ?: [];
+    }
+
+    /**
+     * @return string[]
+     */
     protected function getCommonStubs(): array
     {
         return glob(__DIR__.'/Stubs/common/*.stubphp') ?: [];
@@ -78,7 +86,9 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(ContainerHandler::class);
 
         $stubs = array_merge(
-            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
+            $this->getCommonStubs(),
+            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION),
+            $this->getFormStubs()
         );
 
         foreach ($stubs as $stubFilePath) {
