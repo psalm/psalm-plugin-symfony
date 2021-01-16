@@ -3,12 +3,9 @@
 namespace Symfony\Component\Form;
 
 use Symfony\Component\Form\Exception\LogicException;
-use Symfony\Component\Form\Extension\Core\Type\FormType;
-use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
- * @template T
- * @implements FormTypeExtensionInterface<T>
+ * @implements FormTypeExtensionInterface
  */
 abstract class AbstractTypeExtension implements FormTypeExtensionInterface
 {
@@ -31,13 +28,5 @@ abstract class AbstractTypeExtension implements FormTypeExtensionInterface
      */
     public function finishView(FormView $view, FormInterface $form, array $options)
     {
-    }
-
-    /**
-     * @psalm-suppress PossiblyUnusedMethod
-     */
-    public static function getExtendedTypes(): iterable
-    {
-        yield FormType::class;
     }
 }
