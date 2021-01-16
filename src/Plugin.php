@@ -19,6 +19,7 @@ use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
+use function array_merge;
 
 /**
  * @psalm-suppress UnusedClass
@@ -30,7 +31,10 @@ class Plugin implements PluginEntryPointInterface
      */
     protected function getFormStubs(): array
     {
-        return glob(__DIR__.'/Stubs/Form/*.stubphp') ?: [];
+        $forms = glob(__DIR__ . '/Stubs/Form/*.stubphp') ?: [];
+        $events = glob(__DIR__ . '/Stubs/Form/Event/*.stubphp') ?: [];
+
+        return array_merge($forms, $events);
     }
 
     /**

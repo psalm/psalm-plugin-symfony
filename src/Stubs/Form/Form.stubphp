@@ -1,0 +1,32 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\Form\Event\PostSetDataEvent;
+use Symfony\Component\Form\Event\PostSubmitEvent;
+use Symfony\Component\Form\Event\PreSetDataEvent;
+use Symfony\Component\Form\Event\PreSubmitEvent;
+use Symfony\Component\Form\Event\SubmitEvent;
+use Symfony\Component\Form\Exception\AlreadySubmittedException;
+use Symfony\Component\Form\Exception\LogicException;
+use Symfony\Component\Form\Exception\OutOfBoundsException;
+use Symfony\Component\Form\Exception\RuntimeException;
+use Symfony\Component\Form\Exception\TransformationFailedException;
+use Symfony\Component\Form\Exception\UnexpectedTypeException;
+use Symfony\Component\Form\Util\FormUtil;
+use Symfony\Component\Form\Util\InheritDataAwareIterator;
+use Symfony\Component\Form\Util\OrderedHashMap;
+use Symfony\Component\PropertyAccess\PropertyPath;
+use Symfony\Component\PropertyAccess\PropertyPathInterface;
+
+/**
+ * @template T
+ * @implements FormInterface<T>
+ */
+class Form implements \IteratorAggregate, FormInterface, ClearableErrorsInterface
+{
+    /**
+     * @psalm-return FormView<T>
+     */
+    public function createView(FormView $parent = null);
+}
