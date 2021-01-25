@@ -25,6 +25,12 @@ jobs:
         dependencies:
           - highest
           - lowest
+        
+        exclude:
+          - php-version: 7.3
+            dependencies: lowest
+          - php-version: 7.4
+            dependencies: lowest
 
     steps:
       - name: "Checkout"
