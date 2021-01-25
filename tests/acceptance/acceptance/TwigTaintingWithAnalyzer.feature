@@ -217,3 +217,45 @@ Feature: Twig tainting with analyzer
       | Type         | Message               |
       | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
+
+  Scenario: One tainted parameter of the twig (oddly located) template is displayed with only the raw filter
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="layouts"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <twigRootPath>layouts</twigRootPath>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And the template root directory is "layouts"
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedHtml  | Detected tainted HTML |
+    And I see no other errors
