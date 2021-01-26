@@ -17,7 +17,6 @@ use Psalm\StatementsSource;
 use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Union;
 use RuntimeException;
-use SplObjectStorage;
 use Twig\Environment;
 
 /**
