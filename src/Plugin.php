@@ -17,6 +17,7 @@ use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -88,7 +89,7 @@ class Plugin implements PluginEntryPointInterface
         if (isset($config->twigCachePath)) {
             $twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
             if (!is_dir($twig_cache_path) || !is_readable($twig_cache_path)) {
-                throw new ConfigException(sprintf('The twig directory %s is missing or not readable.', $twig_cache_path));
+                throw new ConfigException(sprintf('The twig cache directory %s is missing or not readable.', $twig_cache_path));
             }
 
             require_once __DIR__.'/Twig/CachedTemplatesTainter.php';
@@ -101,5 +102,15 @@ class Plugin implements PluginEntryPointInterface
 
         require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';
         $api->registerHooksFromClass(AnalyzedTemplatesTainter::class);
+
+        if (isset($config->twigRootPath)) {
+            $twig_root_path = trim((string) $config->twigRootPath, DIRECTORY_SEPARATOR);
+            $real_path = getcwd().DIRECTORY_SEPARATOR.$twig_root_path;
+            if (!is_dir($real_path) || !is_readable($real_path)) {
+                throw new ConfigException(sprintf('The twig templates root directory %s is missing or not readable.', $twig_root_path));
+            }
+
+            TemplateFileAnalyzer::setTemplateRootPath($twig_root_path);
+        }
     }
 }

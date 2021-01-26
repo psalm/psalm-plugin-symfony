@@ -24,7 +24,12 @@ class CodeceptionModule extends BaseModule
         'default_dir' => 'tests/_run/',
     ];
 
-    public const TWIG_TEMPLATES_DIR = 'templates';
+    private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
+
+    /**
+     * @var string
+     */
+    private $twigTemplateDir = self::DEFAULT_TWIG_TEMPLATES_DIR;
 
     /**
      * @var FilesystemCache|null
@@ -39,6 +44,15 @@ class CodeceptionModule extends BaseModule
     public function _after(TestInterface $test): void
     {
         $this->twigCache = $this->lastCachePath = null;
+        $this->twigTemplateDir = self::DEFAULT_TWIG_TEMPLATES_DIR;
+    }
+
+    /**
+     * @Given the template root directory is :rootDir
+     */
+    public function setTheTemplateRootDirectory(string $rootDir): void
+    {
+        $this->twigTemplateDir = $rootDir;
     }
 
     /**
@@ -49,10 +63,9 @@ class CodeceptionModule extends BaseModule
         $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
         $templatePath = (
             $rootDirectory.DIRECTORY_SEPARATOR.
-            self::TWIG_TEMPLATES_DIR.DIRECTORY_SEPARATOR.
+            $this->twigTemplateDir.DIRECTORY_SEPARATOR.
             $templateName
         );
-
         $templateDirectory = dirname($templatePath);
         if (!file_exists($templateDirectory)) {
             mkdir($templateDirectory, 0755, true);
@@ -106,20 +119,20 @@ class CodeceptionModule extends BaseModule
             $this->twigCache = new FilesystemCache($cacheDirectory);
         }
 
-        $twigEnvironment = self::getEnvironment($rootDirectory, $this->twigCache);
+        $twigEnvironment = $this->getEnvironment($rootDirectory, $this->twigCache);
         $template = $twigEnvironment->load($templateName);
 
         /** @psalm-suppress InternalMethod */
         $this->lastCachePath = $this->twigCache->generateKey($templateName, get_class($template->unwrap()));
     }
 
-    private static function getEnvironment(string $rootDirectory, FilesystemCache $twigCache): Environment
+    private function getEnvironment(string $rootDirectory, FilesystemCache $twigCache): Environment
     {
-        if (!file_exists($rootDirectory.DIRECTORY_SEPARATOR.self::TWIG_TEMPLATES_DIR)) {
-            mkdir($rootDirectory.DIRECTORY_SEPARATOR.self::TWIG_TEMPLATES_DIR);
+        if (!file_exists($rootDirectory.DIRECTORY_SEPARATOR.$this->twigTemplateDir)) {
+            mkdir($rootDirectory.DIRECTORY_SEPARATOR.$this->twigTemplateDir);
         }
 
-        $loader = new FilesystemLoader(self::TWIG_TEMPLATES_DIR, $rootDirectory);
+        $loader = new FilesystemLoader($this->twigTemplateDir, $rootDirectory);
 
         $twigEnvironment = new Environment($loader, [
             'cache' => $twigCache,
