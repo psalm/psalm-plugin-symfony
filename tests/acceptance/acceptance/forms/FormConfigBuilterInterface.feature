@@ -16,7 +16,7 @@ Feature: Form events
         </plugins>
       </psalm>
       """
-  Scenario: Make difference between different events
+  Scenario: Depending of typehinted form event, psalm will know type of data attached
     Given I have the following code
           """
       <?php
@@ -52,15 +52,19 @@ Feature: Form events
                   $submitData = $event->getData();
                   /** @psalm-trace $submitData */
               });
+
+              $config = $builder->getFormConfig();
+              /** @psalm-trace $config */
           }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                                 |
-      | Trace | $presetData: User\|null                 |
-      | Trace | $postSetData: User\|null                |
-      | Trace | $preSubmitData: array<string, mixed>    |
-      | Trace | $submitData: User\|null                 |
+      | Type  | Message                                                         |
+      | Trace | $config: Symfony\Component\Form\FormConfigInterface<User>       |
+      | Trace | $presetData: User\|null                                         |
+      | Trace | $postSetData: User\|null                                        |
+      | Trace | $preSubmitData: array<string, mixed>                            |
+      | Trace | $submitData: User\|null                                         |
     And I see no other errors
 
