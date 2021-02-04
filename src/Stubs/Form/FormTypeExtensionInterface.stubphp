@@ -5,7 +5,7 @@ namespace Symfony\Component\Form;
 interface FormTypeExtensionInterface
 {
     /**
-     * @return iterable<class-string<FormTypeInterface>>
+     * @psalm-return iterable<class-string<FormTypeInterface>>
      */
     public static function getExtendedTypes();
 }
