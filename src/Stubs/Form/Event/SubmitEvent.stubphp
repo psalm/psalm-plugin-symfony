@@ -6,9 +6,8 @@ use Symfony\Component\Form\FormEvent;
 
 /**
  * @template T
- * @template-extends FormEvent<T>
  *
- * @method getData(): ?T
+ * @template-extends FormEvent<T>
  */
 class SubmitEvent extends FormEvent
 {

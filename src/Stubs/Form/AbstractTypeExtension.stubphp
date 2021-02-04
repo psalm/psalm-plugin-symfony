@@ -12,6 +12,7 @@ abstract class AbstractTypeExtension implements FormTypeExtensionInterface
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
     }
+    
     public function buildView(FormView $view, FormInterface $form, array $options)
     {
     }

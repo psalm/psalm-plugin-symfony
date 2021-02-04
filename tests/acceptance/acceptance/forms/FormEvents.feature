@@ -25,7 +25,7 @@ Feature: Form events
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
-      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent};
+      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent, PostSetDataEvent, SubmitEvent};
       use Symfony\Component\Form\FormEvents;
 
       /** @extends AbstractType<User> */
@@ -33,22 +33,34 @@ Feature: Form events
       {
           public function buildForm(FormBuilderInterface $builder, array $options): void
           {
-              $builder->addEventListener(FormEvents::PRE_SUBMIT, function(PreSetDataEvent $event) {
-                  $preset = $event->getData();
-                  /** @psalm-trace $preset */
+              $builder->addEventListener(FormEvents::PRE_SET_DATA, function(PreSetDataEvent $event) {
+                  $presetData = $event->getData();
+                  /** @psalm-trace $presetData */
+              });
+
+              $builder->addEventListener(FormEvents::POST_SET_DATA, function(PostSetDataEvent $event) {
+                  $postSetData = $event->getData();
+                  /** @psalm-trace $postSetData */
               });
 
               $builder->addEventListener(FormEvents::PRE_SUBMIT, function(PreSubmitEvent $event) {
-                  $preSubmit = $event->getData();
-                  /** @psalm-trace $preSubmit */
+                  $preSubmitData = $event->getData();
+                  /** @psalm-trace $preSubmitData */
+              });
+
+              $builder->addEventListener(FormEvents::SUBMIT, function(SubmitEvent $event) {
+                  $submitData = $event->getData();
+                  /** @psalm-trace $submitData */
               });
           }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                                    |
-      | Trace | $preset: User\|null                        |
-      | Trace | $preSubmit: array<string, mixed>           |
+      | Type  | Message                                 |
+      | Trace | $presetData: User\|null                 |
+      | Trace | $postSetData: User\|null                |
+      | Trace | $preSubmitData: array<string, mixed>    |
+      | Trace | $submitData: User\|null                 |
     And I see no other errors
 
