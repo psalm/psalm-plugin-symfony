@@ -31,8 +31,8 @@ class Plugin implements PluginEntryPointInterface
      */
     protected function getFormStubs(): array
     {
-        $forms = glob(__DIR__ . '/Stubs/Form/*.stubphp') ?: [];
-        $events = glob(__DIR__ . '/Stubs/Form/Event/*.stubphp') ?: [];
+        $forms = glob(__DIR__ . '/Stubs/common/forms/*.stubphp') ?: [];
+        $events = glob(__DIR__ . '/Stubs/common/forms/Event/*.stubphp') ?: [];
 
         return array_merge($forms, $events);
     }
