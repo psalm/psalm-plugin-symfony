@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin;
 
+use function array_merge;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
@@ -19,7 +20,6 @@ use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use SimpleXMLElement;
 use Symfony\Component\HttpKernel\Kernel;
-use function array_merge;
 
 /**
  * @psalm-suppress UnusedClass
@@ -31,8 +31,8 @@ class Plugin implements PluginEntryPointInterface
      */
     protected function getFormStubs(): array
     {
-        $forms = glob(__DIR__ . '/Stubs/common/forms/*.stubphp') ?: [];
-        $events = glob(__DIR__ . '/Stubs/common/forms/Event/*.stubphp') ?: [];
+        $forms = glob(__DIR__.'/Stubs/common/forms/*.stubphp') ?: [];
+        $events = glob(__DIR__.'/Stubs/common/forms/Event/*.stubphp') ?: [];
 
         return array_merge($forms, $events);
     }
