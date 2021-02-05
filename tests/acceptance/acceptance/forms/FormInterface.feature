@@ -1,5 +1,5 @@
 @symfony-form
-Feature: Form test
+Feature: Form events
 
   Background:
     Given I have the following config
@@ -16,17 +16,19 @@ Feature: Form test
         </plugins>
       </psalm>
       """
-  Scenario: Assert that Form::getData() will return nullable type (empty_data failure)
+  Scenario: FormInterface test
     Given I have the following code
           """
       <?php
 
       class User {}
 
-      use Symfony\Component\Form\Form;
-      use Symfony\Component\Form\FormView;
+      use Symfony\Component\Form\FormInterface;
 
-      /** @psalm-var Form<User> $form */
+      /** @psalm-var FormInterface<User> $form */
+
+      $data = $form->getData();
+      /** @psalm-trace $data */
 
       $view = $form->createView();
       /** @psalm-trace $view */
@@ -34,6 +36,8 @@ Feature: Form test
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                       |
-      | Trace | $view: Symfony\Component\Form\FormView<User>    |
+      | Type  | Message                                |
+      | Trace | $data: User\|null                      |
+      | Trace | $view: Symfony\Component\Form\FormView |
     And I see no other errors
+
