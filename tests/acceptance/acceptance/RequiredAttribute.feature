@@ -1,5 +1,5 @@
 @symfony-common
-Feature: Annotation class
+Feature: RequiredAttribute
 
   Background:
     Given I have the following config
@@ -23,16 +23,14 @@ Feature: Annotation class
     Given I have the following code
       """
       <?php
-      final class MyServiceA {
-      }
 
-      final class MyServiceB {
-          /** @var MyServiceA */
-          private $a;
+      class MyServiceA {
+          /**
+           * @required
+           * @var string
+           */
+          public $a;
           public function __construct(){}
-
-          /** @required */
-          private function setMyServiceA(MyServiceA $a): void { $this->a = $a; }
       }
       """
     When I run Psalm
@@ -42,19 +40,18 @@ Feature: Annotation class
     Given I have the following code
       """
       <?php
-      final class MyServiceA {
-      }
 
-      final class MyServiceB {
-          /** @var MyServiceA */
-          private $a;
+      class MyServiceC {
+          /**
+           * @var string
+           */
+          public $a;
           public function __construct(){}
 
-          private function setMyServiceA(MyServiceA $a): void { $this->a = $a; }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type                        | Message                                                                                                                           |
-      | PropertyNotSetInConstructor | Property MyServiceB::$a is not defined in constructor of MyServiceB and in any private or final methods called in the constructor |
+      | Type                        | Message                                                                                                          |
+      | PropertyNotSetInConstructor | Property MyServiceC::$a is not defined in constructor of MyServiceC and in any methods called in the constructor |
     And I see no other errors
