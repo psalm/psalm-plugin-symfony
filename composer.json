@@ -27,6 +27,9 @@
         "twig/twig": "^2.10 || ^3.0",
         "weirdan/codeception-psalm-module": "^0.13.1"
     },
+    "conflict": {
+        "vimeo/psalm": ">=4.5.0 <=4.5.1"
+    },
     "autoload": {
         "psr-4": {
             "Psalm\\SymfonyPsalmPlugin\\": "src"
