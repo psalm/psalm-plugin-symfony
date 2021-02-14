@@ -25,7 +25,7 @@ jobs:
         dependencies:
           - highest
           - lowest
-        
+
         exclude:
           - php-version: 7.3
             dependencies: lowest
@@ -77,6 +77,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         php-version:
           - 7.1

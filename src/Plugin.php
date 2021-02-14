@@ -10,6 +10,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
@@ -56,11 +57,16 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
+        require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
         $api->registerHooksFromClass(ContainerDependencyHandler::class);
         $api->registerHooksFromClass(RequiredSetterHandler::class);
+
+        if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
+            $api->registerHooksFromClass(DoctrineQueryBuilderHandler::class);
+        }
 
         if (class_exists(AnnotationRegistry::class)) {
             require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
