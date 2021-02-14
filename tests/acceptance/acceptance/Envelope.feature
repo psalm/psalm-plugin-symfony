@@ -88,9 +88,9 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                                                                                |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, parent type string(type) provided |
-      | UndefinedClass       | Class or interface type does not exist                                                                                 |
+      | Type                 | Message                                                                                                          |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, parent type "type" provided |
+      | UndefinedClass       | Class or interface type does not exist                                                                           |
     And I see no other errors
 
   Scenario: Envelope::withoutStampsOfType returns an envelope with the same message class
@@ -112,9 +112,9 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                                                                                         |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, parent type string(type) provided |
-      | UndefinedClass       | Class or interface type does not exist                                                                                          |
+      | Type                 | Message                                                                                                                   |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, parent type "type" provided |
+      | UndefinedClass       | Class or interface type does not exist                                                                                    |
     And I see no other errors
 
   Scenario: Envelope::last() expects a class name implementing StampInterface
