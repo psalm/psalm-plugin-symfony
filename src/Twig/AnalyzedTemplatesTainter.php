@@ -11,9 +11,11 @@ use PhpParser\Node\Expr\Variable;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
+use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
+use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Union;
 use RuntimeException;
@@ -36,7 +38,15 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             return;
         }
 
-        $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+        try {
+            $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+        } catch (TemplateNameUnresolvedException $exception) {
+            if ($statements_source instanceof StatementsAnalyzer) {
+                $statements_source->getProjectAnalyzer()->progress->debug($exception->getMessage());
+            }
+
+            return;
+        }
 
         // Taints going _in_ the template
         $methodNode = DataFlowNode::getForMethodArgument(
