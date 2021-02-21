@@ -9,14 +9,16 @@ use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use Psalm\Codebase;
+use Psalm\CodeLocation;
 use Psalm\Context;
+use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
 use Psalm\StatementsSource;
+use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Union;
 use RuntimeException;
-use SplObjectStorage;
 use Twig\Environment;
 
 /**
@@ -36,16 +38,31 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             return;
         }
 
-        $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+        try {
+            $templateName = TwigUtils::extractTemplateNameFromExpression($expr->args[0]->value, $statements_source);
+        } catch (TemplateNameUnresolvedException $exception) {
+            if ($statements_source instanceof StatementsAnalyzer) {
+                $statements_source->getProjectAnalyzer()->progress->debug($exception->getMessage());
+            }
+
+            return;
+        }
 
         // Taints going _in_ the template
+        $methodNode = DataFlowNode::getForMethodArgument(
+            $method_id,
+            $method_id,
+            1,
+            new CodeLocation($statements_source, $expr->args[1]),
+            new CodeLocation($statements_source, $expr->name)
+        );
+
         $templateParameters = self::generateTemplateParameters($expr->args[1]->value, $statements_source);
-        foreach ($templateParameters as $sourceNode) {
-            $parameterName = $templateParameters[$sourceNode];
+        foreach ($templateParameters as $parameterName) {
             $label = $argumentId = strtolower($templateName).'#'.strtolower($parameterName);
             $destinationNode = new DataFlowNode($argumentId, $label, null, null);
 
-            $codebase->taint_flow_graph->addPath($sourceNode, $destinationNode, 'arg');
+            $codebase->taint_flow_graph->addPath($methodNode, $destinationNode, 'arg');
         }
 
         // Taints going _out_ of the template
@@ -58,9 +75,9 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     }
 
     /**
-     * @return SplObjectStorage<DataFlowNode, string>
+     * @return list<string>
      */
-    private static function generateTemplateParameters(Expr $templateParameters, StatementsSource $source): SplObjectStorage
+    private static function generateTemplateParameters(Expr $templateParameters, StatementsSource $source): array
     {
         $type = $source->getNodeTypeProvider()->getType($templateParameters);
         if (null === $type) {
@@ -68,11 +85,10 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         }
 
         if ($templateParameters instanceof Array_) {
-            /** @var SplObjectStorage<DataFlowNode, string> $parameters */
-            $parameters = new SplObjectStorage();
+            $parameters = [];
             foreach ($type->parent_nodes as $node) {
                 if (preg_match('/array\[\'([a-zA-Z]+)\'\]/', $node->label, $matches)) {
-                    $parameters[$node] = $matches[1];
+                    $parameters[] = $matches[1];
                 }
             }
 
@@ -83,12 +99,9 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             /** @var TKeyedArray $arrayValues */
             $arrayValues = $type->getAtomicTypes()['array'];
 
-            /** @var SplObjectStorage<DataFlowNode, string> $parameters */
-            $parameters = new SplObjectStorage();
-            foreach ($arrayValues->properties as $parameterName => $parameterType) {
-                foreach ($parameterType->parent_nodes as $node) {
-                    $parameters[$node] = (string) $parameterName;
-                }
+            $parameters = [];
+            foreach (array_keys($arrayValues->properties) as $parameterName) {
+                $parameters[] = (string) $parameterName;
             }
 
             return $parameters;

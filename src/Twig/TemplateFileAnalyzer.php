@@ -6,7 +6,6 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\FileAnalyzer;
-use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
@@ -18,6 +17,11 @@ use Twig\NodeTraverser;
  */
 class TemplateFileAnalyzer extends FileAnalyzer
 {
+    /**
+     * @var string
+     */
+    private static $rootPath = 'templates';
+
     public function analyze(
         PsalmContext $file_context = null,
         PsalmContext $global_context = null
@@ -29,7 +33,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
             return;
         }
 
-        $loader = new FilesystemLoader('templates', $codebase->config->base_dir);
+        $loader = new FilesystemLoader(self::$rootPath, $codebase->config->base_dir);
         $twig = new Environment($loader, [
             'cache' => false,
             'auto_reload' => true,
@@ -38,7 +42,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
             'strict_variables' => false,
         ]);
 
-        $local_file_name = str_replace('templates/', '', $this->file_name);
+        $local_file_name = str_replace(self::$rootPath.'/', '', $this->file_name);
         $twig_source = $loader->getSourceContext($local_file_name);
         $tree = $twig->parse($twig->tokenize($twig_source));
 
@@ -54,12 +58,8 @@ class TemplateFileAnalyzer extends FileAnalyzer
         $twigContext->taintSinks($local_file_name);
     }
 
-    public static function getTaintNodeForTwigNamedVariable(
-        string $template_id,
-        string $variable_name
-    ): DataFlowNode {
-        $label = $arg_id = strtolower($template_id).'#'.strtolower($variable_name);
-
-        return new DataFlowNode($arg_id, $label, null, null);
+    public static function setTemplateRootPath(string $rootPath): void
+    {
+        self::$rootPath = $rootPath;
     }
 }

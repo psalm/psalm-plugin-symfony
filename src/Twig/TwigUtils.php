@@ -8,10 +8,10 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Scalar\String_;
 use Psalm\StatementsSource;
+use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TLiteralString;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Union;
-use RuntimeException;
 
 class TwigUtils
 {
@@ -35,7 +35,7 @@ class TwigUtils
         }
 
         if (!$templateName instanceof String_ && !$templateName instanceof TLiteralString) {
-            throw new RuntimeException(sprintf('Can not retrieve template name from given expression (%s)', get_class($templateName)));
+            throw new TemplateNameUnresolvedException(sprintf('Can not retrieve template name from given expression (%s)', get_class($templateName)));
         }
 
         return $templateName->value;
