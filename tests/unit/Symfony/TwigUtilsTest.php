@@ -28,8 +28,9 @@ class TwigUtilsTest extends TestCase
      */
     public function testItCanExtractTheTemplateNameFromAnExpression(string $expression)
     {
+        $hasErrors = false;
         $code = '<?php'."\n".$expression;
-        $statements = StatementsProvider::parseStatements($code, '7.1');
+        $statements = StatementsProvider::parseStatements($code, '7.1', $hasErrors);
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
             public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
@@ -58,8 +59,9 @@ class TwigUtilsTest extends TestCase
 
     public function testItThrowsAnExceptionWhenTryingToExtractTemplateNameFromAnUnsupportedExpression()
     {
+        $hasErrors = false;
         $code = '<?php'."\n".'dummy(123);';
-        $statements = StatementsProvider::parseStatements($code, '7.1');
+        $statements = StatementsProvider::parseStatements($code, '7.1', $hasErrors);
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
             public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
