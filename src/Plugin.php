@@ -87,7 +87,7 @@ class Plugin implements PluginEntryPointInterface
 
         $stubs = array_merge(
             $this->getCommonStubs(),
-            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION),
+            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
         );
 
         foreach ($stubs as $stubFilePath) {
