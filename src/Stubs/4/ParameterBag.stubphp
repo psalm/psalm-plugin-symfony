@@ -1,0 +1,24 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class ParameterBag implements \IteratorAggregate, \Countable
+{
+    /**
+     * Returns a parameter by name.
+     *
+     * @param string $key     The key
+     * @param mixed  $default The default value if the parameter key does not exist
+     *
+     * @return mixed
+     * @psalm-taint-source input
+     */
+    public function get(string $key, $default = null) {}
+
+    /**
+     * Returns the parameters.
+     *
+     * @return array An array of parameters
+     */
+    public function all() {}
+}
