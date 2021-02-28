@@ -14,8 +14,6 @@ interface FormInterface extends \ArrayAccess, \Traversable, \Countable
     public function getData();
 
     /**
-     * @psalm-param FormView<?T>
-     *
      * @psalm-return FormView<T>
      */
     public function createView(FormView $parent = null);
