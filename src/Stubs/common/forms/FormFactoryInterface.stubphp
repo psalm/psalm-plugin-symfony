@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+interface FormFactoryInterface
+{
+    /**
+     * @psalm-param class-string<FormTypeInterface> $type
+     */
+    public function create($type = 'Symfony\Component\Form\Extension\Core\Type\FormType', $data = null, array $options = []);
+
+    /**
+     * @psalm-param class-string<FormTypeInterface> $type
+     */
+    public function createNamed($name, $type = 'Symfony\Component\Form\Extension\Core\Type\FormType', $data = null, array $options = []);
+
+    /**
+     * @psalm-param class-string<FormTypeInterface> $type
+     */
+    public function createBuilder($type = 'Symfony\Component\Form\Extension\Core\Type\FormType', $data = null, array $options = []);
+
+    /**
+     * @psalm-param class-string<FormTypeInterface> $type
+     */
+    public function createNamedBuilder($name, $type = 'Symfony\Component\Form\Extension\Core\Type\FormType', $data = null, array $options = []);
+}

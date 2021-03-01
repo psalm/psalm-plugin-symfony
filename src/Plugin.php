@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin;
 
+use function array_merge;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
@@ -32,7 +33,7 @@ class Plugin implements PluginEntryPointInterface
      */
     protected function getCommonStubs(): array
     {
-        return glob(__DIR__.'/Stubs/common/*.stubphp') ?: [];
+        return glob(__DIR__.'/Stubs/common/{*,*/*}.stubphp', GLOB_BRACE) ?: [];
     }
 
     /**
@@ -85,7 +86,8 @@ class Plugin implements PluginEntryPointInterface
         $api->registerHooksFromClass(ContainerHandler::class);
 
         $stubs = array_merge(
-            $this->getCommonStubs(), $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
+            $this->getCommonStubs(),
+            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
         );
 
         foreach ($stubs as $stubFilePath) {

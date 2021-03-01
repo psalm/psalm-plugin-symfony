@@ -1,0 +1,27 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\Form\Event\PreSetDataEvent;
+use Symfony\Component\Form\Event\PreSubmitEvent;
+use Symfony\Component\Form\Event\PostSetDataEvent;
+use Symfony\Component\Form\Event\SubmitEvent;
+
+/**
+ * @template T
+ * @template-extends FormConfigInterface<T>
+ */
+interface FormConfigBuilderInterface extends FormConfigInterface
+{
+    /**
+     * @psalm-return FormConfigInterface<T>
+     */
+    public function getFormConfig();
+
+    /**
+     * @psalm-param FormEvents::* $eventName
+     *
+     * @psalm-param callable(PreSetDataEvent<T>)|callable(PostSetDataEvent<T>)|callable(PreSubmitEvent)|callable(SubmitEvent<T>) $listener
+     */
+    public function addEventListener($eventName, $listener, $priority = 0);
+}

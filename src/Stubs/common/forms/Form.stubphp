@@ -1,0 +1,11 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+/**
+ * @template T
+ * @implements FormInterface<T>
+ */
+class Form implements \IteratorAggregate, FormInterface, ClearableErrorsInterface
+{
+}

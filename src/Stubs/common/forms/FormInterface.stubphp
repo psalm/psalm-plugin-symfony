@@ -1,0 +1,20 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+/**
+ * @template T
+ * @method void clearErrors(bool $deep)
+ */
+interface FormInterface extends \ArrayAccess, \Traversable, \Countable
+{
+    /**
+     * @psalm-return ?T
+     */
+    public function getData();
+
+    /**
+     * @psalm-return FormView<T>
+     */
+    public function createView(FormView $parent = null);
+}

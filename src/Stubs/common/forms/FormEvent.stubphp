@@ -1,0 +1,21 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\EventDispatcher\Event;
+
+/**
+ * @template T
+ */
+class FormEvent extends Event
+{
+    /**
+     * @psalm-return FormInterface<T>
+     */
+    public function getForm() {}
+
+    /**
+     * @psalm-return ?T
+     */
+    public function getData() {}
+}

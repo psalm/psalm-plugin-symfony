@@ -1,0 +1,17 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\PropertyAccess\PropertyPathInterface;
+
+/**
+ * @template T
+ */
+interface FormConfigInterface
+{
+    /**
+     * @psalm-return ?T
+     */
+    public function getData();
+}

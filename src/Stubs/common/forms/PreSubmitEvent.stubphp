@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\Form\Event;
+
+use Symfony\Component\Form\FormEvent;
+
+/**
+ * @template-extends FormEvent<array<string, mixed>>
+ */
+class PreSubmitEvent extends FormEvent
+{
+
+}

@@ -1,0 +1,32 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\Form\Exception\BadMethodCallException;
+
+/**
+ * @template T
+ */
+class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
+{
+    /**
+     * @psalm-suppress MixedArrayAssignment
+     * @psalm-suppress InvalidArrayOffset
+     *
+     * @psalm-var array{value: ?T, attr: array<array-key, mixed>}
+     */
+    public array $vars = [
+        'value' => null,
+        'attr' => [],
+    ];
+
+    /**
+     * @psalm-var ?self
+     */
+    public $parent;
+
+    /**
+     * @psalm-var list<FormView>
+     */
+    public $children = [];
+}

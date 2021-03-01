@@ -1,0 +1,22 @@
+<?php
+
+namespace Symfony\Component\Form;
+
+use Symfony\Component\Form\FormTypeInterface;
+
+/**
+ * @template T
+ * @template-extends FormConfigBuilderInterface<T>
+ */
+interface FormBuilderInterface extends \Traversable, \Countable, FormConfigBuilderInterface
+{
+    /**
+     * @psalm-return FormInterface<T>
+     */
+    public function getForm();
+
+    /**
+     * @psalm-param null|class-string<FormTypeInterface> $type
+     */
+    public function create(string $name, $type = null, array $options = []);
+}
