@@ -33,7 +33,11 @@ class Plugin implements PluginEntryPointInterface
      */
     protected function getCommonStubs(): array
     {
-        return glob(__DIR__.'/Stubs/common/{*,*/*}.stubphp', GLOB_BRACE) ?: [];
+        // GLOB_BRACE is undefined on Alpine Linux https://bugs.php.net/bug.php?id=72095
+        return array_merge(
+            glob(__DIR__.'/Stubs/common/forms/*.stubphp'),
+            glob(__DIR__.'/Stubs/common/*.stubphp')
+        ) ?: [];
     }
 
     /**
