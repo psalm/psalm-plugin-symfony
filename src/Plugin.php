@@ -35,7 +35,7 @@ class Plugin implements PluginEntryPointInterface
     {
         // GLOB_BRACE is undefined on Alpine Linux https://bugs.php.net/bug.php?id=72095
         return array_merge(
-            glob(__DIR__.'/Stubs/common/forms/*.stubphp'),
+            glob(__DIR__.'/Stubs/common/*/*.stubphp'),
             glob(__DIR__.'/Stubs/common/*.stubphp')
         ) ?: [];
     }
