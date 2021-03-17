@@ -12,4 +12,14 @@ class AbstractController implements ServiceSubscriberInterface
      * @psalm-suppress PropertyNotSetInConstructor
      */
     protected $container;
+
+    /**
+     * @template TData
+     * @template TFormType of FormTypeInterface<TData>
+     *
+     * @psalm-param class-string<TFormType> $type
+     *
+     * @psalm-return FormInterface<TData>
+     */
+    public function createForm(string $type, $data = null, array $options = []): FormInterface {}
 }
