@@ -13,7 +13,7 @@ class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
      * @psalm-suppress MixedArrayAssignment
      * @psalm-suppress InvalidArrayOffset
      *
-     * @psalm-var array{value: ?T, attr: array<array-key, mixed>}
+     * @psalm-var array<string, mixed>&array{value: ?T, attr: array<array-key, mixed>, string}
      */
     public array $vars = [
         'value' => null,
