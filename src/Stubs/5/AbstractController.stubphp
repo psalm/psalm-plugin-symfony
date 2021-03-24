@@ -4,6 +4,8 @@ namespace Symfony\Bundle\FrameworkBundle\Controller;
 
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormTypeInterface;
 
 class AbstractController implements ServiceSubscriberInterface
 {
