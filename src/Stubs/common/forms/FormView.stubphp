@@ -26,7 +26,7 @@ class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
     public $parent;
 
     /**
-     * @psalm-var list<FormView>
+     * @psalm-var array<string, FormView>
      */
     public $children = [];
 }
