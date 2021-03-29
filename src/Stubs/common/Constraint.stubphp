@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\Validator;
+
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
+
+abstract class Constraint
+{
+    /**
+     * @var array<string, string>
+     */
+    protected static $errorNames = [];
+}
