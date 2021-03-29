@@ -1,4 +1,4 @@
-@symfony-form
+@symfony-common
 Feature: Form events
 
   Background:
