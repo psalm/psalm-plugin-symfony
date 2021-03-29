@@ -11,4 +11,15 @@ class Environment
      * @psalm-taint-specialize
      */
     public function render($name, array $context = []): string {}
+
+    /**
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return T
+     *
+     * @throws RuntimeError When the template cannot be found
+     */
+    public function getRuntime($class) {}
 }
