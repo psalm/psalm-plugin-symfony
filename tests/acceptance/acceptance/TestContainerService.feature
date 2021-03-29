@@ -10,15 +10,16 @@ Feature: Test Container service
           <directory name="."/>
         </projectFiles>
 
-        <issueHandlers>
-          <PropertyNotSetInConstructor errorLevel="info" />
-        </issueHandlers>
-
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
             <containerXml>../../tests/acceptance/container.xml</containerXml>
           </pluginClass>
         </plugins>
+        <issueHandlers>
+          <PropertyNotSetInConstructor errorLevel="info" />
+          <UnusedFunctionCall errorLevel="info"/>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 

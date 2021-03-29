@@ -1,5 +1,5 @@
-@symfony-form
-Feature: Form events
+@symfony-common
+Feature: Form config builder
 
   Background:
     Given I have the following config
@@ -14,6 +14,9 @@ Feature: Form events
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: Depending of typehinted form event, psalm will know type of data attached

@@ -17,6 +17,9 @@ Feature: Naming conventions
             <containerXml>../../tests/acceptance/container.xml</containerXml>
           </pluginClass>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 

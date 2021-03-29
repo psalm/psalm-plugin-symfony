@@ -14,6 +14,9 @@ Feature: CacheInterface
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedClosureParam errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 

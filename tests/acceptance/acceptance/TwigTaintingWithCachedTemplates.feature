@@ -21,6 +21,9 @@ Feature: Twig tainting with cached templates
             <twigCachePath>/cache/twig</twigCachePath>
           </pluginClass>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble

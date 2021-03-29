@@ -1,5 +1,5 @@
-@symfony-form
-Feature: Form test
+@symfony-common
+Feature: Form factory
 
   Background:
     Given I have the following config
@@ -14,6 +14,9 @@ Feature: Form test
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: Test factory methods

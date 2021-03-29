@@ -14,6 +14,9 @@ Feature: Header get
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedFunctionCall errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble

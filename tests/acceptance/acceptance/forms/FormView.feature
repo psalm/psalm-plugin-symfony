@@ -1,5 +1,5 @@
-@symfony-form
-Feature: Form events
+@symfony-common
+Feature: Form view
 
   Background:
     Given I have the following config
@@ -14,6 +14,9 @@ Feature: Form events
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: FormView test
@@ -38,12 +41,16 @@ Feature: Form events
               $children = $view->children;
               /** @psalm-trace $children */
 
-
               $viewData = $view->vars['value'];
               /** @psalm-trace $viewData */
 
               // assert no errors
               $view->vars['random'] = new \stdClass();
+
+              $attr = $view->vars['attr'];
+              /** @psalm-trace $attr */
+              $view->vars['attr']['placeholder'] = 'test';
+              $savedValue = $view->vars['attr']['placeholder'];
           }
       }
       """
@@ -51,7 +58,8 @@ Feature: Form events
     Then I see these errors
       | Type  | Message                                                      |
       | Trace | $parentView: Symfony\Component\Form\FormView\|null           |
-      | Trace | $children: list<Symfony\Component\Form\FormView>             |
+      | Trace | $children: array<string, Symfony\Component\Form\FormView>    |
       | Trace | $viewData: User\|null                                        |
+      | Trace | $attr: array<array-key, mixed>                               |
     And I see no other errors
 

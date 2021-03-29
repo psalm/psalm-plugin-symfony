@@ -13,6 +13,10 @@ Feature: ConsoleOption
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble

@@ -1,4 +1,4 @@
-@symfony-form
+@symfony-5
 Feature: FormType templates
 
   Background:
@@ -14,6 +14,9 @@ Feature: FormType templates
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: FormExtension::getExtendedTypes must return iterables of FormTypeInterface

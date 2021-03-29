@@ -1,4 +1,4 @@
-@symfony-form
+@symfony-4, @symfony-5
 Feature: Form test
 
   Background:
@@ -14,6 +14,9 @@ Feature: Form test
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: Assert that Form::getData() will return nullable type (empty_data failure)

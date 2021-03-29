@@ -6,4 +6,9 @@
       <code>string</code>
     </UnnecessaryVarAnnotation>
   </file>
+  <file src="src/Test/CodeceptionModule.php">
+    <UnusedPsalmSuppress occurrences="1">
+      <code>NonInvariantDocblockPropertyType</code>
+    </UnusedPsalmSuppress>
+  </file>
 </files>

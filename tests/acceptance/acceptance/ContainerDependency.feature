@@ -16,6 +16,9 @@ Feature: ContainerDependency
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 
@@ -33,7 +36,7 @@ Feature: ContainerDependency
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                   |
+      | Type                | Message                                                   |
       | ContainerDependency | Container must not inject into services as dependency! |
     And I see no other errors
 
