@@ -44,6 +44,8 @@ Feature: Form events
 
               // assert no errors
               $view->vars['random'] = new \stdClass();
+              $view->vars['attr']['placeholder'] = 'test';
+              $savedValue = $view->vars['attr']['placeholder'];
           }
       }
       """
