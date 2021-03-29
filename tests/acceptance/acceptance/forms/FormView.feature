@@ -1,5 +1,5 @@
 @symfony-common
-Feature: Form events
+Feature: Form view
 
   Background:
     Given I have the following config
@@ -58,7 +58,7 @@ Feature: Form events
     Then I see these errors
       | Type  | Message                                                      |
       | Trace | $parentView: Symfony\Component\Form\FormView\|null           |
-      | Trace | $children: list<Symfony\Component\Form\FormView>             |
+      | Trace | $children: array<string, Symfony\Component\Form\FormView>    |
       | Trace | $viewData: User\|null                                        |
       | Trace | $attr: array<array-key, mixed>                               |
     And I see no other errors

@@ -26,7 +26,7 @@ Feature: Doctrine QueryBuilder
       use Doctrine\ORM\QueryBuilder;
 
       /**
-       * @psalm-info InvalidReturnType
+       * @psalm-suppress InvalidReturnType
        * @return QueryBuilder
        */
       function qb() {}

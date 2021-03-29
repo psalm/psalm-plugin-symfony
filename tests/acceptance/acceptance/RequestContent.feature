@@ -16,7 +16,7 @@ Feature: Request getContent
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
         <issueHandlers>
-          <UnusedVariable errorLevel="info"/>
+          <UnusedFunctionCall errorLevel="info"/>
         </issueHandlers>
       </psalm>
       """

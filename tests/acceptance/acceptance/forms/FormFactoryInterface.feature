@@ -1,5 +1,5 @@
 @symfony-common
-Feature: Form test
+Feature: Form factory
 
   Background:
     Given I have the following config

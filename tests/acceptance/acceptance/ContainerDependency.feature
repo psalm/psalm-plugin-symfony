@@ -36,18 +36,18 @@ Feature: ContainerDependency
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                   |
+      | Type                | Message                                                   |
       | ContainerDependency | Container must not inject into services as dependency! |
     And I see no other errors
 
-  Scenario: Asserting container dependency issue can be infoed inline
+  Scenario: Asserting container dependency issue can be suppressed inline
     Given I have the following code
       """
       <?php
       use Symfony\Component\DependencyInjection\ContainerInterface;
       class SomeService
       {
-        /** @psalm-info ContainerDependency */
+        /** @psalm-suppress ContainerDependency */
         public function __construct(ContainerInterface $container)
         {
         }

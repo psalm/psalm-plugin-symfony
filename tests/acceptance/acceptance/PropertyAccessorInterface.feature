@@ -15,6 +15,7 @@ Feature: PropertyAccessorInterface
         </plugins>
         <issueHandlers>
           <UnusedVariable errorLevel="info"/>
+          <UnusedFunctionCall errorLevel="info"/>
         </issueHandlers>
       </psalm>
       """

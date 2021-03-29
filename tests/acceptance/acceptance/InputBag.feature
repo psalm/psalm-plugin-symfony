@@ -14,6 +14,7 @@ Feature: InputBag get return type
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
         <issueHandlers>
+          <UnusedFunctionCall errorLevel="info"/>
           <UnusedVariable errorLevel="info"/>
         </issueHandlers>
       </psalm>

@@ -33,7 +33,7 @@ Feature: Twig tainting with analyzer
       use Twig\Environment;
 
       /**
-       * @psalm-info InvalidReturnType
+       * @psalm-suppress InvalidReturnType
        * @return Environment
        */
       function twig() {}

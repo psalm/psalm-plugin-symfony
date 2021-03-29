@@ -19,7 +19,10 @@ use Twig\Loader\FilesystemLoader;
  */
 class CodeceptionModule extends BaseModule
 {
-    /** @var array<string,string> */
+    /**
+     * @var mixed[]
+     * @psalm-suppress NonInvariantDocblockPropertyType
+     */
     protected $config = [
         'default_dir' => 'tests/_run/',
     ];

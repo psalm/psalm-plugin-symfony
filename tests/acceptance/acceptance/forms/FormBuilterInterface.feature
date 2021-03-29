@@ -1,5 +1,5 @@
 @symfony-common
-Feature: Form events
+Feature: Form builder
 
   Background:
     Given I have the following config

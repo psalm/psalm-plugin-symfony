@@ -17,6 +17,7 @@ Feature: Test Container service
         </plugins>
         <issueHandlers>
           <PropertyNotSetInConstructor errorLevel="info" />
+          <UnusedFunctionCall errorLevel="info"/>
           <UnusedVariable errorLevel="info"/>
         </issueHandlers>
       </psalm>

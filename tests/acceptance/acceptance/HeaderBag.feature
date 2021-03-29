@@ -15,7 +15,7 @@ Feature: Header get
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
         <issueHandlers>
-          <UnusedVariable errorLevel="info"/>
+          <UnusedFunctionCall errorLevel="info"/>
         </issueHandlers>
       </psalm>
       """
