@@ -14,6 +14,9 @@ Feature: FormType templates
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: Assert FormType is using nullable template value in methods

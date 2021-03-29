@@ -14,6 +14,9 @@ Feature: Form test
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
   Scenario: Assert that Form::getData() will return nullable type (empty_data failure)

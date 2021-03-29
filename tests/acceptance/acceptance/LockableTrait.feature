@@ -13,6 +13,9 @@ Feature: LockableTrait
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 

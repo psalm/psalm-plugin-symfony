@@ -14,6 +14,9 @@ Feature: Doctrine QueryBuilder
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble
@@ -23,7 +26,7 @@ Feature: Doctrine QueryBuilder
       use Doctrine\ORM\QueryBuilder;
 
       /**
-       * @psalm-suppress InvalidReturnType
+       * @psalm-info InvalidReturnType
        * @return QueryBuilder
        */
       function qb() {}

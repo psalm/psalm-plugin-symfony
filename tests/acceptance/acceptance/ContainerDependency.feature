@@ -16,6 +16,9 @@ Feature: ContainerDependency
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
 
@@ -37,14 +40,14 @@ Feature: ContainerDependency
       | ContainerDependency | Container must not inject into services as dependency! |
     And I see no other errors
 
-  Scenario: Asserting container dependency issue can be suppressed inline
+  Scenario: Asserting container dependency issue can be infoed inline
     Given I have the following code
       """
       <?php
       use Symfony\Component\DependencyInjection\ContainerInterface;
       class SomeService
       {
-        /** @psalm-suppress ContainerDependency */
+        /** @psalm-info ContainerDependency */
         public function __construct(ContainerInterface $container)
         {
         }

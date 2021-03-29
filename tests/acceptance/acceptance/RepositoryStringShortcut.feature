@@ -14,13 +14,13 @@ Feature: RepositoryStringShortcut
           <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
         </projectFiles>
 
-        <issueHandlers>
-          <UndefinedClass errorLevel="info" />
-        </issueHandlers>
-
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+          <UndefinedClass errorLevel="info" />
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble
