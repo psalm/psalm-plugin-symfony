@@ -1,0 +1,22 @@
+<?php
+
+namespace Symfony\Component\Config\Definition\Builder;
+
+class ArrayNodeDefinition extends NodeDefinition implements ParentNodeDefinitionInterface
+{
+   /**
+    * @psalm-template T of 'variable'|'scalar'|'boolean'|'integer'|'float'|'enum'|'array'
+    * @psalm-param T $type
+    * @psalm-return (
+    *    T is 'variable' ? VariableNodeDefinition
+    *    : T is 'scalar' ? ScalarNodeDefinition
+    *    : T is 'boolean' ? BooleanNodeDefinition
+    *    : T is 'integer' ? IntegerNodeDefinition
+    *    : T is 'float' ? FloatNodeDefinition
+    *    : T is 'enum' ? EnumNodeDefinition
+    *    : ArrayNodeDefinition
+    * )
+    * @see NodeBuilder
+    */
+    public function prototype($type) {}
+}
