@@ -1,0 +1,28 @@
+<?php
+
+namespace Symfony\Component\Config\Definition\Builder;
+
+/**
+ * @template T of 'variable'|'scalar'|'boolean'|'integer'|'float'|'enum'|'array'
+ */
+class TreeBuilder implements NodeParentInterface
+{
+  /**
+   * @param T $type
+   */
+  public function __construct(string $name, string $type = 'array', NodeBuilder $builder = null) {}
+
+  /**
+   * @psalm-return (
+   *    T is 'variable' ? VariableNodeDefinition
+   *    : T is 'scalar' ? ScalarNodeDefinition
+   *    : T is 'boolean' ? BooleanNodeDefinition
+   *    : T is 'integer' ? IntegerNodeDefinition
+   *    : T is 'float' ? FloatNodeDefinition
+   *    : T is 'enum' ? EnumNodeDefinition
+   *    : ArrayNodeDefinition
+   * )
+   * @see NodeBuilder
+   */
+  public function getRootNode(): NodeDefinition {}
+}
