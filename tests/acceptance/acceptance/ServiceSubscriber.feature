@@ -2,24 +2,9 @@
 Feature: Service Subscriber
 
   Background:
-    Given I have the following config
+    Given I have Symfony plugin enabled with the following config
       """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <containerXml>../../tests/acceptance/container.xml</containerXml>
-          </pluginClass>
-        </plugins>
-        <issueHandlers>
-          <UnusedVariable errorLevel="info"/>
-        </issueHandlers>
-      </psalm>
+      <containerXml>../../tests/acceptance/container.xml</containerXml>
       """
 
   Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices

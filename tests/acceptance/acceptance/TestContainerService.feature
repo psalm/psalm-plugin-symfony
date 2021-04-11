@@ -2,25 +2,10 @@
 Feature: Test Container service
 
   Background:
-    Given I have the following config
+    Given I have issue handlers "PropertyNotSetInConstructor,UnusedFunctionCall,UnusedVariable" suppressed
+    And I have Symfony plugin enabled with the following config
       """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <containerXml>../../tests/acceptance/container.xml</containerXml>
-          </pluginClass>
-        </plugins>
-        <issueHandlers>
-          <PropertyNotSetInConstructor errorLevel="info" />
-          <UnusedFunctionCall errorLevel="info"/>
-          <UnusedVariable errorLevel="info"/>
-        </issueHandlers>
-      </psalm>
+      <containerXml>../../tests/acceptance/container.xml</containerXml>
       """
 
   Scenario: KernelTestCase container can access private services

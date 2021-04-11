@@ -2,23 +2,8 @@
 Feature: InputBag get return type
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-        <issueHandlers>
-          <UnusedFunctionCall errorLevel="info"/>
-          <UnusedVariable errorLevel="info"/>
-        </issueHandlers>
-      </psalm>
-      """
+    Given I have issue handler "UnusedFunctionCall,UnusedVariable" suppressed
+    And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php

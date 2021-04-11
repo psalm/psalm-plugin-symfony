@@ -2,20 +2,7 @@
 Feature: Configuration
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
 
   Scenario: ArrayNodeDefinition correctly resolves prototype($foo) return type
     Given I have the following code
@@ -49,8 +36,6 @@ Feature: Configuration
     Then I see these errors
       | Type  | Message                                                                              |
       | Trace          | $arrayNode: Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition |
-      | UnusedVariable | $arrayNode is never referenced or the value is not used                     |
       | Trace          | $enumNode: Symfony\Component\Config\Definition\Builder\EnumNodeDefinition   |
-      | UnusedVariable | $enumNode is never referenced or the value is not used                      |
 
     And I see no other errors
