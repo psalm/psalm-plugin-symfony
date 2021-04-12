@@ -2,24 +2,8 @@
 Feature: PropertyPathInterface
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-        <issueHandlers>
-          <UnusedParam errorLevel="info"/>
-          <UnusedVariable errorLevel="info"/>
-        </issueHandlers>
-      </psalm>
-      """
+    Given I have issue handlers "UnusedParam,UnusedVariable" suppressed
+    And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php

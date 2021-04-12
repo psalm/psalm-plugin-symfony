@@ -3,23 +3,7 @@ Feature: Container service
   Detect ContainerInterface::get() result type
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-        <issueHandlers>
-          <UnusedVariable errorLevel="info"/>
-        </issueHandlers>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
 
   Scenario: Asserting psalm recognizes return type of service got via 'ContainerInterface::get()'
     Given I have the following code

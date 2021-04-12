@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
+use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
 use Codeception\TestInterface;
 use InvalidArgumentException;
@@ -12,6 +13,7 @@ use Twig\Cache\FilesystemCache;
 use Twig\Environment;
 use Twig\Extension\AbstractExtension;
 use Twig\Loader\FilesystemLoader;
+use Weirdan\Codeception\Psalm\Module;
 
 /**
  * @psalm-suppress UnusedClass
@@ -43,6 +45,11 @@ class CodeceptionModule extends BaseModule
      * @var string|null
      */
     private $lastCachePath;
+
+    /**
+     * @var list<string>
+     */
+    private $suppressedIssueHandlers = [];
 
     public function _after(TestInterface $test): void
     {
@@ -111,6 +118,57 @@ class CodeceptionModule extends BaseModule
             str_replace($cacheHeadParts['name'], $newAlias, $cacheHeadParts[0]),
             $cacheContent
         ));
+    }
+
+    public function _before(TestInterface $test): void
+    {
+        $this->suppressedIssueHandlers = ['UnusedVariable'];
+    }
+
+    /**
+     * @Given I have issue handler :issueHandlers suppressed
+     * @Given I have issue handlers :issueHandlers suppressed
+     */
+    public function configureIgnoredIssueHandlers(string $issueHandlers): void
+    {
+        $this->suppressedIssueHandlers = array_map('trim', explode(',', $issueHandlers));
+    }
+
+    /**
+     * @Given I have Symfony plugin enabled
+     * @Given I have Symfony plugin enabled with the following config :configuration
+     */
+    public function configureCommonPsalmconfig(string $configuration = ''): void
+    {
+        $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
+            return "<$issueHandler errorLevel=\"info\"/>";
+        }, $this->suppressedIssueHandlers));
+
+        $psalmModule = $this->getModule(Module::class);
+
+        if (!$psalmModule instanceof Module) {
+            throw new ModuleRequireException($this, sprintf('Needs "%s" module', Module::class));
+        }
+
+        $psalmModule->haveTheFollowingConfig(<<<XML
+<?xml version="1.0"?>
+  <psalm errorLevel="1">
+    <projectFiles>
+      <directory name="."/>
+      <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+    </projectFiles>
+
+    <plugins>
+      <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+        $configuration
+      </pluginClass>
+    </plugins>
+    <issueHandlers>
+      $suppressedIssueHandlers
+    </issueHandlers>
+  </psalm>
+XML
+);
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void
