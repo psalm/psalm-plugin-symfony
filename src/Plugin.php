@@ -11,6 +11,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\DoctrineNullablePropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
@@ -81,6 +82,9 @@ class Plugin implements PluginEntryPointInterface
 
             require_once __DIR__.'/Handler/AnnotationHandler.php';
             $api->registerHooksFromClass(AnnotationHandler::class);
+
+            require_once __DIR__.'/Handler/DoctrineNullablePropertyHandler.php';
+            $api->registerHooksFromClass(DoctrineNullablePropertyHandler::class);
         }
 
         if (isset($config->containerXml)) {
