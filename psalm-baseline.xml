@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="3.17.1@8f211792d813e4dc89f04ed372785ce93b902fd1">
-  <file src="src/Twig/Context.php">
-    <UnnecessaryVarAnnotation occurrences="2">
-      <code>int</code>
-      <code>string</code>
-    </UnnecessaryVarAnnotation>
+<files psalm-version="4.6.2@bca09d74adc704c4eaee36a3c3e9d379e290fc3b">
+  <file src="src/Handler/DoctrineNullablePropertyHandler.php">
+    <ArgumentTypeCoercion occurrences="1">
+      <code>$className</code>
+    </ArgumentTypeCoercion>
   </file>
   <file src="src/Test/CodeceptionModule.php">
     <UnusedPsalmSuppress occurrences="1">
       <code>NonInvariantDocblockPropertyType</code>
     </UnusedPsalmSuppress>
+  </file>
+  <file src="src/Twig/Context.php">
+    <UnnecessaryVarAnnotation occurrences="2">
+      <code>int</code>
+      <code>string</code>
+    </UnnecessaryVarAnnotation>
   </file>
 </files>

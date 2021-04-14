@@ -24,11 +24,11 @@ class DoctrineNullablePropertyHandler implements AfterClassLikeVisitInterface
         array &$file_replacements = []
     ): void {
         $className = $storage->name;
-        if (!class_exists($className)) {
+        try {
+            $reflectionClass = new \ReflectionClass($className);
+        } catch (\ReflectionException $e) {
             return;
         }
-
-        $reflectionClass = new \ReflectionClass($className);
         $annotationReader = new AnnotationReader();
 
         foreach ($stmt->getProperties() as $property) {
