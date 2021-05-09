@@ -57,7 +57,7 @@ Feature: PropertyAccessorInterface
               $this->propertyAccessor = $propertyAccessor;
           }
 
-          public function doThings(object $thing): void {
+          public function doThings(Company $thing): void {
               $this->propertyAccessor->setValue($thing, 'foo', 'bar');
               $this->propertyAccessor->setValue($thing, 'foo', 'bar');
           }
