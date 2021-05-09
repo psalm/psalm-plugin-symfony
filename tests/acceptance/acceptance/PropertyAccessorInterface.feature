@@ -40,3 +40,28 @@ Feature: PropertyAccessorInterface
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: Set value does not modify the propertyAccessor variable
+    Given I have the following code
+      """
+      use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
+
+      class Company
+      {
+          /**
+           * @var PropertyAccessorInterface
+           */
+          private $propertyAccessor;
+
+          public function __construct(PropertyAccessorInterface $propertyAccessor) {
+              $this->propertyAccessor = $propertyAccessor;
+          }
+
+          public function doThings(object $thing): void {
+              $this->propertyAccessor->setValue($thing, 'foo', 'bar');
+              $this->propertyAccessor->setValue($thing, 'foo', 'bar');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
