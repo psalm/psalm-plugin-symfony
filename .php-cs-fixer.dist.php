@@ -7,12 +7,12 @@ $finder = PhpCsFixer\Finder::create()
     ->files()
     ->name('*.php');
 
-return PhpCsFixer\Config::create()
+return (new PhpCsFixer\Config())
     ->setFinder($finder)
     ->setRules([
         '@Symfony' => true,
         'array_syntax' => ['syntax' => 'short'],
-        'binary_operator_spaces' => ['align_double_arrow' => false],
+        'binary_operator_spaces' => true,
         'no_useless_else' => true,
         'no_useless_return' => false,
         'ordered_imports' => true,
