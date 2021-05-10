@@ -12,7 +12,7 @@ return (new PhpCsFixer\Config())
     ->setRules([
         '@Symfony' => true,
         'array_syntax' => ['syntax' => 'short'],
-        'binary_operator_spaces' => ['align_double_arrow' => false],
+        'binary_operator_spaces' => true,
         'no_useless_else' => true,
         'no_useless_return' => false,
         'ordered_imports' => true,
