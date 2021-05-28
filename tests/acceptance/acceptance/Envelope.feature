@@ -185,3 +185,13 @@ Feature: Messenger Envelope
       | Type  | Message            |
       | Trace | $message: stdClass |
     And I see no other errors
+
+  Scenario: Message can be any object
+    Given I have the following code
+      """
+      /** @psalm-suppress UnusedParam */
+      function foo(Envelope $envelope): void {};
+      foo($envelope);
+      """
+    When I run Psalm
+    Then I see no errors
