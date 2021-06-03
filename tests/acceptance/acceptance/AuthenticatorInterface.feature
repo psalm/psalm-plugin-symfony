@@ -2,7 +2,8 @@
 Feature: AuthenticatorInterface
 
   Background:
-    Given I have Symfony plugin enabled
+    Given I have issue handler "DeprecatedClass" suppressed
+    And I have Symfony plugin enabled
 
   Scenario: Authenticator correctly resolves $credentials and $user types
     Given I have the following code
