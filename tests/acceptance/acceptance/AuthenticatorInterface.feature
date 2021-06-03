@@ -2,7 +2,8 @@
 Feature: AuthenticatorInterface
 
   Background:
-    Given I have Symfony plugin enabled
+    Given I have issue handler "DeprecatedClass" suppressed
+    And I have Symfony plugin enabled
 
   Scenario: Authenticator correctly resolves $credentials and $user types
     Given I have the following code
@@ -58,7 +59,4 @@ Feature: AuthenticatorInterface
       | Trace | $credentials: string                             |
       | Trace | $user: Symfony\Component\Security\Core\User\User |
       | Trace | $user: Symfony\Component\Security\Core\User\User |
-      | DeprecatedClass | Class Symfony\Component\Security\Core\User\User is marked as deprecated                 |
-      | DeprecatedClass | Symfony\Component\Security\Core\User\User is marked deprecated                          |
-      | DeprecatedClass | Symfony\Component\Security\Guard\Token\PreAuthenticationGuardToken is marked deprecated |
     And I see no other errors
