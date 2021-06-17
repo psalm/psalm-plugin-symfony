@@ -14,6 +14,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
@@ -84,7 +85,12 @@ class Plugin implements PluginEntryPointInterface
         }
 
         if (isset($config->containerXml)) {
-            ContainerHandler::init(new ContainerMeta((array) $config->containerXml));
+            $containerMeta = new ContainerMeta((array) $config->containerXml);
+            ContainerHandler::init($containerMeta);
+
+            require_once __DIR__.'/Handler/ParameterBagHandler.php';
+            ParameterBagHandler::init($containerMeta);
+            $api->registerHooksFromClass(ParameterBagHandler::class);
         }
 
         $api->registerHooksFromClass(ContainerHandler::class);
