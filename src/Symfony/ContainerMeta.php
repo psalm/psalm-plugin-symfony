@@ -139,7 +139,6 @@ class ContainerMeta
                     break;
                 case 'collection':
                     foreach ($parameter->children() as $child) {
-                        /** @psalm-suppress PossiblyNullReference */
                         $childAttributes = $child->attributes();
                         if (isset($childAttributes->key)) {
                             $value[(string) $childAttributes->key] = $this->getXmlParameterValue($child);
