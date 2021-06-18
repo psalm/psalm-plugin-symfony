@@ -62,9 +62,6 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
             case 'array':
                 $return_type_candidate = new Union([Atomic::create('array')]);
                 break;
-            default:
-                $return_type_candidate = new Union([Atomic::create('mixed')]);
-                break;
         }
     }
 }
