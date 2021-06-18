@@ -138,4 +138,27 @@ class ContainerMetaTest extends TestCase
         $service = $containerMeta->get('service_container');
         $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClassName());
     }
+
+    public function testGetParameter(): void
+    {
+        $this->assertSame('dev', $this->containerMeta->getParameter('kernel.environment'));
+        $this->assertSame(true, $this->containerMeta->getParameter('debug_enabled'));
+        $this->assertSame('1', $this->containerMeta->getParameter('version'));
+        $this->assertSame(1, $this->containerMeta->getParameter('integer_one'));
+        $this->assertSame(3.14, $this->containerMeta->getParameter('pi'));
+        $this->assertSame([
+            'key1' => 'val1',
+            'key2' => 'val2',
+        ], $this->containerMeta->getParameter('collection1'));
+        $this->assertSame([
+            'key' => 'val',
+            'child_collection' => [
+                'boolean' => true,
+                'float' => 2.18,
+                'grandchild_collection' => [
+                    'string' => 'something',
+                ],
+            ]
+        ], $this->containerMeta->getParameter('nested_collection'));
+    }
 }

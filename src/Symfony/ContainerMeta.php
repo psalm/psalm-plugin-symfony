@@ -19,6 +19,11 @@ class ContainerMeta
      */
     private $classNames = [];
 
+    /**
+     * @var array<string, mixed>
+     */
+    private $parameters = [];
+
     public function __construct(array $containerXmlPaths)
     {
         $this->init($containerXmlPaths);
@@ -41,6 +46,18 @@ class ContainerMeta
         }
 
         $this->services[$service->getId()] = $service;
+    }
+
+    /**
+     * @return mixed|null
+     */
+    public function getParameter(string $key)
+    {
+        if (isset($this->parameters[$key])) {
+            return $this->parameters[$key];
+        }
+
+        return null;
     }
 
     /**
@@ -90,9 +107,66 @@ class ContainerMeta
                 $this->add($service);
             }
 
+            /** @var \SimpleXMLElement $parameter */
+            foreach ($xml->parameters->parameter as $parameter) {
+                $value = $this->getXmlParameterValue($parameter);
+
+                $attributes = $parameter->attributes();
+                if (!isset($attributes->key)) {
+                    continue;
+                }
+
+                $this->parameters[(string) $attributes->key] = $value;
+            }
+
             return;
         }
 
         throw new ConfigException('Container xml file(s) not found at ');
+    }
+
+    /**
+     * @return mixed
+     */
+    private function getXmlParameterValue(\SimpleXMLElement $parameter)
+    {
+        $value = null;
+        $attributes = $parameter->attributes();
+        if (isset($attributes->type)) {
+            switch ((string) $attributes->type) {
+                case 'binary':
+                    $value = base64_decode((string) $parameter, true);
+                    break;
+                case 'collection':
+                    foreach ($parameter->children() as $child) {
+                        $childAttributes = $child->attributes();
+                        if (isset($childAttributes->key)) {
+                            $value[(string) $childAttributes->key] = $this->getXmlParameterValue($child);
+                        } else {
+                            $value[] = $this->getXmlParameterValue($child);
+                        }
+                    }
+                    break;
+                case 'string':
+                default:
+                    $value = (string) $parameter;
+                    break;
+            }
+        } else {
+            $value = (string) $parameter;
+            if ('true' === $value || 'false' === $value) {
+                $value = (bool) $value;
+            } elseif ('null' === $value) {
+                $value = null;
+            } elseif (is_numeric($value)) {
+                if (false === strpos($value, '.')) {
+                    $value = (int) $value;
+                } else {
+                    $value = (float) $value;
+                }
+            }
+        }
+
+        return $value;
     }
 }

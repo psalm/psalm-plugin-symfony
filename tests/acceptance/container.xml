@@ -2,6 +2,25 @@
 <container xmlns="http://symfony.com/schema/dic/services" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://symfony.com/schema/dic/services https://symfony.com/schema/dic/services/services-1.0.xsd">
     <parameters>
         <parameter key="kernel.environment">dev</parameter>
+        <parameter key="debug_enabled">true</parameter>
+        <parameter key="debug_disabled">false</parameter>
+        <parameter key="version" type="string">1</parameter>
+        <parameter key="integer_one">1</parameter>
+        <parameter key="pi">3.14</parameter>
+        <parameter key="collection1" type="collection">
+          <parameter key="key1">val1</parameter>
+          <parameter key="key2">val2</parameter>
+        </parameter>
+        <parameter key="nested_collection" type="collection">
+          <parameter key="key">val</parameter>
+          <parameter key="child_collection" type="collection">
+            <parameter key="boolean">true</parameter>
+            <parameter key="float">2.18</parameter>
+            <parameter key="grandchild_collection" type="collection">
+              <parameter key="string">something</parameter>
+            </parameter>
+          </parameter>
+        </parameter>
     </parameters>
     <services>
         <service id="foo" alias="no_such_service" public="true"/>
