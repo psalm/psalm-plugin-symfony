@@ -10,7 +10,7 @@ on:
 
 jobs:
   static-code-analysis:
-    name: "Static Code Analysis"
+    name: "Static Code Analysis (PHP: ${{matrix.php-version}}, deps: ${{matrix.dependencies}})"
 
     runs-on: ubuntu-latest
 
@@ -58,7 +58,7 @@ jobs:
         run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github
 
   tests:
-    name: "Tests"
+    name: "Tests (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
 
     runs-on: ubuntu-latest
 
