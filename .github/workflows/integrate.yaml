@@ -42,24 +42,10 @@ jobs:
           coverage: none
           php-version: ${{ matrix.php-version }}
 
-      - name: "Determine composer cache directory"
-        id: determine-composer-cache-directory
-        run: echo "::set-output name=directory::$(composer config cache-dir)"
-
-      - name: "Cache dependencies installed with composer"
-        uses: actions/cache@v1
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v1
         with:
-          path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
-          restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
-
-      - name: "Install lowest dependencies from composer.json"
-        if: matrix.dependencies == 'lowest'
-        run: composer update --no-interaction --no-progress --prefer-lowest
-
-      - name: "Install highest dependencies from composer.json"
-        if: matrix.dependencies == 'highest'
-        run: composer install --no-interaction --no-progress
+            dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
         uses: actions/cache@v1
@@ -108,22 +94,11 @@ jobs:
           php-version: ${{ matrix.php-version }}
           tools: flex
 
-      - name: "Determine composer cache directory"
-        id: determine-composer-cache-directory
-        run: echo "::set-output name=directory::$(composer config cache-dir)"
-
-      - name: "Cache dependencies installed with composer"
-        uses: actions/cache@v1
-        with:
-          path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-${{ hashFiles('composer.json') }}
-          restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-
-
       - name: "Restrict symfony dependencies to the correct version"
         run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
-      - name: "Update dependencies with restricted symfony version"
-        run: composer update --prefer-stable --no-interaction --no-progress
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v1
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml
