@@ -7,18 +7,15 @@ use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
-use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Return_;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
-use Psalm\Context;
-use Psalm\FileSource;
 use Psalm\IssueBuffer;
-use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
-use Psalm\StatementsSource;
-use Psalm\Storage\ClassLikeStorage;
+use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\Storage\FileStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
@@ -50,17 +47,14 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     /**
      * {@inheritdoc}
      */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ): void {
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
+    {
+        $declaring_method_id = $event->getDeclaringMethodId();
+        $statements_source = $event->getStatementsSource();
+        $expr = $event->getExpr();
+        $codebase = $event->getCodebase();
+        $context = $event->getContext();
+
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
                 $argument = $expr->args[0]->value;
@@ -76,10 +70,10 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
 
         if (!self::$containerMeta) {
-            if ($return_type_candidate && $expr->args[0]->value instanceof ClassConstFetch) {
+            if ($event->getReturnTypeCandidate() && $expr->args[0]->value instanceof ClassConstFetch) {
                 $className = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
                 if (!in_array($className, ['self', 'parent', 'static'])) {
-                    $return_type_candidate = new Union([new TNamedObject($className)]);
+                    $event->setReturnTypeCandidate(new Union([new TNamedObject($className)]));
                 }
             }
 
@@ -106,7 +100,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             $class = $service->getClassName();
             if ($class) {
                 $codebase->classlikes->addFullyQualifiedClassName($class);
-                $return_type_candidate = new Union([new TNamedObject($class)]);
+                $event->setReturnTypeCandidate(new Union([new TNamedObject($class)]));
             }
 
             if (!$service->isPublic()) {
@@ -129,13 +123,13 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     /**
      * {@inheritdoc}
      */
-    public static function afterClassLikeVisit(
-        ClassLike $stmt,
-        ClassLikeStorage $storage,
-        FileSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = []
-    ) {
+    public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
+    {
+        $codebase = $event->getCodebase();
+        $statements_source = $event->getStatementsSource();
+        $storage = $event->getStorage();
+        $stmt = $event->getStmt();
+
         $fileStorage = $codebase->file_storage_provider->get($statements_source->getFilePath());
 
         if (\in_array($storage->name, ContainerHandler::GET_CLASSLIKES)) {
