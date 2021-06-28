@@ -97,8 +97,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter (in a variable) of the twig template (named in a variable) is displayed with only the raw filter
@@ -117,8 +118,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter of the twig rendering is displayed with some filter followed by the raw filter
@@ -135,8 +137,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter of the twig rendering is displayed with the raw filter followed by some other filter
@@ -177,8 +180,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter of the twig template is displayed with autoescaping deactivated
@@ -197,8 +201,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter of the twig template is assigned to a variable and this variable is displayed
@@ -217,8 +222,9 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: One tainted parameter of the twig (oddly located) template is displayed with only the raw filter
@@ -259,6 +265,7 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors

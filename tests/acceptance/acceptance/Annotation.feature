@@ -46,5 +46,5 @@ Feature: Annotation class
     When I run Psalm
     Then I see these errors
       | Type                        | Message                                                                                              |
-      | PropertyNotSetInConstructor | Property Foo::$foo is not defined in constructor of Foo and in any methods called in the constructor |
+      | PropertyNotSetInConstructor | Property Foo::$foo is not defined in constructor of Foo or in any methods called in the constructor |
     And I see no other errors
