@@ -4,10 +4,8 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Scalar\String_;
-use Psalm\CodeLocation;
-use Psalm\Context;
-use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
-use Psalm\StatementsSource;
+use Psalm\Plugin\EventHandler\Event\MethodReturnTypeProviderEvent;
+use Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface;
 use Psalm\Type;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TInt;
@@ -26,17 +24,14 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
         ];
     }
 
-    public static function getMethodReturnType(
-        StatementsSource $source,
-        string $fq_classlike_name,
-        string $method_name_lowercase,
-        array $call_args,
-        Context $context,
-        CodeLocation $code_location,
-        ?array $template_type_parameters = null,
-        ?string $called_fq_classlike_name = null,
-        ?string $called_method_name_lowercase = null
-    ): ?Type\Union {
+    public static function getMethodReturnType(MethodReturnTypeProviderEvent $event): ?Type\Union
+    {
+        $fq_classlike_name = $event->getFqClasslikeName();
+        $method_name_lowercase = $event->getMethodNameLowercase();
+        $call_args = $event->getCallArgs();
+        $source = $event->getSource();
+        $code_location = $event->getCodeLocation();
+
         if (HeaderBag::class !== $fq_classlike_name) {
             return null;
         }

@@ -49,6 +49,7 @@ Feature: Tainting
     Then I see these errors
       | Type         | Message               |
       | TaintedHtml  | Detected tainted HTML |
+      | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:
       | property |

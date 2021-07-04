@@ -6,18 +6,14 @@ use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\ORM\Mapping\Entity as EntityAnnotation;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar\String_;
-use PhpParser\Node\Stmt\ClassLike;
-use Psalm\Codebase;
 use Psalm\CodeLocation;
-use Psalm\Context;
 use Psalm\DocComment;
 use Psalm\Exception\DocblockParseException;
-use Psalm\FileSource;
 use Psalm\IssueBuffer;
-use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
-use Psalm\StatementsSource;
-use Psalm\Storage\ClassLikeStorage;
+use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
@@ -27,17 +23,12 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
     /**
      * {@inheritdoc}
      */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ): void {
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
+    {
+        $expr = $event->getExpr();
+        $declaring_method_id = $event->getDeclaringMethodId();
+        $statements_source = $event->getStatementsSource();
+
         if (in_array($declaring_method_id, ['Doctrine\ORM\EntityManagerInterface::getrepository', 'Doctrine\Persistence\ObjectManager::getrepository'])) {
             $entityName = $expr->args[0]->value;
             if ($entityName instanceof String_) {
@@ -56,7 +47,7 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                         EntityAnnotation::class
                     );
                     if ($entityAnnotation instanceof EntityAnnotation && $entityAnnotation->repositoryClass) {
-                        $return_type_candidate = new Union([new TNamedObject($entityAnnotation->repositoryClass)]);
+                        $event->setReturnTypeCandidate(new Union([new TNamedObject($entityAnnotation->repositoryClass)]));
                     }
                 } catch (\ReflectionException $e) {
                 }
@@ -64,13 +55,12 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         }
     }
 
-    public static function afterClassLikeVisit(
-        ClassLike $stmt,
-        ClassLikeStorage $storage,
-        FileSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = []
-    ) {
+    public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
+    {
+        $stmt = $event->getStmt();
+        $statements_source = $event->getStatementsSource();
+        $codebase = $event->getCodebase();
+
         $docblock = $stmt->getDocComment();
         if ($docblock && false !== strpos((string) $docblock, 'repositoryClass')) {
             try {

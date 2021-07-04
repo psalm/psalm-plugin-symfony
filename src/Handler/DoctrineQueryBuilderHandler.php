@@ -3,31 +3,25 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Node\Expr;
-use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Context;
 use Psalm\IssueBuffer;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
-use Psalm\StatementsSource;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\QueryBuilderSetParameter;
-use Psalm\Type\Union;
 
 class DoctrineQueryBuilderHandler implements AfterMethodCallAnalysisInterface
 {
     /**
      * {@inheritdoc}
      */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ): void {
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
+    {
+        $expr = $event->getExpr();
+        $declaring_method_id = $event->getDeclaringMethodId();
+        $statements_source = $event->getStatementsSource();
+        $context = $event->getContext();
+
         if ('Doctrine\ORM\QueryBuilder::setparameter' === $declaring_method_id) {
             if (isset($expr->args[2])) {
                 return;

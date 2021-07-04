@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-use Psalm\Codebase;
-use Psalm\Plugin\Hook\AfterCodebasePopulatedInterface;
+use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
+use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use RuntimeException;
 
 /**
@@ -31,8 +31,10 @@ class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
      */
     private static $cacheRegistry;
 
-    public static function afterCodebasePopulated(Codebase $codebase)
+    public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event)
     {
+        $codebase = $event->getCodebase();
+
         if (null === self::$cachePath) {
             return;
         }

@@ -7,17 +7,14 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
-use Psalm\CodeLocation;
-use Psalm\Context;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
-use Psalm\Plugin\Hook\MethodReturnTypeProviderInterface;
-use Psalm\StatementsSource;
+use Psalm\Plugin\EventHandler\Event\MethodReturnTypeProviderEvent;
+use Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use RuntimeException;
 use Twig\Environment;
-use Twig\Template;
 
 /**
  * This hook transforms a call to `Twig\Environment::render()` in a call to the actual twig compiled template `doDisplay()` method.
@@ -29,17 +26,13 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
         return [Environment::class];
     }
 
-    public static function getMethodReturnType(
-        StatementsSource $source,
-        string $fq_classlike_name,
-        string $method_name_lowercase,
-        array $call_args,
-        Context $context,
-        CodeLocation $code_location,
-        ?array $template_type_parameters = null,
-        ?string $called_fq_classlike_name = null,
-        ?string $called_method_name_lowercase = null
-    ): ?Union {
+    public static function getMethodReturnType(MethodReturnTypeProviderEvent $event): ?Union
+    {
+        $source = $event->getSource();
+        $method_name_lowercase = $event->getMethodNameLowercase();
+        $context = $event->getContext();
+        $call_args = $event->getCallArgs();
+
         if (!$source instanceof StatementsAnalyzer) {
             throw new RuntimeException(sprintf('The %s::%s hook can only be called using a %s.', __CLASS__, __METHOD__, StatementsAnalyzer::class));
         }

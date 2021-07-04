@@ -42,5 +42,5 @@ Feature: Annotation class
     When I run Psalm
     Then I see these errors
       | Type                        | Message                                                                                                                           |
-      | PropertyNotSetInConstructor | Property MyServiceB::$a is not defined in constructor of MyServiceB and in any private or final methods called in the constructor |
+      | PropertyNotSetInConstructor | Property MyServiceB::$a is not defined in constructor of MyServiceB or in any private or final methods called in the constructor |
     And I see no other errors

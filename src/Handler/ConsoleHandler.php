@@ -8,11 +8,10 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
-use Psalm\Codebase;
 use Psalm\CodeLocation;
-use Psalm\Context;
 use Psalm\IssueBuffer;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\InvalidConsoleModeException;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleArgumentValue;
@@ -41,17 +40,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * {@inheritdoc}
      */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ): void {
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
+    {
+        $statements_source = $event->getStatementsSource();
+        $expr = $event->getExpr();
+        $declaring_method_id = $event->getDeclaringMethodId();
+
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
                 self::analyseArgument($expr->args, $statements_source);
@@ -63,7 +57,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 if (isset(self::$arguments[$identifier])) {
-                    $return_type_candidate = self::$arguments[$identifier];
+                    $event->setReturnTypeCandidate(self::$arguments[$identifier]);
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
@@ -76,7 +70,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 if (isset(self::$options[$identifier])) {
-                    $return_type_candidate = self::$options[$identifier];
+                    $event->setReturnTypeCandidate(self::$options[$identifier]);
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::setdefinition':
