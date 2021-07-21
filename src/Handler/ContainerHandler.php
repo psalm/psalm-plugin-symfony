@@ -188,9 +188,11 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
                 $key = $arrayItem->key;
                 $serviceId = $key instanceof String_ ? $key->value : $className;
 
-                $service = new Service($serviceId, $className);
-                $service->setIsPublic(true);
-                self::$containerMeta->add($service);
+                if (null === self::$containerMeta->get($className)) {
+                    $service = new Service($serviceId, $className);
+                    $service->setIsPublic(true);
+                    self::$containerMeta->add($service);
+                }
 
                 $codebase->queueClassLikeForScanning($className);
                 $fileStorage->referenced_classlikes[strtolower($className)] = $className;

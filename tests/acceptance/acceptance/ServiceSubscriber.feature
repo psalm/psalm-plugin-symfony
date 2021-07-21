@@ -81,3 +81,41 @@ Feature: Service Subscriber
       | Type  | Message                                             |
       | Trace | $entityManager: Doctrine\ORM\EntityManagerInterface |
     And I see no other errors
+
+  Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices, already defined as an alias in containerXml
+    Given I have the following code
+      """
+      <?php
+
+      use Psr\Container\ContainerInterface;
+      use Symfony\Component\HttpKernel\HttpKernelInterface;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      class SomeController implements ServiceSubscriberInterface
+      {
+        private $container;
+
+        public function __construct(ContainerInterface $container)
+        {
+          $this->container = $container;
+        }
+
+        public function __invoke()
+        {
+          /** @psalm-trace $kernel */
+          $kernel = $this->container->get('http_kernel');
+        }
+
+        public static function getSubscribedServices(): array
+        {
+          return [
+              'http_kernel' => HttpKernelInterface::class,
+          ];
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                          |
+      | Trace | $kernel: Symfony\Component\HttpKernel\HttpKernel |
+    And I see no other errors
