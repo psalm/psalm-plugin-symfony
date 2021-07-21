@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\Config;
+
+interface FileLocatorInterface
+{
+    /**
+     * @psalm-template TFirst as bool
+     * @psalm-param TFirst $first
+     * @psalm-return (TFirst is true ? string : array)
+     */
+    public function locate(string $name, string $currentPath = null, bool $first = true);
+}
