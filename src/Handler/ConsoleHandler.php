@@ -189,7 +189,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         $defaultParam = $normalizedParams['default'];
         if ($defaultParam) {
-            $returnTypes->removeType('null');
+            if (0 === ($mode & InputOption::VALUE_OPTIONAL)) {
+                $returnTypes->removeType('null');
+            }
+
             if ($defaultParam->value instanceof Expr\ConstFetch) {
                 switch ($defaultParam->value->name->parts[0]) {
                     case 'null':

@@ -78,6 +78,7 @@ Feature: ConsoleOption
           $this->addOption('option3', null, InputOption::VALUE_NONE, '', true);
           $this->addOption('option4', null, InputOption::VALUE_OPTIONAL, '', false);
           $this->addOption('option5', null, InputOption::VALUE_OPTIONAL, '', null);
+          $this->addOption('option6', null, InputOption::VALUE_OPTIONAL, '', 'default');
         }
 
         public function execute(InputInterface $input, OutputInterface $output): int
@@ -97,6 +98,9 @@ Feature: ConsoleOption
           /** @psalm-trace $option5 */
           $option5 = $input->getOption('option5');
 
+          /** @psalm-trace $option6 */
+          $option6 = $input->getOption('option6');
+
           return 0;
         }
       }
@@ -109,6 +113,7 @@ Feature: ConsoleOption
       | Trace | $option3: bool               |
       | Trace | $option4: bool               |
       | Trace | $option5: null\|string       |
+      | Trace | $option6: null\|string       |
     And I see no other errors
 
   Scenario: Asserting options return types have inferred with -- prefix in names
