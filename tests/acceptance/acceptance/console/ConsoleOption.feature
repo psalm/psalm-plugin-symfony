@@ -1,4 +1,4 @@
-@symfony-common
+@symfony-4 @symfony-5
 Feature: ConsoleOption
 
   Background:
@@ -284,8 +284,8 @@ Feature: ConsoleOption
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $optionName = 'foo';
-          $string1 = $input->getOption($optionName);
-          $output->writeLn(sprintf('%s', $string1));
+          /** @psalm-trace $option */
+          $option = $input->getOption($optionName);
 
           return 0;
         }
@@ -293,6 +293,7 @@ Feature: ConsoleOption
       """
     When I run Psalm
     Then I see these errors
-      | Type                    | Message                                                                                                                         |
-      | PossiblyInvalidArgument | Argument 2 of sprintf expects float\|int\|string, possibly different type array<array-key, string>\|bool\|null\|string provided |
+      | Type            | Message                                                        |
+      | MixedAssignment | Unable to determine the type that $option is being assigned to |
+      | Trace           | $option: mixed                                                 |
     And I see no other errors

@@ -1,4 +1,4 @@
-@symfony-common
+@symfony-4 @symfony-5
 Feature: ParameterBag
 
   Background:
@@ -69,7 +69,6 @@ Feature: ParameterBag
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                                      |
-      | MixedAssignment | Unable to determine the type that $nonExistentParameter is being assigned to |
-      | Trace           | $nonExistentParameter: mixed                                                 |
+      | Type            | Message                                                      |
+      | Trace           | $nonExistentParameter: array<array-key, mixed>\|null\|scalar |
     And I see no other errors
