@@ -1,4 +1,4 @@
-@symfony-common
+@symfony-4 @symfony-5
 Feature: ConsoleOption
 
   Background:
