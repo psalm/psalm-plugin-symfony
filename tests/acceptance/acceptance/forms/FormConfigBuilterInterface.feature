@@ -12,7 +12,7 @@ Feature: Form config builder
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
-      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent, PostSetDataEvent, SubmitEvent};
+      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent, PostSetDataEvent, SubmitEvent, PostSubmitEvent};
       use Symfony\Component\Form\FormEvents;
 
       /** @extends AbstractType<User> */
@@ -40,6 +40,11 @@ Feature: Form config builder
                   /** @psalm-trace $submitData */
               });
 
+              $builder->addEventListener(FormEvents::POST_SUBMIT, function(PostSubmitEvent $event) {
+                  $postSubmitData = $event->getData();
+                  /** @psalm-trace $postSubmitData */
+              });
+
               $config = $builder->getFormConfig();
               /** @psalm-trace $config */
           }
@@ -53,5 +58,6 @@ Feature: Form config builder
       | Trace | $postSetData: User\|null                                        |
       | Trace | $preSubmitData: array<string, mixed>                            |
       | Trace | $submitData: User\|null                                         |
+      | Trace | $postSubmitData: User\|null                                     |
     And I see no other errors
 
