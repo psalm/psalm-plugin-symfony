@@ -11,7 +11,7 @@ Feature: InputBag get return type
       use Symfony\Component\HttpFoundation\Request;
       """
 
-  Scenario Outline: Return type is string if default argument is string.
+  Scenario Outline: Return type is not null if default argument is string.
     Given I have the following code
       """
       class App
@@ -24,11 +24,14 @@ Feature: InputBag get return type
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type                  | Message                                            |
+      | InvalidScalarArgument | Argument 1 of trim expects string, scalar provided |
     Examples:
       | property |
       | query    |
       | cookies  |
+      | request  |
 
   Scenario Outline: Return type is nullable if default argument is not provided.
     Given I have the following code
@@ -44,10 +47,11 @@ Feature: InputBag get return type
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                          |
-      | PossiblyNullArgument | Argument 1 of trim cannot be null, possibly null value provided  |
+      | Type                  | Message                                                  |
+      | InvalidScalarArgument | Argument 1 of trim expects string, null\|scalar provided |
     And I see no other errors
     Examples:
       | property |
       | query    |
       | cookies  |
+      | request  |

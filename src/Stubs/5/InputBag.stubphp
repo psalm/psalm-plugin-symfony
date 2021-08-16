@@ -7,9 +7,9 @@ final class InputBag extends ParameterBag
     /**
      * Returns a string input value by name.
      *
-     * @template D of string|null
+     * @template D of string|int|float|bool|null
      * @psalm-param D $default
-     * @psalm-return string|D
+     * @psalm-return string|int|float|bool|D
      * @psalm-taint-source input
      */
     public function get(string $key, $default = null) {}
