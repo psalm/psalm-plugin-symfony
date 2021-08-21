@@ -6,18 +6,22 @@ Feature: Service Subscriber
       """
       <containerXml>../../tests/acceptance/container.xml</containerXml>
       """
+    And I have the following code preamble
+      """
+      <?php
+
+      namespace App\Controller;
+      """
 
   Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices
     Given I have the following code
       """
-      <?php
-
       use Doctrine\ORM\EntityManagerInterface;
       use Psr\Container\ContainerInterface;
       use Symfony\Contracts\Service\ServiceSubscriberInterface;
       use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-      class SomeController implements ServiceSubscriberInterface
+      class DummyController implements ServiceSubscriberInterface
       {
         private $container;
 
@@ -55,12 +59,10 @@ Feature: Service Subscriber
   Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices using array_merge
     Given I have the following code
       """
-      <?php
-
       use Doctrine\ORM\EntityManagerInterface;
       use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
-      class SomeController extends AbstractController
+      class DummyController extends AbstractController
       {
         public function __invoke()
         {
@@ -85,13 +87,11 @@ Feature: Service Subscriber
   Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices, already defined as an alias in containerXml
     Given I have the following code
       """
-      <?php
-
       use Psr\Container\ContainerInterface;
       use Symfony\Component\HttpKernel\HttpKernelInterface;
       use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
-      class SomeController implements ServiceSubscriberInterface
+      class DummyController implements ServiceSubscriberInterface
       {
         private $container;
 

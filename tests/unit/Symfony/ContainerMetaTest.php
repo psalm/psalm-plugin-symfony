@@ -6,6 +6,8 @@ use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Symfony\Service;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
 /**
@@ -38,10 +40,10 @@ class ContainerMetaTest extends TestCase
             $this->markTestSkipped('Should run for > Symfony 3');
         }
 
-        $service = $this->containerMeta->get($id);
-        $this->assertInstanceOf(Service::class, $service);
-        $this->assertSame($className, $service->getClassName());
-        $this->assertSame($isPublic, $service->isPublic());
+        $serviceDefinition = $this->containerMeta->get($id);
+        $this->assertInstanceOf(Definition::class, $serviceDefinition);
+        $this->assertSame($className, $serviceDefinition->getClass());
+        $this->assertSame($isPublic, $serviceDefinition->isPublic());
     }
 
     public function publicServices()
@@ -57,11 +59,11 @@ class ContainerMetaTest extends TestCase
                 'className' => 'Foo\Bar',
                 'isPublic' => false,
             ],
-            [
-                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
-                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
-                'isPublic' => true,
-            ],
+//            [
+//                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
+//                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
+//                'isPublic' => true,
+//            ],
             [
                 'id' => 'public_service_wo_public_attr',
                 'className' => 'Foo\Bar',
@@ -126,6 +128,7 @@ class ContainerMetaTest extends TestCase
      */
     public function testNonExistentService()
     {
+        $this->expectException(ServiceNotFoundException::class);
         $this->assertNull($this->containerMeta->get('non-existent-service'));
     }
 
@@ -136,7 +139,7 @@ class ContainerMetaTest extends TestCase
     {
         $containerMeta = new ContainerMeta(['non-existent-file.xml', __DIR__.'/../../acceptance/container.xml']);
         $service = $containerMeta->get('service_container');
-        $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClassName());
+        $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClass());
     }
 
     public function testGetParameter(): void
@@ -160,5 +163,11 @@ class ContainerMetaTest extends TestCase
                 ],
             ]
         ], $this->containerMeta->getParameter('nested_collection'));
+    }
+
+    public function testGetServiceWithContext(): void
+    {
+        $service = $this->containerMeta->get('dummy_service_with_locator2', 'App\Controller\DummyController');
+        $this->assertNotNull($service);
     }
 }

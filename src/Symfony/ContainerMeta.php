@@ -5,47 +5,63 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
-use Symfony\Component\HttpKernel\Kernel;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Symfony\Component\DependencyInjection\Reference;
 
 class ContainerMeta
 {
-    /**
-     * @psalm-var array<string, Service>
-     */
-    private $services = [];
-
     /**
      * @var array<string>
      */
     private $classNames = [];
 
     /**
-     * @var array<string, mixed>
+     * @var array<string, string>
      */
-    private $parameters = [];
+    private $classLocators = [];
+
+    /**
+     * @var array<string, array<string, string>>
+     */
+    private $serviceLocators = [];
+
+    /**
+     * @var ContainerBuilder
+     */
+    private $container;
 
     public function __construct(array $containerXmlPaths)
     {
         $this->init($containerXmlPaths);
     }
 
-    public function get(string $id): ?Service
+    /**
+     * @throws ServiceNotFoundException
+     */
+    public function get(string $id, ?string $contextClass = null): Definition
     {
-        if (isset($this->services[$id])) {
-            return $this->services[$id];
+        if ($contextClass && isset($this->classLocators[$contextClass]) && isset($this->serviceLocators[$this->classLocators[$contextClass]]) && isset($this->serviceLocators[$this->classLocators[$contextClass]][$id])) {
+            $id = $this->serviceLocators[$this->classLocators[$contextClass]][$id];
+
+            try {
+                $definition = $this->container->getDefinition($id);
+            } catch (ServiceNotFoundException $e) {
+                if (!class_exists($id)) {
+                    throw $e;
+                }
+
+                $definition = new Definition($id);
+                $definition->setPublic(true);
+            }
+        } else {
+            $definition = $this->container->getDefinition($id);
         }
 
-        return null;
-    }
-
-    public function add(Service $service): void
-    {
-        if (($alias = $service->getAlias()) && isset($this->services[$alias])) {
-            $aliasedService = $this->services[$alias];
-            $service->setClassName($aliasedService->getClassName());
-        }
-
-        $this->services[$service->getId()] = $service;
+        return $definition;
     }
 
     /**
@@ -53,11 +69,7 @@ class ContainerMeta
      */
     public function getParameter(string $key)
     {
-        if (isset($this->parameters[$key])) {
-            return $this->parameters[$key];
-        }
-
-        return null;
+        return $this->container->getParameter($key);
     }
 
     /**
@@ -70,103 +82,43 @@ class ContainerMeta
 
     private function init(array $containerXmlPaths): void
     {
-        /** @var string $containerXmlPath */
-        foreach ($containerXmlPaths as $containerXmlPath) {
-            $xmlPath = realpath($containerXmlPath);
-            if (!$xmlPath || !file_exists($xmlPath)) {
+        $this->container = new ContainerBuilder();
+        $xml = new XmlFileLoader($this->container, new FileLocator());
+
+        $containerXmlPath = null;
+        foreach ($containerXmlPaths as $filePath) {
+            $containerXmlPath = realpath((string) $filePath);
+            if ($containerXmlPath) {
+                break;
+            }
+        }
+
+        if (!$containerXmlPath) {
+            throw new ConfigException('Container xml file(s) not found at ');
+        }
+
+        $xml->load($containerXmlPath);
+
+        foreach ($this->container->getDefinitions() as $definition) {
+            $definitionFactory = $definition->getFactory();
+            if ($definition->hasTag('container.service_locator_context') && is_array($definitionFactory)) {
+                /** @var Reference $reference */
+                $reference = $definitionFactory[0];
+                $this->classLocators[$definition->getTag('container.service_locator_context')[0]['id']] = (string) $reference;
+            } elseif ($definition->hasTag('container.service_locator')) {
                 continue;
-            }
-
-            $xml = simplexml_load_file($xmlPath);
-            if (!$xml->services instanceof \SimpleXMLElement) {
-                throw new ConfigException($xmlPath.' is not a valid container xml file');
-            }
-
-            /** @psalm-var \SimpleXMLElement $serviceXml */
-            foreach ($xml->services->service as $serviceXml) {
-                /** @psalm-var \SimpleXMLElement $serviceAttributes */
-                $serviceAttributes = $serviceXml->attributes();
-
-                $className = (string) $serviceAttributes->class;
-
-                if ($className) {
-                    $this->classNames[] = $className;
-                }
-
-                $service = new Service((string) $serviceAttributes->id, $className);
-                if (isset($serviceAttributes->alias)) {
-                    $service->setAlias((string) $serviceAttributes->alias);
-                }
-
-                if (3 < Kernel::MAJOR_VERSION) {
-                    $service->setIsPublic('true' === (string) $serviceAttributes->public);
-                } else {
-                    $service->setIsPublic('false' !== (string) $serviceAttributes->public);
-                }
-
-                $this->add($service);
-            }
-
-            /** @var \SimpleXMLElement $parameter */
-            foreach ($xml->parameters->parameter as $parameter) {
-                $value = $this->getXmlParameterValue($parameter);
-
-                $attributes = $parameter->attributes();
-                if (!isset($attributes->key)) {
-                    continue;
-                }
-
-                $this->parameters[(string) $attributes->key] = $value;
-            }
-
-            return;
-        }
-
-        throw new ConfigException('Container xml file(s) not found at ');
-    }
-
-    /**
-     * @return mixed
-     */
-    private function getXmlParameterValue(\SimpleXMLElement $parameter)
-    {
-        $value = null;
-        $attributes = $parameter->attributes();
-        if (isset($attributes->type)) {
-            switch ((string) $attributes->type) {
-                case 'binary':
-                    $value = base64_decode((string) $parameter, true);
-                    break;
-                case 'collection':
-                    foreach ($parameter->children() as $child) {
-                        $childAttributes = $child->attributes();
-                        if (isset($childAttributes->key)) {
-                            $value[(string) $childAttributes->key] = $this->getXmlParameterValue($child);
-                        } else {
-                            $value[] = $this->getXmlParameterValue($child);
-                        }
-                    }
-                    break;
-                case 'string':
-                default:
-                    $value = (string) $parameter;
-                    break;
-            }
-        } else {
-            $value = (string) $parameter;
-            if ('true' === $value || 'false' === $value) {
-                $value = (bool) $value;
-            } elseif ('null' === $value) {
-                $value = null;
-            } elseif (is_numeric($value)) {
-                if (false === strpos($value, '.')) {
-                    $value = (int) $value;
-                } else {
-                    $value = (float) $value;
-                }
+            } elseif ($className = $definition->getClass()) {
+                $this->classNames[] = $className;
             }
         }
 
-        return $value;
+        foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $a) {
+            $definition = $this->container->getDefinition($key);
+            foreach ($definition->getArgument(0) as $id => $reference) {
+                /** @var Reference $reference */
+                $this->serviceLocators[$key][$id] = (string) $reference;
+                // maybe add class (string reference) for discovery to $this->classNames
+            }
+        }
     }
 }
