@@ -170,9 +170,26 @@ class ContainerMetaTest extends TestCase
         $this->containerMeta->getParameter('non_existent');
     }
 
-    public function testGetServiceWithContext(): void
+    /**
+     * @dataProvider serviceLocatorProvider
+     */
+    public function testGetServiceWithContext(string $id, string $contextClass, string $expectedClass): void
     {
-        $service = $this->containerMeta->get('dummy_service_with_locator2', 'App\Controller\DummyController');
-        $this->assertNotNull($service);
+        $serviceDefinition = $this->containerMeta->get($id, $contextClass);
+        $this->assertSame($expectedClass, $serviceDefinition->getClass());
+    }
+
+    public function serviceLocatorProvider(): iterable
+    {
+        yield [
+            'dummy_service_with_locator2',
+            'App\Controller\DummyController',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
+        yield [
+            'dummy_service_with_locator3',
+            'App\Controller\DummyController',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
     }
 }

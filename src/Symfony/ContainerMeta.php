@@ -6,6 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
@@ -49,7 +50,7 @@ class ContainerMeta
             $id = $this->serviceLocators[$this->classLocators[$contextClass]][$id];
 
             try {
-                $definition = $this->container->getDefinition($id);
+                $definition = $this->getDefinition($id);
             } catch (ServiceNotFoundException $e) {
                 if (!class_exists($id)) {
                     throw $e;
@@ -59,18 +60,7 @@ class ContainerMeta
                 $definition->setPublic(true);
             }
         } else {
-            try {
-                $definition = $this->container->getDefinition($id);
-            } catch (ServiceNotFoundException $serviceNotFoundException) {
-                try {
-                    $alias = $this->container->getAlias($id);
-                } catch (InvalidArgumentException $e) {
-                    throw $serviceNotFoundException;
-                }
-
-                $definition = $this->container->getDefinition((string) $alias);
-                $definition->setPublic($alias->isPublic());
-            }
+            $definition = $this->getDefinition($id);
         }
 
         return $definition;
@@ -106,7 +96,7 @@ class ContainerMeta
         }
 
         if (!$containerXmlPath) {
-            throw new ConfigException('Container xml file(s) not found at ');
+            throw new ConfigException('Container xml file(s) not found!');
         }
 
         $xml->load($containerXmlPath);
@@ -126,12 +116,50 @@ class ContainerMeta
 
         foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $a) {
             $definition = $this->container->getDefinition($key);
-            foreach ($definition->getArgument(0) as $id => $reference) {
-                if ($reference instanceof Reference) {
-                    $this->serviceLocators[$key][$id] = (string) $reference;
-                    // maybe add class (string reference) for discovery to $this->classNames
+            foreach ($definition->getArgument(0) as $id => $argument) {
+                if ($argument instanceof Reference) {
+                    $this->addServiceLocator($key, $id, $argument);
+                } elseif ($argument instanceof ServiceClosureArgument) {
+                    foreach ($argument->getValues() as $value) {
+                        $this->addServiceLocator($key, $id, $value);
+                    }
                 }
             }
         }
+    }
+
+    private function addServiceLocator(string $key, $id, Reference $reference): void
+    {
+        $this->serviceLocators[$key][$id] = (string) $reference;
+
+        try {
+            $definition = $this->getDefinition((string) $reference);
+            $className = $definition->getClass();
+            if ($className) {
+                $this->classNames[] = $className;
+            }
+        } catch (ServiceNotFoundException $e) {
+        }
+    }
+
+    /**
+     * @throws ServiceNotFoundException
+     */
+    private function getDefinition(string $id): Definition
+    {
+        try {
+            $definition = $this->container->getDefinition($id);
+        } catch (ServiceNotFoundException $serviceNotFoundException) {
+            try {
+                $alias = $this->container->getAlias($id);
+            } catch (InvalidArgumentException $e) {
+                throw $serviceNotFoundException;
+            }
+
+            $definition = $this->container->getDefinition((string) $alias);
+            $definition->setPublic($alias->isPublic());
+        }
+
+        return $definition;
     }
 }

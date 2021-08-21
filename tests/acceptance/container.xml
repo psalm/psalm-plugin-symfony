@@ -51,6 +51,7 @@
       <argument type="collection">
         <argument key="dummy_service_with_locator" type="service" id="dummy_private_service"/>
         <argument key="dummy_service_with_locator2" type="service" id="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService"/>
+        <argument key="dummy_service_with_locator3" type="service_closure" id="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService"/>
         <argument key="validator" type="service" id="debug.validator"/>
       </argument>
     </service>
