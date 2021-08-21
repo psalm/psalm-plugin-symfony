@@ -7,6 +7,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Symfony\Service;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -46,29 +47,27 @@ class ContainerMetaTest extends TestCase
         $this->assertSame($isPublic, $serviceDefinition->isPublic());
     }
 
-    public function publicServices()
+    public function publicServices(): iterable
     {
-        return [
-            [
-                'id' => 'service_container',
-                'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'Foo\Bar',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
-//            [
-//                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
-//                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
-//                'isPublic' => true,
-//            ],
-            [
-                'id' => 'public_service_wo_public_attr',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
+        yield [
+            'id' => 'service_container',
+            'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
+            'isPublic' => true,
+        ];
+        yield [
+            'id' => 'Foo\Bar',
+            'className' => 'Foo\Bar',
+            'isPublic' => false,
+        ];
+        yield [
+            'id' => 'public_service_wo_public_attr',
+            'className' => 'Foo\Bar',
+            'isPublic' => false,
+        ];
+        yield [
+            'id' => 'doctrine.orm.entity_manager',
+            'className' => 'Doctrine\ORM\EntityManager',
+            'isPublic' => true,
         ];
     }
 
@@ -163,6 +162,12 @@ class ContainerMetaTest extends TestCase
                 ],
             ]
         ], $this->containerMeta->getParameter('nested_collection'));
+    }
+
+    public function testGetParameterP(): void
+    {
+        $this->expectException(ParameterNotFoundException::class);
+        $this->containerMeta->getParameter('non_existent');
     }
 
     public function testGetServiceWithContext(): void

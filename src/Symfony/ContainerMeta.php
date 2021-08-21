@@ -8,6 +8,7 @@ use Psalm\Exception\ConfigException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
@@ -58,7 +59,18 @@ class ContainerMeta
                 $definition->setPublic(true);
             }
         } else {
-            $definition = $this->container->getDefinition($id);
+            try {
+                $definition = $this->container->getDefinition($id);
+            } catch (ServiceNotFoundException $serviceNotFoundException) {
+                try {
+                    $alias = $this->container->getAlias($id);
+                } catch (InvalidArgumentException $e) {
+                    throw $serviceNotFoundException;
+                }
+
+                $definition = $this->container->getDefinition((string) $alias);
+                $definition->setPublic($alias->isPublic());
+            }
         }
 
         return $definition;
@@ -115,9 +127,10 @@ class ContainerMeta
         foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $a) {
             $definition = $this->container->getDefinition($key);
             foreach ($definition->getArgument(0) as $id => $reference) {
-                /** @var Reference $reference */
-                $this->serviceLocators[$key][$id] = (string) $reference;
-                // maybe add class (string reference) for discovery to $this->classNames
+                if ($reference instanceof Reference) {
+                    $this->serviceLocators[$key][$id] = (string) $reference;
+                    // maybe add class (string reference) for discovery to $this->classNames
+                }
             }
         }
     }
