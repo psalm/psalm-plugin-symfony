@@ -8,11 +8,10 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
-use Psalm\Codebase;
 use Psalm\CodeLocation;
-use Psalm\Context;
 use Psalm\IssueBuffer;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\InvalidConsoleModeException;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleArgumentValue;
@@ -25,6 +24,7 @@ use Psalm\Type\Atomic\TString;
 use Psalm\Type\Union;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
+use Webmozart\Assert\Assert;
 
 class ConsoleHandler implements AfterMethodCallAnalysisInterface
 {
@@ -40,17 +40,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * {@inheritdoc}
      */
-    public static function afterMethodCallAnalysis(
-        Expr $expr,
-        string $method_id,
-        string $appearing_method_id,
-        string $declaring_method_id,
-        Context $context,
-        StatementsSource $statements_source,
-        Codebase $codebase,
-        array &$file_replacements = [],
-        Union &$return_type_candidate = null
-    ): void {
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
+    {
+        $statements_source = $event->getStatementsSource();
+        $expr = $event->getExpr();
+        $declaring_method_id = $event->getDeclaringMethodId();
+
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
                 self::analyseArgument($expr->args, $statements_source);
@@ -62,7 +57,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 if (isset(self::$arguments[$identifier])) {
-                    $return_type_candidate = self::$arguments[$identifier];
+                    $event->setReturnTypeCandidate(self::$arguments[$identifier]);
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
@@ -75,7 +70,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 if (isset(self::$options[$identifier])) {
-                    $return_type_candidate = self::$options[$identifier];
+                    $event->setReturnTypeCandidate(self::$options[$identifier]);
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::setdefinition':
@@ -116,17 +111,20 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static function analyseArgument(array $args, StatementsSource $statements_source): void
     {
-        $identifier = self::getNodeIdentifier($args[0]->value);
+        $normalizedParams = self::normalizeArgumentParams($args);
+
+        $identifier = self::getNodeIdentifier($normalizedParams['name']->value);
         if (!$identifier) {
             return;
         }
 
-        if (count($args) > 1) {
+        $modeParam = $normalizedParams['mode'];
+        if ($modeParam) {
             try {
-                $mode = self::getModeValue($args[1]->value);
+                $mode = self::getModeValue($modeParam->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
-                    new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $args[1]->value)),
+                    new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $modeParam->value)),
                     $statements_source->getSuppressedIssues()
                 );
 
@@ -144,10 +142,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $returnTypes = new Union([new TString(), new TNull()]);
         }
 
-        if (isset($args[3])) {
-            $defaultArg = $args[3];
+        $defaultParam = $normalizedParams['default'];
+        if ($defaultParam) {
             $returnTypes->removeType('null');
-            if ($defaultArg->value instanceof Expr\ConstFetch && 'null' === $defaultArg->value->name->parts[0]) {
+            if ($defaultParam->value instanceof Expr\ConstFetch && 'null' === $defaultParam->value->name->parts[0]) {
                 $returnTypes->addType(new TNull());
             }
         }
@@ -160,7 +158,9 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static function analyseOption(array $args, StatementsSource $statements_source): void
     {
-        $identifier = self::getNodeIdentifier($args[0]->value);
+        $normalizedParams = self::normalizeOptionParams($args);
+
+        $identifier = self::getNodeIdentifier($normalizedParams['name']->value);
         if (!$identifier) {
             return;
         }
@@ -169,12 +169,13 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $identifier = substr($identifier, 2);
         }
 
-        if (isset($args[2])) {
+        $modeOption = $normalizedParams['mode'];
+        if ($modeOption) {
             try {
-                $mode = self::getModeValue($args[2]->value);
+                $mode = self::getModeValue($modeOption->value);
             } catch (InvalidConsoleModeException $e) {
                 IssueBuffer::accepts(
-                    new InvalidConsoleOptionValue(new CodeLocation($statements_source, $args[2]->value)),
+                    new InvalidConsoleOptionValue(new CodeLocation($statements_source, $modeOption->value)),
                     $statements_source->getSuppressedIssues()
                 );
 
@@ -186,11 +187,14 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         $returnTypes = new Union([new TString(), new TNull()]);
 
-        if (isset($args[4])) {
-            $defaultArg = $args[4];
-            $returnTypes->removeType('null');
-            if ($defaultArg->value instanceof Expr\ConstFetch) {
-                switch ($defaultArg->value->name->parts[0]) {
+        $defaultParam = $normalizedParams['default'];
+        if ($defaultParam) {
+            if (0 === ($mode & InputOption::VALUE_OPTIONAL)) {
+                $returnTypes->removeType('null');
+            }
+
+            if ($defaultParam->value instanceof Expr\ConstFetch) {
+                switch ($defaultParam->value->name->parts[0]) {
                     case 'null':
                         $returnTypes->addType(new TNull());
                         break;
@@ -215,6 +219,46 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         self::$options[$identifier] = $returnTypes;
+    }
+
+    /**
+     * @param array<Arg> $args
+     *
+     * @psalm-return array{name: Arg, shortcut: ?Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     */
+    private static function normalizeOptionParams(array $args): array
+    {
+        return self::normalizeParams(['name', 'shortcut', 'mode', 'description', 'default'], $args);
+    }
+
+    /**
+     * @param array<Arg> $args
+     *
+     * @psalm-return array{name: Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     */
+    private static function normalizeArgumentParams(array $args): array
+    {
+        return self::normalizeParams(['name', 'mode', 'description', 'default'], $args);
+    }
+
+    private static function normalizeParams(array $params, array $args): array
+    {
+        $result = array_fill_keys($params, null);
+        foreach ($args as $arg) {
+            if ($arg->name) {
+                $name = $arg->name->name;
+
+                $key = array_search($name, $params);
+                Assert::integer($key);
+                $params = array_slice($params, $key + 1);
+            } else {
+                $name = array_shift($params);
+            }
+
+            $result[$name] = $arg;
+        }
+
+        return $result;
     }
 
     /**

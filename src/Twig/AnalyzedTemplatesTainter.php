@@ -8,16 +8,14 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
-use Psalm\Codebase;
 use Psalm\CodeLocation;
-use Psalm\Context;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\DataFlow\DataFlowNode;
-use Psalm\Plugin\Hook\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
-use Psalm\Type\Union;
 use RuntimeException;
 use Twig\Environment;
 
@@ -27,8 +25,13 @@ use Twig\Environment;
  */
 class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 {
-    public static function afterMethodCallAnalysis(Expr $expr, string $method_id, string $appearing_method_id, string $declaring_method_id, Context $context, StatementsSource $statements_source, Codebase $codebase, array &$file_replacements = [], Union &$return_type_candidate = null): void
+    public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
+        $codebase = $event->getCodebase();
+        $expr = $event->getExpr();
+        $method_id = $event->getMethodId();
+        $statements_source = $event->getStatementsSource();
+
         if (
             null === $codebase->taint_flow_graph
             || !$expr instanceof MethodCall || $method_id !== Environment::class.'::render' || empty($expr->args)
@@ -67,6 +70,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 
         // Taints going _out_ of the template
         $source = new DataFlowNode($templateName, $templateName, null);
+        $return_type_candidate = $event->getReturnTypeCandidate();
         if (null !== $return_type_candidate) {
             foreach ($return_type_candidate->parent_nodes as $sink) {
                 $codebase->taint_flow_graph->addPath($source, $sink, '=');

@@ -4,5 +4,5 @@ modules:
   enabled:
     - Cli
     - Filesystem
-    - \Weirdan\Codeception\Psalm\Module
+    - Weirdan\Codeception\Psalm\Module
     - \Psalm\SymfonyPsalmPlugin\Test\CodeceptionModule

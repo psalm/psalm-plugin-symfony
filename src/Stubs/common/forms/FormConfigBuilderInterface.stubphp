@@ -6,6 +6,7 @@ use Symfony\Component\Form\Event\PreSetDataEvent;
 use Symfony\Component\Form\Event\PreSubmitEvent;
 use Symfony\Component\Form\Event\PostSetDataEvent;
 use Symfony\Component\Form\Event\SubmitEvent;
+use Symfony\Component\Form\Event\PostSubmitEvent;
 
 /**
  * @template T
@@ -21,7 +22,7 @@ interface FormConfigBuilderInterface extends FormConfigInterface
     /**
      * @psalm-param FormEvents::* $eventName
      *
-     * @psalm-param callable(PreSetDataEvent<T>)|callable(PostSetDataEvent<T>)|callable(PreSubmitEvent)|callable(SubmitEvent<T>) $listener
+     * @psalm-param callable(PreSetDataEvent<T>)|callable(PostSetDataEvent<T>)|callable(PreSubmitEvent)|callable(SubmitEvent<T>)|callable(PostSubmitEvent<T>) $listener
      */
     public function addEventListener($eventName, $listener, $priority = 0);
 }

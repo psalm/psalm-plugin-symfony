@@ -2,7 +2,7 @@
 .build/!.gitkeep
 vendor
 composer.lock
-.php_cs.cache
+.php-cs-fixer.cache
 tests/_run
 /.idea
 /.phpunit.result.cache

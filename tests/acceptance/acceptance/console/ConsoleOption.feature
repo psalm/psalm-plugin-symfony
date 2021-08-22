@@ -1,20 +1,9 @@
-@symfony-common
+@symfony-4 @symfony-5
 Feature: ConsoleOption
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have issue handlers "UnusedParam,UnusedVariable" suppressed
+    And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
@@ -89,6 +78,7 @@ Feature: ConsoleOption
           $this->addOption('option3', null, InputOption::VALUE_NONE, '', true);
           $this->addOption('option4', null, InputOption::VALUE_OPTIONAL, '', false);
           $this->addOption('option5', null, InputOption::VALUE_OPTIONAL, '', null);
+          $this->addOption('option6', null, InputOption::VALUE_OPTIONAL, '', 'default');
         }
 
         public function execute(InputInterface $input, OutputInterface $output): int
@@ -108,6 +98,9 @@ Feature: ConsoleOption
           /** @psalm-trace $option5 */
           $option5 = $input->getOption('option5');
 
+          /** @psalm-trace $option6 */
+          $option6 = $input->getOption('option6');
+
           return 0;
         }
       }
@@ -120,6 +113,7 @@ Feature: ConsoleOption
       | Trace | $option3: bool               |
       | Trace | $option4: bool               |
       | Trace | $option5: null\|string       |
+      | Trace | $option6: null\|string       |
     And I see no other errors
 
   Scenario: Asserting options return types have inferred with -- prefix in names
@@ -290,8 +284,8 @@ Feature: ConsoleOption
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $optionName = 'foo';
-          $string1 = $input->getOption($optionName);
-          $output->writeLn(sprintf('%s', $string1));
+          /** @psalm-trace $option */
+          $option = $input->getOption($optionName);
 
           return 0;
         }
@@ -299,6 +293,7 @@ Feature: ConsoleOption
       """
     When I run Psalm
     Then I see these errors
-      | Type                    | Message                                                                                                                         |
-      | PossiblyInvalidArgument | Argument 2 of sprintf expects float\|int\|string, possibly different type array<array-key, string>\|bool\|null\|string provided |
+      | Type            | Message                                                        |
+      | MixedAssignment | Unable to determine the type that $option is being assigned to |
+      | Trace           | $option: mixed                                                 |
     And I see no other errors

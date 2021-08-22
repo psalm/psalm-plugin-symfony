@@ -2,19 +2,8 @@
 Feature: PropertyAccessorInterface
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have issue handlers "UnusedVariable,UnusedFunctionCall" suppressed
+    And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
@@ -51,6 +40,31 @@ Feature: PropertyAccessorInterface
       $propertyAccessor->setValue($company, 'name', 'Acme v2');
 
       echo $company->name;
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: Set value does not modify the propertyAccessor variable
+    Given I have the following code
+      """
+      use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
+
+      class Company
+      {
+          /**
+           * @var PropertyAccessorInterface
+           */
+          private $propertyAccessor;
+
+          public function __construct(PropertyAccessorInterface $propertyAccessor) {
+              $this->propertyAccessor = $propertyAccessor;
+          }
+
+          public function doThings(Company $thing): void {
+              $this->propertyAccessor->setValue($thing, 'foo', 'bar');
+              $this->propertyAccessor->setValue($thing, 'foo', 'bar');
+          }
+      }
       """
     When I run Psalm
     Then I see no errors

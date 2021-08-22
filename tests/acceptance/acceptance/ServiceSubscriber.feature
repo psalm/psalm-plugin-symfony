@@ -2,34 +2,22 @@
 Feature: Service Subscriber
 
   Background:
-    Given I have the following config
+    Given I have Symfony plugin enabled with the following config
       """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <containerXml>../../tests/acceptance/container.xml</containerXml>
-          </pluginClass>
-        </plugins>
-      </psalm>
+      <containerXml>../../tests/acceptance/container.xml</containerXml>
       """
-
-  Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices
-    Given I have the following code
+    And I have the following code preamble
       """
       <?php
+
+      namespace App\Controller;
 
       use Doctrine\ORM\EntityManagerInterface;
       use Psr\Container\ContainerInterface;
       use Symfony\Contracts\Service\ServiceSubscriberInterface;
       use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-      class SomeController implements ServiceSubscriberInterface
+      class DummyController implements ServiceSubscriberInterface
       {
         private $container;
 
@@ -38,58 +26,50 @@ Feature: Service Subscriber
           $this->container = $container;
         }
 
-        public function __invoke()
-        {
-          /** @psalm-trace $entityManager */
-          $entityManager = $this->container->get('em');
-
-          /** @psalm-trace $validator */
-          $validator = $this->container->get(ValidatorInterface::class);
-        }
-
         public static function getSubscribedServices()
         {
           return [
-            'em' => EntityManagerInterface::class, // with key
-            ValidatorInterface::class, // without key
+            // takes container.xml into account
           ];
         }
-      }
       """
-    When I run Psalm
-    Then I see these errors
-      | Type  | Message                                                              |
-      | Trace | $entityManager: Doctrine\ORM\EntityManagerInterface                  |
-      | Trace | $validator: Symfony\Component\Validator\Validator\ValidatorInterface |
-    And I see no other errors
 
-
-  Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices using array_merge
+  Scenario: Asserting psalm recognizes return type of services defined in getSubscribedServices
     Given I have the following code
       """
-      <?php
-
-      use Doctrine\ORM\EntityManagerInterface;
-      use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-
-      class SomeController extends AbstractController
-      {
         public function __invoke()
         {
-          /** @psalm-trace $entityManager */
-          $entityManager = $this->container->get('custom_service');
-        }
+          /** @psalm-trace $service1 */
+          $service1 = $this->container->get('dummy_service_with_locator');
 
-        public static function getSubscribedServices(): array
-        {
-          return array_merge([
-            'custom_service' => EntityManagerInterface::class,
-          ], parent::getSubscribedServices());
+          /** @psalm-trace $service2 */
+          $service2 = $this->container->get('dummy_service_with_locator2');
+
+          /** @psalm-trace $service3 */
+          $service3 = $this->container->get('dummy_service_with_locator3');
         }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                                             |
-      | Trace | $entityManager: Doctrine\ORM\EntityManagerInterface |
+      | Type  | Message                                                               |
+      | Trace | $service1: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
+      | Trace | $service2: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
+      | Trace | $service3: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
+    And I see no other errors
+
+  Scenario: Asserting psalm recognizes return type of services fetched name by PHP constants.
+    Given I have the following code
+      """
+        public function __invoke()
+        {
+          /** @psalm-trace $service1 */
+          $service1 = $this->container->get(\Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService::CUSTOM_SERVICE_NAME);
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                               |
+      | Trace | $service1: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
     And I see no other errors

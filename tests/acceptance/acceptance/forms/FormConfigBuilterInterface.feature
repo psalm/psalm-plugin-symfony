@@ -1,21 +1,8 @@
-@symfony-form
-Feature: Form events
+@symfony-common
+Feature: Form config builder
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
   Scenario: Depending of typehinted form event, psalm will know type of data attached
     Given I have the following code
           """
@@ -25,7 +12,7 @@ Feature: Form events
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
-      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent, PostSetDataEvent, SubmitEvent};
+      use Symfony\Component\Form\Event\{PreSubmitEvent, PreSetDataEvent, PostSetDataEvent, SubmitEvent, PostSubmitEvent};
       use Symfony\Component\Form\FormEvents;
 
       /** @extends AbstractType<User> */
@@ -53,6 +40,11 @@ Feature: Form events
                   /** @psalm-trace $submitData */
               });
 
+              $builder->addEventListener(FormEvents::POST_SUBMIT, function(PostSubmitEvent $event) {
+                  $postSubmitData = $event->getData();
+                  /** @psalm-trace $postSubmitData */
+              });
+
               $config = $builder->getFormConfig();
               /** @psalm-trace $config */
           }
@@ -66,5 +58,6 @@ Feature: Form events
       | Trace | $postSetData: User\|null                                        |
       | Trace | $preSubmitData: array<string, mixed>                            |
       | Trace | $submitData: User\|null                                         |
+      | Trace | $postSubmitData: User\|null                                     |
     And I see no other errors
 

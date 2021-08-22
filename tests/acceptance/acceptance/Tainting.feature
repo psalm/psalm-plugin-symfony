@@ -2,19 +2,7 @@
 Feature: Tainting
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
@@ -60,6 +48,7 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
+      | TaintedHtml  | Detected tainted HTML |
       | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:

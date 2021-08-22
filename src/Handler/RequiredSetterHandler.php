@@ -6,18 +6,18 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use PhpParser\Comment\Doc;
 use PhpParser\Node\Stmt\Class_;
-use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\NodeTraverser;
-use Psalm\Codebase;
-use Psalm\FileSource;
 use Psalm\Internal\PhpVisitor\AssignmentMapVisitor;
-use Psalm\Plugin\Hook\AfterClassLikeVisitInterface;
-use Psalm\Storage\ClassLikeStorage;
+use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 
 class RequiredSetterHandler implements AfterClassLikeVisitInterface
 {
-    public static function afterClassLikeVisit(ClassLike $stmt, ClassLikeStorage $storage, FileSource $statements_source, Codebase $codebase, array &$file_replacements = [])
+    public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
+        $stmt = $event->getStmt();
+        $storage = $event->getStorage();
+
         if (!$stmt instanceof Class_) {
             return;
         }

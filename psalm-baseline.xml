@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="3.17.1@8f211792d813e4dc89f04ed372785ce93b902fd1">
+<files psalm-version="4.7.3@38c452ae584467e939d55377aaf83b5a26f19dd1">
   <file src="src/Twig/Context.php">
     <UnnecessaryVarAnnotation occurrences="2">
       <code>int</code>
       <code>string</code>
     </UnnecessaryVarAnnotation>
+  </file>
+  <file src="src/Test/CodeceptionModule.php">
+    <UnusedPsalmSuppress occurrences="1">
+      <code>NonInvariantDocblockPropertyType</code>
+    </UnusedPsalmSuppress>
+  </file>
+  <file src="src/Symfony/ContainerMeta.php">
+    <PossiblyNullReference occurrences="1">
+      <code>attributes</code>
+    </PossiblyNullReference>
   </file>
 </files>

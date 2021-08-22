@@ -1,0 +1,15 @@
+<?php
+
+namespace Symfony\Component\Form\Event;
+
+use Symfony\Component\Form\FormEvent;
+
+/**
+ * @template T
+ *
+ * @template-extends FormEvent<T>
+ */
+class PostSubmitEvent extends FormEvent
+{
+}
+

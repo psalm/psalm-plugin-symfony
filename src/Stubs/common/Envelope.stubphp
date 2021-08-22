@@ -5,7 +5,7 @@ namespace Symfony\Component\Messenger;
 use Symfony\Component\Messenger\Stamp\StampInterface;
 
 /**
- * @template M of object
+ * @template-covariant M of object
  */
 final class Envelope
 {

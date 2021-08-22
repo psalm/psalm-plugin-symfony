@@ -2,20 +2,7 @@
 Feature: Messenger Envelope
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
@@ -90,7 +77,7 @@ Feature: Messenger Envelope
     Then I see these errors
       | Type                 | Message                                                                                                          |
       | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, parent type "type" provided |
-      | UndefinedClass       | Class or interface type does not exist                                                                           |
+      | UndefinedClass       | Class, interface or enum named type does not exist                                                               |
     And I see no other errors
 
   Scenario: Envelope::withoutStampsOfType returns an envelope with the same message class
@@ -114,7 +101,7 @@ Feature: Messenger Envelope
     Then I see these errors
       | Type                 | Message                                                                                                                   |
       | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, parent type "type" provided |
-      | UndefinedClass       | Class or interface type does not exist                                                                                    |
+      | UndefinedClass       | Class, interface or enum named type does not exist                                                                        |
     And I see no other errors
 
   Scenario: Envelope::last() expects a class name implementing StampInterface
@@ -198,3 +185,13 @@ Feature: Messenger Envelope
       | Type  | Message            |
       | Trace | $message: stdClass |
     And I see no other errors
+
+  Scenario: Message can be any object
+    Given I have the following code
+      """
+      /** @psalm-suppress UnusedParam */
+      function foo(Envelope $envelope): void {};
+      foo($envelope);
+      """
+    When I run Psalm
+    Then I see no errors

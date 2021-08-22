@@ -10,7 +10,7 @@ on:
 
 jobs:
   static-code-analysis:
-    name: "Static Code Analysis"
+    name: "Static Code Analysis (PHP: ${{matrix.php-version}}, deps: ${{matrix.dependencies}})"
 
     runs-on: ubuntu-latest
 
@@ -42,24 +42,10 @@ jobs:
           coverage: none
           php-version: ${{ matrix.php-version }}
 
-      - name: "Determine composer cache directory"
-        id: determine-composer-cache-directory
-        run: echo "::set-output name=directory::$(composer config cache-dir)"
-
-      - name: "Cache dependencies installed with composer"
-        uses: actions/cache@v1
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v1
         with:
-          path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
-          restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.dependencies }}-
-
-      - name: "Install lowest dependencies from composer.json"
-        if: matrix.dependencies == 'lowest'
-        run: composer update --no-interaction --no-progress --prefer-lowest
-
-      - name: "Install highest dependencies from composer.json"
-        if: matrix.dependencies == 'highest'
-        run: composer install --no-interaction --no-progress
+            dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
         uses: actions/cache@v1
@@ -72,7 +58,7 @@ jobs:
         run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github
 
   tests:
-    name: "Tests"
+    name: "Tests (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
 
     runs-on: ubuntu-latest
 
@@ -87,7 +73,6 @@ jobs:
           - 8.0
 
         symfony-version:
-          - 3
           - 4
           - 5
 
@@ -108,22 +93,11 @@ jobs:
           php-version: ${{ matrix.php-version }}
           tools: flex
 
-      - name: "Determine composer cache directory"
-        id: determine-composer-cache-directory
-        run: echo "::set-output name=directory::$(composer config cache-dir)"
-
-      - name: "Cache dependencies installed with composer"
-        uses: actions/cache@v1
-        with:
-          path: ${{ steps.determine-composer-cache-directory.outputs.directory }}
-          key: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-${{ hashFiles('composer.json') }}
-          restore-keys: php-${{ matrix.php-version }}-composer-${{ matrix.symfony-version }}-
-
       - name: "Restrict symfony dependencies to the correct version"
         run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
-      - name: "Update dependencies with restricted symfony version"
-        run: composer update --prefer-stable --no-interaction --no-progress
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v1
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml
@@ -131,17 +105,9 @@ jobs:
       - name: "Build acceptance tests with codeception"
         run: vendor/bin/codecept build
 
-      - name: "Run base acceptance tests with codeception"
-        run: vendor/bin/codecept run -v -g symfony-common
+      - name: "Run acceptance tests with codeception"
+        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
 
-      - name: "Run Symfony 3 acceptance tests with codeception"
-        if: matrix.symfony-version == '3'
-        run: vendor/bin/codecept run -v -g symfony-3
-
-      - name: "Run symfony 4 acceptance tests with codeception"
-        if: matrix.symfony-version == '4'
-        run: vendor/bin/codecept run -v -g symfony-4
-
-      - name: "Run Symfony 5 acceptance tests with codeception"
-        if: matrix.symfony-version == '5'
-        run: vendor/bin/codecept run -v -g symfony-5
+      - name: "Run acceptance tests with codeception PHP8 only tests"
+        run: vendor/bin/codecept run -v -g php-8
+        if: matrix.php-version == '8.0'

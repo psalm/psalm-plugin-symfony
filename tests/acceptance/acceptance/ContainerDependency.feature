@@ -5,19 +5,7 @@ Feature: ContainerDependency
   I need Psalm to check container is not injected as a dependency
 
   Background:
-    Given I have the following config
-      """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
-        </plugins>
-      </psalm>
-      """
+    Given I have Symfony plugin enabled
 
   Scenario: Asserting container dependency raises issue
     Given I have the following code
@@ -33,7 +21,7 @@ Feature: ContainerDependency
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                   |
+      | Type                | Message                                                   |
       | ContainerDependency | Container must not inject into services as dependency! |
     And I see no other errors
 

@@ -3,21 +3,9 @@ Feature: Naming conventions
   Detect naming convention violations
 
   Background:
-    Given I have the following config
+    Given I have Symfony plugin enabled with the following config
       """
-      <?xml version="1.0"?>
-      <psalm errorLevel="1">
-        <projectFiles>
-          <directory name="."/>
-          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
-        </projectFiles>
-
-        <plugins>
-          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-            <containerXml>../../tests/acceptance/container.xml</containerXml>
-          </pluginClass>
-        </plugins>
-      </psalm>
+      <containerXml>../../tests/acceptance/container.xml</containerXml>
       """
 
   Scenario: There is no service naming convention violation, so no complaint.

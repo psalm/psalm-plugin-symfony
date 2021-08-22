@@ -21,6 +21,9 @@ Feature: Twig tainting with cached templates
             <twigCachePath>/cache/twig</twigCachePath>
           </pluginClass>
         </plugins>
+        <issueHandlers>
+          <UnusedVariable errorLevel="info"/>
+        </issueHandlers>
       </psalm>
       """
     And I have the following code preamble
@@ -82,8 +85,9 @@ Feature: Twig tainting with cached templates
     And the "index.html.twig" template is compiled in the "cache/twig/" directory
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
 #  Scenario: One tainted parameter (in a variable) of the twig template (named in a variable) is displayed with only the raw filter
@@ -123,8 +127,9 @@ Feature: Twig tainting with cached templates
     And the last compiled template got his alias changed to "@Acme/index.html.twig"
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: The template has a taint sink and is aliased using the old notation
@@ -143,8 +148,9 @@ Feature: Twig tainting with cached templates
     And the last compiled template got his alias changed to "AcmeBundle::index.html.twig"
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
   Scenario: The template has a taint sink and is rendered using the old alias notation
@@ -163,6 +169,7 @@ Feature: Twig tainting with cached templates
     And the last compiled template got his alias changed to "@Acme/index.html.twig"
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
