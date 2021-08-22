@@ -8,6 +8,7 @@ use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type\Atomic;
 use Psalm\Type\Union;
+use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 
 class ParameterBagHandler implements AfterMethodCallAnalysisInterface
 {
@@ -36,8 +37,15 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
 
         $argument = $expr->args[0]->value->value;
 
+        try {
+            $parameter = self::$containerMeta->getParameter($argument);
+        } catch (ParameterNotFoundException $e) {
+            // maybe emit ParameterNotFound issue
+            return;
+        }
+
         // @todo find a better way to calculate return type
-        switch (gettype(self::$containerMeta->getParameter($argument))) {
+        switch (gettype($parameter)) {
             case 'string':
                 $event->setReturnTypeCandidate(new Union([Atomic::create('string')]));
                 break;

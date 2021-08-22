@@ -5,7 +5,9 @@ namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\SymfonyPsalmPlugin\Symfony\Service;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
 /**
@@ -29,86 +31,38 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox service attributes for > Symfony 3
+     * @testdox service attributes
      * @dataProvider publicServices
      */
     public function testServices($id, string $className, bool $isPublic)
     {
-        if (3 === Kernel::MAJOR_VERSION) {
-            $this->markTestSkipped('Should run for > Symfony 3');
-        }
-
-        $service = $this->containerMeta->get($id);
-        $this->assertInstanceOf(Service::class, $service);
-        $this->assertSame($className, $service->getClassName());
-        $this->assertSame($isPublic, $service->isPublic());
+        $serviceDefinition = $this->containerMeta->get($id);
+        $this->assertInstanceOf(Definition::class, $serviceDefinition);
+        $this->assertSame($className, $serviceDefinition->getClass());
+        $this->assertSame($isPublic, $serviceDefinition->isPublic());
     }
 
-    public function publicServices()
+    public function publicServices(): iterable
     {
-        return [
-            [
-                'id' => 'service_container',
-                'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'Foo\Bar',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
-            [
-                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
-                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'public_service_wo_public_attr',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
+        yield [
+            'id' => 'service_container',
+            'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
+            'isPublic' => true,
         ];
-    }
-
-    /**
-     * @testdox service attributes for Symfony 3
-     * @dataProvider publicServices3
-     */
-    public function testServices3($id, string $className, bool $isPublic)
-    {
-        if (Kernel::MAJOR_VERSION > 3) {
-            $this->markTestSkipped('Should run for Symfony 3');
-        }
-
-        $service = $this->containerMeta->get($id);
-        $this->assertInstanceOf(Service::class, $service);
-        $this->assertSame($className, $service->getClassName());
-        $this->assertSame($isPublic, $service->isPublic());
-    }
-
-    public function publicServices3()
-    {
-        return [
-            [
-                'id' => 'service_container',
-                'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'Foo\Bar',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
-            [
-                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
-                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'public_service_wo_public_attr',
-                'className' => 'Foo\Bar',
-                'isPublic' => true,
-            ],
+        yield [
+            'id' => 'Foo\Bar',
+            'className' => 'Foo\Bar',
+            'isPublic' => false,
+        ];
+        yield [
+            'id' => 'public_service_wo_public_attr',
+            'className' => 'Foo\Bar',
+            'isPublic' => Kernel::MAJOR_VERSION < 5,
+        ];
+        yield [
+            'id' => 'doctrine.orm.entity_manager',
+            'className' => 'Doctrine\ORM\EntityManager',
+            'isPublic' => true,
         ];
     }
 
@@ -126,6 +80,7 @@ class ContainerMetaTest extends TestCase
      */
     public function testNonExistentService()
     {
+        $this->expectException(ServiceNotFoundException::class);
         $this->assertNull($this->containerMeta->get('non-existent-service'));
     }
 
@@ -136,7 +91,7 @@ class ContainerMetaTest extends TestCase
     {
         $containerMeta = new ContainerMeta(['non-existent-file.xml', __DIR__.'/../../acceptance/container.xml']);
         $service = $containerMeta->get('service_container');
-        $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClassName());
+        $this->assertSame('Symfony\Component\DependencyInjection\ContainerInterface', $service->getClass());
     }
 
     public function testGetParameter(): void
@@ -160,5 +115,34 @@ class ContainerMetaTest extends TestCase
                 ],
             ]
         ], $this->containerMeta->getParameter('nested_collection'));
+    }
+
+    public function testGetParameterP(): void
+    {
+        $this->expectException(ParameterNotFoundException::class);
+        $this->containerMeta->getParameter('non_existent');
+    }
+
+    /**
+     * @dataProvider serviceLocatorProvider
+     */
+    public function testGetServiceWithContext(string $id, string $contextClass, string $expectedClass): void
+    {
+        $serviceDefinition = $this->containerMeta->get($id, $contextClass);
+        $this->assertSame($expectedClass, $serviceDefinition->getClass());
+    }
+
+    public function serviceLocatorProvider(): iterable
+    {
+        yield [
+            'dummy_service_with_locator2',
+            'App\Controller\DummyController',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
+        yield [
+            'dummy_service_with_locator3',
+            'App\Controller\DummyController',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
     }
 }
