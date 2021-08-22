@@ -5,7 +5,6 @@ namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
-use Psalm\SymfonyPsalmPlugin\Symfony\Service;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
@@ -32,15 +31,11 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox service attributes for > Symfony 3
+     * @testdox service attributes
      * @dataProvider publicServices
      */
     public function testServices($id, string $className, bool $isPublic)
     {
-        if (3 === Kernel::MAJOR_VERSION) {
-            $this->markTestSkipped('Should run for > Symfony 3');
-        }
-
         $serviceDefinition = $this->containerMeta->get($id);
         $this->assertInstanceOf(Definition::class, $serviceDefinition);
         $this->assertSame($className, $serviceDefinition->getClass());
@@ -62,54 +57,12 @@ class ContainerMetaTest extends TestCase
         yield [
             'id' => 'public_service_wo_public_attr',
             'className' => 'Foo\Bar',
-            'isPublic' => false,
+            'isPublic' => Kernel::MAJOR_VERSION < 5,
         ];
         yield [
             'id' => 'doctrine.orm.entity_manager',
             'className' => 'Doctrine\ORM\EntityManager',
             'isPublic' => true,
-        ];
-    }
-
-    /**
-     * @testdox service attributes for Symfony 3
-     * @dataProvider publicServices3
-     */
-    public function testServices3($id, string $className, bool $isPublic)
-    {
-        if (Kernel::MAJOR_VERSION > 3) {
-            $this->markTestSkipped('Should run for Symfony 3');
-        }
-
-        $service = $this->containerMeta->get($id);
-        $this->assertInstanceOf(Service::class, $service);
-        $this->assertSame($className, $service->getClassName());
-        $this->assertSame($isPublic, $service->isPublic());
-    }
-
-    public function publicServices3()
-    {
-        return [
-            [
-                'id' => 'service_container',
-                'className' => 'Symfony\Component\DependencyInjection\ContainerInterface',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'Foo\Bar',
-                'className' => 'Foo\Bar',
-                'isPublic' => false,
-            ],
-            [
-                'id' => 'Symfony\Component\HttpKernel\HttpKernelInterface',
-                'className' => 'Symfony\Component\HttpKernel\HttpKernel',
-                'isPublic' => true,
-            ],
-            [
-                'id' => 'public_service_wo_public_attr',
-                'className' => 'Foo\Bar',
-                'isPublic' => true,
-            ],
         ];
     }
 
