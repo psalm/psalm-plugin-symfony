@@ -2,7 +2,9 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
+use function constant;
 use PhpParser\Node\Expr\ClassConstFetch;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
 use Psalm\IssueBuffer;
@@ -73,10 +75,28 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             return;
         }
 
-        if ($expr->args[0]->value instanceof String_) {
-            $serviceId = $expr->args[0]->value->value;
-        } elseif ($expr->args[0]->value instanceof ClassConstFetch) {
-            $serviceId = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
+        $idArgument = $expr->args[0]->value;
+
+        if ($idArgument instanceof String_) {
+            $serviceId = $idArgument->value;
+        } elseif ($idArgument instanceof ClassConstFetch) {
+            $className = (string) $idArgument->class->getAttribute('resolvedName');
+            if ('self' === $className) {
+                $className = $event->getStatementsSource()->getSource()->getFQCLN();
+            }
+            if (!$idArgument->name instanceof Identifier || !$className) {
+                return;
+            }
+
+            if ('class' === $idArgument->name->name) {
+                $serviceId = $className;
+            } else {
+                try {
+                    $serviceId = constant($className.'::'.$idArgument->name->name);
+                } catch (\Exception $e) {
+                    return;
+                }
+            }
         } else {
             return;
         }
