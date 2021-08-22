@@ -115,7 +115,7 @@ class ContainerMeta
             }
         }
 
-        foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $a) {
+        foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $_) {
             $definition = $this->container->getDefinition($key);
             foreach ($definition->getArgument(0) as $id => $argument) {
                 if ($argument instanceof Reference) {
@@ -129,7 +129,7 @@ class ContainerMeta
         }
     }
 
-    private function addServiceLocator(string $key, $id, Reference $reference): void
+    private function addServiceLocator(string $key, string $id, Reference $reference): void
     {
         $this->serviceLocators[$key][$id] = (string) $reference;
 
