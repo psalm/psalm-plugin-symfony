@@ -57,3 +57,19 @@ Feature: Service Subscriber
       | Trace | $service2: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
       | Trace | $service3: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
     And I see no other errors
+
+  Scenario: Asserting psalm recognizes return type of services fetched name by PHP constants.
+    Given I have the following code
+      """
+        public function __invoke()
+        {
+          /** @psalm-trace $service1 */
+          $service1 = $this->container->get(\Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService::CUSTOM_SERVICE_NAME);
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                                               |
+      | Trace | $service1: Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService |
+    And I see no other errors
