@@ -71,6 +71,14 @@ Example:
 </pluginClass>
 ```
 
+If you're using PHP config files for Symfony 5.3+, you also need this for auto-loading of `Symfony\Config`:
+
+```xml
+<extraFiles>
+    <directory name="var/cache/dev/Symfony/Config" /> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/201 -->
+</extraFiles>
+```
+
 ### Twig tainting (experimental)
 
 When it comes to taint analysis for Twig templates, there are currently two approaches:
