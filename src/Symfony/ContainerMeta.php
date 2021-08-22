@@ -57,8 +57,9 @@ class ContainerMeta
                 }
 
                 $definition = new Definition($id);
-                $definition->setPublic(true);
             }
+
+            $definition->setPublic(true);
         } else {
             $definition = $this->getDefinition($id);
         }
