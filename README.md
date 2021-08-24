@@ -55,10 +55,10 @@ Example:
 ```
 
 This file path may change based on your Symfony version, file structure and environment settings.
-Default files according to Symfony versions are:
-- Symfony 3: var/cache/dev/srcDevDebugProjectContainer.xml
-- Symfony 4: var/cache/dev/srcApp_KernelDevDebugContainer.xml
-- Symfony 5: var/cache/dev/App_KernelDevDebugContainer.xml
+Default files are:
+- Symfony 3: `var/cache/dev/srcDevDebugProjectContainer.xml`
+- Symfony 4: `var/cache/dev/srcApp_KernelDevDebugContainer.xml`
+- Symfony 5: `var/cache/dev/App_KernelDevDebugContainer.xml`
 
 Multiple container files can be configured. In this case, the first valid file is taken into account.
 If none of the given files is valid, a configuration exception is thrown.
@@ -79,8 +79,11 @@ If you're using PHP config files for Symfony 5.3+, you also need this for auto-l
 </extraFiles>
 ```
 
-If you're getting the error "MissingFile - config/preload.php - Cannot find file ...var/cache/prod/App_KernelProdContainer.preload.php to include",
-you can suppress it like this:
+If you're getting the following error
+
+> MissingFile - config/preload.php - Cannot find file ...var/cache/prod/App_KernelProdContainer.preload.php to include
+
+...you can suppress it like this:
 
 ```xml
 <issueHandlers>
