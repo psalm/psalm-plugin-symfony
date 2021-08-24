@@ -31,7 +31,7 @@ The plugin determines the real return type by checking the given argument and ma
 
 ### Configuration
 
-If you follow the installation instructions, the psalm-plugin command will add this plugin configuration to the psalm.xml configuration file.
+If you follow the installation instructions, the psalm-plugin command will add this plugin configuration to the `psalm.xml` configuration file.
 
 ```xml
 <?xml version="1.0"?>
@@ -77,6 +77,19 @@ If you're using PHP config files for Symfony 5.3+, you also need this for auto-l
 <extraFiles>
     <directory name="var/cache/dev/Symfony/Config" /> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/201 -->
 </extraFiles>
+```
+
+If you're getting the error "MissingFile - config/preload.php - Cannot find file ...var/cache/prod/App_KernelProdContainer.preload.php to include",
+you can suppress it like this:
+
+```xml
+<issueHandlers>
+    <MissingFile> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/205 -->
+        <errorLevel type="suppress">
+            <file name="config/preload.php" />
+        </errorLevel>
+    </MissingFile>
+</issueHandlers>
 ```
 
 ### Twig tainting (experimental)
