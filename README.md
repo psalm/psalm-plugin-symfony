@@ -31,7 +31,7 @@ The plugin determines the real return type by checking the given argument and ma
 
 ### Configuration
 
-If you follow the installation instructions, the psalm-plugin command will add this plugin configuration to the psalm.xml configuration file.
+If you follow the installation instructions, the psalm-plugin command will add this plugin configuration to the `psalm.xml` configuration file.
 
 ```xml
 <?xml version="1.0"?>
@@ -55,10 +55,10 @@ Example:
 ```
 
 This file path may change based on your Symfony version, file structure and environment settings.
-Default files according to Symfony versions are:
-- Symfony 3: var/cache/dev/srcDevDebugProjectContainer.xml
-- Symfony 4: var/cache/dev/srcApp_KernelDevDebugContainer.xml
-- Symfony 5: var/cache/dev/App_KernelDevDebugContainer.xml
+Default files are:
+- Symfony 3: `var/cache/dev/srcDevDebugProjectContainer.xml`
+- Symfony 4: `var/cache/dev/srcApp_KernelDevDebugContainer.xml`
+- Symfony 5: `var/cache/dev/App_KernelDevDebugContainer.xml`
 
 Multiple container files can be configured. In this case, the first valid file is taken into account.
 If none of the given files is valid, a configuration exception is thrown.
@@ -69,6 +69,30 @@ Example:
     <containerXml>var/cache/dev/App_KernelDevDebugContainer.xml</containerXml>
     <containerXml>var/cache/dev/App_KernelTestDebugContainer.xml</containerXml>
 </pluginClass>
+```
+
+If you're using PHP config files for Symfony 5.3+, you also need this for auto-loading of `Symfony\Config`:
+
+```xml
+<extraFiles>
+    <directory name="var/cache/dev/Symfony/Config" /> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/201 -->
+</extraFiles>
+```
+
+If you're getting the following error
+
+> MissingFile - config/preload.php - Cannot find file ...var/cache/prod/App_KernelProdContainer.preload.php to include
+
+...you can suppress it like this:
+
+```xml
+<issueHandlers>
+    <MissingFile> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/205 -->
+        <errorLevel type="suppress">
+            <file name="config/preload.php" />
+        </errorLevel>
+    </MissingFile>
+</issueHandlers>
 ```
 
 ### Twig tainting (experimental)
