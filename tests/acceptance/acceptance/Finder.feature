@@ -10,6 +10,7 @@ Feature: Finder
       <?php
 
       use Symfony\Component\Finder\Finder;
+      use Symfony\Component\Finder\SplFileInfo;
 
       class Test
       {
