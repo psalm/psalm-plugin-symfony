@@ -103,6 +103,11 @@ class Plugin implements PluginEntryPointInterface
 
     private function addStubs(RegistrationInterface $api, string $path): void
     {
+        if (!is_dir($path)) {
+            // e.g. looking for stubs for version 3, but there aren't any at time of writing, so don't try and load them.
+            return;
+        }
+
         $a = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
         foreach ($a as $file) {
             if (!$file->isDir()) {
