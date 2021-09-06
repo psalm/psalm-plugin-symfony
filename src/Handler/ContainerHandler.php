@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
+use function constant;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
@@ -18,7 +19,6 @@ use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
-use function constant;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
