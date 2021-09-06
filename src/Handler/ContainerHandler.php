@@ -2,7 +2,6 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
-use function constant;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
@@ -19,6 +18,7 @@ use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use function constant;
 
 class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
@@ -118,7 +118,12 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             }
 
             if (!$service->isPublic()) {
-                $isTestContainer = $context->parent && ('Symfony\Bundle\FrameworkBundle\Test\KernelTestCase' === $context->parent || is_subclass_of($context->parent, 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase'));
+                /** @var class-string $kernelTestCaseClass */
+                $kernelTestCaseClass = 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase';
+                $isTestContainer = $context->parent &&
+                    ($kernelTestCaseClass === $context->parent
+                        || is_subclass_of($context->parent, $kernelTestCaseClass)
+                    );
                 if (!$isTestContainer) {
                     IssueBuffer::accepts(
                         new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
