@@ -118,7 +118,12 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             }
 
             if (!$service->isPublic()) {
-                $isTestContainer = $context->parent && ('Symfony\Bundle\FrameworkBundle\Test\KernelTestCase' === $context->parent || is_subclass_of($context->parent, 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase'));
+                /** @var class-string $kernelTestCaseClass */
+                $kernelTestCaseClass = 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase';
+                $isTestContainer = $context->parent &&
+                    ($kernelTestCaseClass === $context->parent
+                        || is_subclass_of($context->parent, $kernelTestCaseClass)
+                    );
                 if (!$isTestContainer) {
                     IssueBuffer::accepts(
                         new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
