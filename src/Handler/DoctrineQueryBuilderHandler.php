@@ -27,6 +27,9 @@ class DoctrineQueryBuilderHandler implements AfterMethodCallAnalysisInterface
                 return;
             }
 
+            if (!isset($expr->args[1]->value)) {
+                return;
+            }
             $value = $expr->args[1]->value;
 
             if (self::isValueObject($value, $context)) {

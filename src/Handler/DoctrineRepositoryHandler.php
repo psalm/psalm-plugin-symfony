@@ -30,6 +30,10 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         $statements_source = $event->getStatementsSource();
 
         if (in_array($declaring_method_id, ['Doctrine\ORM\EntityManagerInterface::getrepository', 'Doctrine\Persistence\ObjectManager::getrepository'])) {
+            if (!isset($expr->args[0]->value)) {
+                return;
+            }
+
             $entityName = $expr->args[0]->value;
             if ($entityName instanceof String_) {
                 IssueBuffer::accepts(
