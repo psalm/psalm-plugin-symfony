@@ -12,18 +12,18 @@
     "require": {
         "php": "^7.1 || ^8.0",
         "ext-simplexml": "*",
-        "symfony/framework-bundle": "^4.0 || ^5.0",
-        "vimeo/psalm": "^4.11"
+        "symfony/framework-bundle": "^4.0 || ^5.0 || ^6.0",
+        "vimeo/psalm": "^4.12"
     },
     "require-dev": {
-        "symfony/form": "^4.0 || ^5.0",
+        "symfony/form": "^4.0 || ^5.0 || ^6.0",
         "doctrine/orm": "^2.7",
         "phpunit/phpunit": "~7.5 || ~9.5",
         "symfony/cache-contracts": "^1.0 || ^2.0",
         "symfony/console": "*",
-        "symfony/messenger": "^4.2 || ^5.0",
-        "symfony/security-guard": "^4.0 || ^5.0",
-        "symfony/serializer": "^4.0 || ^5.0",
+        "symfony/messenger": "^4.2 || ^5.0 || ^6.0",
+        "symfony/security-guard": "*",
+        "symfony/serializer": "^4.0 || ^5.0 || ^6.0",
         "symfony/validator": "*",
         "twig/twig": "^2.10 || ^3.0",
         "weirdan/codeception-psalm-module": "^0.13.1"
@@ -66,5 +66,6 @@
     },
     "suggest": {
         "weirdan/doctrine-psalm-plugin": "If Doctrine is used, it is recommended install this plugin"
-    }
+    },
+    "minimum-stability": "beta"
 }
