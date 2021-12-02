@@ -45,7 +45,7 @@ jobs:
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v1
         with:
-            dependency-versions: ${{ matrix.dependencies }}
+          dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
         uses: actions/cache@v1
@@ -75,10 +75,21 @@ jobs:
         symfony-version:
           - 4
           - 5
+          - 6
 
         exclude:
           - php-version: 7.1
             symfony-version: 5
+          - php-version: 7.1
+            symfony-version: 6
+          - php-version: 7.2
+            symfony-version: 6
+          - php-version: 7.3
+            symfony-version: 6
+          - php-version: 7.4
+            symfony-version: 6
+          - php-version: 7.1
+            symfony-version: 6
           - php-version: 8.0
             symfony-version: 3
 
