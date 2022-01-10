@@ -100,6 +100,7 @@ class ContainerMeta
             throw new ConfigException('Container xml file(s) not found!');
         }
 
+        /** @psalm-suppress ReservedWord */
         $xml->load($containerXmlPath);
 
         foreach ($this->container->getDefinitions() as $definition) {
@@ -117,6 +118,8 @@ class ContainerMeta
 
         foreach ($this->container->findTaggedServiceIds('container.service_locator') as $key => $_) {
             $definition = $this->container->getDefinition($key);
+            /** @psalm-suppress ReservedWord */
+            /** @psalm-suppress RawObjectIteration */
             foreach ($definition->getArgument(0) as $id => $argument) {
                 if ($argument instanceof Reference) {
                     $this->addServiceLocator($key, $id, $argument);

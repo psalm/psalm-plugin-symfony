@@ -29,6 +29,9 @@
         "twig/twig": "^2.10 || ^3.0",
         "weirdan/codeception-psalm-module": "^0.13.1"
     },
+    "conflict": {
+        "codeception/codeception": "< 4.1.9"
+    },
     "autoload": {
         "psr-4": {
             "Psalm\\SymfonyPsalmPlugin\\": "src"
