@@ -9,6 +9,12 @@
             "email": "farhad.safarov@gmail.com"
         }
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/seferov/codeception-psalm-module"
+        }
+    ],
     "require": {
         "php": "^7.1 || ^8.0",
         "ext-simplexml": "*",
@@ -27,10 +33,7 @@
         "symfony/serializer": "^4.0 || ^5.0 || ^6.0",
         "symfony/validator": "*",
         "twig/twig": "^2.10 || ^3.0",
-        "weirdan/codeception-psalm-module": "^0.13.1"
-    },
-    "conflict": {
-        "codeception/codeception": "< 4.1.9"
+        "weirdan/codeception-psalm-module": "dev-codeception5"
     },
     "autoload": {
         "psr-4": {
@@ -71,5 +74,5 @@
     "suggest": {
         "weirdan/doctrine-psalm-plugin": "If Doctrine is used, it is recommended install this plugin"
     },
-    "minimum-stability": "beta"
+    "minimum-stability": "dev"
 }

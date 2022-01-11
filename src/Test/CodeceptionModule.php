@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
+use Behat\Gherkin\Node\PyStringNode;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
 use Codeception\TestInterface;
@@ -68,7 +69,7 @@ class CodeceptionModule extends BaseModule
     /**
      * @Given I have the following :templateName template :code
      */
-    public function haveTheFollowingTemplate(string $templateName, string $code): void
+    public function haveTheFollowingTemplate(string $templateName, PyStringNode $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
         $templatePath = (
@@ -81,7 +82,7 @@ class CodeceptionModule extends BaseModule
             mkdir($templateDirectory, 0755, true);
         }
 
-        file_put_contents($templatePath, $code);
+        file_put_contents($templatePath, $code->getRaw());
     }
 
     /**
@@ -138,7 +139,7 @@ class CodeceptionModule extends BaseModule
      * @Given I have Symfony plugin enabled
      * @Given I have Symfony plugin enabled with the following config :configuration
      */
-    public function configureCommonPsalmconfig(string $configuration = ''): void
+    public function configureCommonPsalmconfig(?PyStringNode $configuration = null): void
     {
         $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
             return "<$issueHandler errorLevel=\"info\"/>";
@@ -150,7 +151,9 @@ class CodeceptionModule extends BaseModule
             throw new ModuleRequireException($this, sprintf('Needs "%s" module', Module::class));
         }
 
-        $psalmModule->haveTheFollowingConfig(<<<XML
+        $configuration = $configuration ? $configuration->getRaw() : '';
+
+        $configCode = <<<XML
 <?xml version="1.0"?>
   <psalm errorLevel="1">
     <projectFiles>
@@ -167,8 +170,11 @@ class CodeceptionModule extends BaseModule
       $suppressedIssueHandlers
     </issueHandlers>
   </psalm>
-XML
-);
+XML;
+
+        $lines = explode("\n", $configCode);
+
+        $psalmModule->haveTheFollowingConfig(new PyStringNode($lines, count($lines)));
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void
