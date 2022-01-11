@@ -8,6 +8,8 @@ use Behat\Gherkin\Node\PyStringNode;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
 use Codeception\TestInterface;
+use Composer\InstalledVersions;
+use Composer\Semver\Comparator;
 use InvalidArgumentException;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Twig\Cache\FilesystemCache;
@@ -69,7 +71,7 @@ class CodeceptionModule extends BaseModule
     /**
      * @Given I have the following :templateName template :code
      */
-    public function haveTheFollowingTemplate(string $templateName, PyStringNode $code): void
+    public function haveTheFollowingTemplate(string $templateName, $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
         $templatePath = (
@@ -82,7 +84,9 @@ class CodeceptionModule extends BaseModule
             mkdir($templateDirectory, 0755, true);
         }
 
-        file_put_contents($templatePath, $code->getRaw());
+        $code = $code instanceof PyStringNode ? $code->getRaw() : $code;
+
+        file_put_contents($templatePath, $code);
     }
 
     /**
@@ -139,7 +143,7 @@ class CodeceptionModule extends BaseModule
      * @Given I have Symfony plugin enabled
      * @Given I have Symfony plugin enabled with the following config :configuration
      */
-    public function configureCommonPsalmconfig(?PyStringNode $configuration = null): void
+    public function configureCommonPsalmconfig($configuration = null): void
     {
         $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
             return "<$issueHandler errorLevel=\"info\"/>";
@@ -151,7 +155,11 @@ class CodeceptionModule extends BaseModule
             throw new ModuleRequireException($this, sprintf('Needs "%s" module', Module::class));
         }
 
-        $configuration = $configuration ? $configuration->getRaw() : '';
+        if ($configuration instanceof PyStringNode) {
+            $configuration = $configuration->getRaw();
+        } elseif (null === $configuration) {
+            $configuration = '';
+        }
 
         $configCode = <<<XML
 <?xml version="1.0"?>
@@ -172,9 +180,13 @@ class CodeceptionModule extends BaseModule
   </psalm>
 XML;
 
-        $lines = explode("\n", $configCode);
+        $codeceptionVersion = InstalledVersions::getVersion('codeception/codeception');
+        if ($codeceptionVersion && Comparator::greaterThanOrEqualTo($codeceptionVersion, '5.0')) {
+            $lines = explode("\n", $configCode);
+            $configCode = new PyStringNode($lines, count($lines));
+        }
 
-        $psalmModule->haveTheFollowingConfig(new PyStringNode($lines, count($lines)));
+        $psalmModule->haveTheFollowingConfig($configCode);
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void
