@@ -45,9 +45,7 @@ jobs:
           COMPOSER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v1
-        with:
-          dependency-versions: ${{ matrix.dependencies }}
+        run: composer install --prefer-dist
 
       - name: "Cache cache directory for vimeo/psalm"
         uses: actions/cache@v1
@@ -105,12 +103,14 @@ jobs:
           coverage: none
           php-version: ${{ matrix.php-version }}
           tools: flex
+        env:
+          COMPOSER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Restrict symfony dependencies to the correct version"
         run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v1
+        run: composer install --prefer-dist
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml
