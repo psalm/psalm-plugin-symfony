@@ -46,12 +46,24 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
 
                 $reader = new AnnotationReader();
                 try {
+                    $reflectionClass = new \ReflectionClass($className);
                     $entityAnnotation = $reader->getClassAnnotation(
-                        new \ReflectionClass($className),
+                        $reflectionClass,
                         EntityAnnotation::class
                     );
+
                     if ($entityAnnotation instanceof EntityAnnotation && $entityAnnotation->repositoryClass) {
                         $event->setReturnTypeCandidate(new Union([new TNamedObject($entityAnnotation->repositoryClass)]));
+                    } elseif (method_exists(\ReflectionClass::class, 'getAttributes')) {
+                        $entityAttributes = $reflectionClass->getAttributes(EntityAnnotation::class);
+
+                        foreach ($entityAttributes as $entityAttribute) {
+                            $arguments = $entityAttribute->getArguments();
+
+                            if (isset($arguments['repositoryClass']) && is_string($arguments['repositoryClass'])) {
+                                $event->setReturnTypeCandidate(new Union([new TNamedObject($arguments['repositoryClass'])]));
+                            }
+                        }
                     }
                 } catch (\ReflectionException $e) {
                 }
