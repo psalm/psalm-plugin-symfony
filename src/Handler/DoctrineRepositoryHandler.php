@@ -44,17 +44,10 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                 /** @psalm-var class-string $className */
                 $className = $entityName->class->getAttribute('resolvedName');
 
-                $reader = new AnnotationReader();
                 try {
                     $reflectionClass = new \ReflectionClass($className);
-                    $entityAnnotation = $reader->getClassAnnotation(
-                        $reflectionClass,
-                        EntityAnnotation::class
-                    );
 
-                    if ($entityAnnotation instanceof EntityAnnotation && $entityAnnotation->repositoryClass) {
-                        $event->setReturnTypeCandidate(new Union([new TNamedObject($entityAnnotation->repositoryClass)]));
-                    } elseif (method_exists(\ReflectionClass::class, 'getAttributes')) {
+                    if (method_exists(\ReflectionClass::class, 'getAttributes')) {
                         $entityAttributes = $reflectionClass->getAttributes(EntityAnnotation::class);
 
                         foreach ($entityAttributes as $entityAttribute) {
@@ -63,6 +56,18 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                             if (isset($arguments['repositoryClass']) && is_string($arguments['repositoryClass'])) {
                                 $event->setReturnTypeCandidate(new Union([new TNamedObject($arguments['repositoryClass'])]));
                             }
+                        }
+                    }
+
+                    if (class_exists(AnnotationReader::class)) {
+                        $reader = new AnnotationReader();
+                        $entityAnnotation = $reader->getClassAnnotation(
+                            $reflectionClass,
+                            EntityAnnotation::class
+                        );
+
+                        if ($entityAnnotation instanceof EntityAnnotation && $entityAnnotation->repositoryClass) {
+                            $event->setReturnTypeCandidate(new Union([new TNamedObject($entityAnnotation->repositoryClass)]));
                         }
                     }
                 } catch (\ReflectionException $e) {
