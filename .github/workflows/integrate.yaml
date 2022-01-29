@@ -97,6 +97,8 @@ jobs:
             symfony-version: 6
           - php-version: 8.0
             symfony-version: 3
+          - php-version: 8.0
+            symfony-version: 6
 
     steps:
       - name: "Checkout"
