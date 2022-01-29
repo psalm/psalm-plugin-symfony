@@ -1,4 +1,4 @@
-@symfony-5
+@symfony-5 @symfony-6
 Feature: InputBag get return type
 
   Background:
