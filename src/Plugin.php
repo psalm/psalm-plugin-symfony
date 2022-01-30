@@ -15,6 +15,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
+use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
@@ -39,6 +40,7 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
+        require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
@@ -99,6 +101,8 @@ class Plugin implements PluginEntryPointInterface
 
             TemplateFileAnalyzer::setTemplateRootPath($twig_root_path);
         }
+
+        $api->registerHooksFromClass(FormGetErrorsReturnTypeProvider::class);
     }
 
     private function addStubs(RegistrationInterface $api, string $path): void
