@@ -55,13 +55,13 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
         try {
             $templateName = TwigUtils::extractTemplateNameFromExpression($call_args[0]->value, $source);
         } catch (TemplateNameUnresolvedException $exception) {
-            if ($statements_source instanceof StatementsAnalyzer) {
-                $statements_source->getProjectAnalyzer()->progress->debug($exception->getMessage());
+            if ($source instanceof StatementsAnalyzer) {
+                $source->getProjectAnalyzer()->progress->debug($exception->getMessage());
             }
 
             return null;
         }
-        
+
         $cacheClassName = CachedTemplatesMapping::getCacheClassName($templateName);
 
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
