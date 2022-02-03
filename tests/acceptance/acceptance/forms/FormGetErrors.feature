@@ -3,52 +3,70 @@ Feature: Form getErrors return type provider
 
   Background:
     Given I have Symfony plugin enabled
-  Scenario: getErrors test
+  Scenario: getErrors with anything else than (true, false)
     Given I have the following code
           """
       <?php
 
       use Symfony\Component\Form\FormInterface;
 
-      function foo(FormInterface $form): void
+      function foo(FormInterface $form): array
       {
+          $messages = [];
+
           foreach ($form->getErrors() as $error1) {
-              /** @psalm-trace $error1 */
+              $messages[] = $error1->getMessage();
           }
 
           foreach ($form->getErrors(true) as $error2) {
-              /** @psalm-trace $error2 */
+              $messages[] = $error2->getMessage();
           }
 
           foreach ($form->getErrors(false) as $error3) {
-              /** @psalm-trace $error3 */
+              $messages[] = $error3->getMessage();
           }
 
           foreach ($form->getErrors(true, true) as $error4) {
-              /** @psalm-trace $error4 */
+              $messages[] = $error4->getMessage();
           }
 
-          foreach ($form->getErrors(true, false) as $error5) {
-              /** @psalm-trace $error5 */
+          foreach ($form->getErrors(false, false) as $error5) {
+              $messages[] = $error5->getMessage();
           }
 
           foreach ($form->getErrors(false, true) as $error6) {
-              /** @psalm-trace $error6 */
+              $messages[] = $error6->getMessage();
           }
+
+          return $messages;
+      }
+      """
+    When I run Psalm
+    Then I see no other errors
+
+  Scenario: getErrors with (true, false)
+    Given I have the following code
+          """
+      <?php
+
+      use Symfony\Component\Form\FormInterface;
+
+      function foo(FormInterface $form): array
+      {
+          $messages = [];
 
           foreach ($form->getErrors(true, false) as $error7) {
               /** @psalm-trace $error7 */
+              $messages[] = $error7->getMessage();
           }
+
+          return $messages;
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                                                                             |
-      | Trace | $error1: Symfony\Component\Form\FormError                                           |
-      | Trace | $error2: Symfony\Component\Form\FormError                                           |
-      | Trace | $error3: Symfony\Component\Form\FormError                                           |
-      | Trace | $error4: Symfony\Component\Form\FormError                                           |
-      | Trace | $error5: Symfony\Component\Form\FormError                                           |
-      | Trace | $error6: Symfony\Component\Form\FormError                                           |
-      | Trace | $error7: Symfony\Component\Form\FormError\|Symfony\Component\Form\FormErrorIterator |
+      | Type                    | Message                                                                             |
+      | Trace                   | $error7: Symfony\Component\Form\FormError\|Symfony\Component\Form\FormErrorIterator |
+      | MixedAssignment         | Unable to determine the type of this assignment                                     |
+      | PossiblyUndefinedMethod | Method Symfony\Component\Form\FormErrorIterator::getMessage does not exist          |
     And I see no other errors
