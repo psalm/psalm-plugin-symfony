@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class Request
+{
+    /**
+     * @psalm-var InputBag
+     */
+    public $request;
+
+    /**
+     * @psalm-var InputBag<string>
+     */
+    public $query;
+
+    /**
+     * @psalm-var InputBag<string>
+     */
+    public $cookies;
+
+    /**
+     * @return \Symfony\Component\HttpFoundation\Session\Session
+     */
+    public function getSession(): SessionInterface;
+}

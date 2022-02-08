@@ -46,12 +46,19 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         $expr = $event->getExpr();
         $declaring_method_id = $event->getDeclaringMethodId();
 
+        $args = [];
+        foreach ($expr->args as $arg) {
+            if ($arg instanceof Arg) {
+                $args[] = $arg;
+            }
+        }
+
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
-                self::analyseArgument($expr->args, $statements_source);
+                self::analyseArgument($args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
-                $identifier = self::getNodeIdentifier($expr->args[0]->value);
+                $identifier = self::getNodeIdentifier($args[0]->value);
                 if (!$identifier) {
                     break;
                 }
@@ -61,10 +68,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
-                self::analyseOption($expr->args, $statements_source);
+                self::analyseOption($args, $statements_source);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':
-                $identifier = self::getNodeIdentifier($expr->args[0]->value);
+                $identifier = self::getNodeIdentifier($args[0]->value);
                 if (!$identifier) {
                     break;
                 }
@@ -75,10 +82,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 break;
             case 'Symfony\Component\Console\Command\Command::setdefinition':
                 $inputItems = [];
-                $definition = $expr->args[0]->value;
+                $definition = $args[0]->value;
                 if ($definition instanceof Expr\Array_) {
                     $inputItems = $definition->items;
-                } elseif ($definition instanceof Expr\New_) {
+                } elseif ($definition instanceof Expr\New_ && isset($definition->args[0]->value)) {
                     $inputDefinition = $definition->args[0]->value;
                     if ($inputDefinition instanceof Expr\Array_) {
                         $inputItems = $inputDefinition->items;
@@ -91,12 +98,19 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
                 foreach ($inputItems as $inputItem) {
                     if ($inputItem instanceof Expr\ArrayItem && $inputItem->value instanceof Expr\New_) {
+                        $args = [];
+                        foreach ($inputItem->value->args as $arg) {
+                            if ($arg instanceof Arg) {
+                                $args[] = $arg;
+                            }
+                        }
+
                         switch ($inputItem->value->class->getAttribute('resolvedName')) {
                             case InputArgument::class:
-                                self::analyseArgument($inputItem->value->args, $statements_source);
+                                self::analyseArgument($args, $statements_source);
                                 break;
                             case InputOption::class:
-                                self::analyseOption($inputItem->value->args, $statements_source);
+                                self::analyseOption($args, $statements_source);
                                 break;
                         }
                     }

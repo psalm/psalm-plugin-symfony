@@ -3,6 +3,7 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use function constant;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
@@ -50,9 +51,18 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         $codebase = $event->getCodebase();
         $context = $event->getContext();
 
+        if (!isset($expr->args[0])) {
+            return;
+        }
+
+        $firstArg = $expr->args[0];
+        if (!$firstArg instanceof Arg) {
+            return;
+        }
+
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
-                $argument = $expr->args[0]->value;
+                $argument = $firstArg->value;
                 if ($argument instanceof String_ && !self::followsNamingConvention($argument->value) && false === strpos($argument->value, '\\')) {
                     IssueBuffer::accepts(
                         new NamingConventionViolation(new CodeLocation($statements_source, $argument)),
@@ -65,8 +75,8 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
 
         if (!self::$containerMeta) {
-            if ($event->getReturnTypeCandidate() && $expr->args[0]->value instanceof ClassConstFetch) {
-                $className = (string) $expr->args[0]->value->class->getAttribute('resolvedName');
+            if ($event->getReturnTypeCandidate() && $firstArg->value instanceof ClassConstFetch) {
+                $className = (string) $firstArg->value->class->getAttribute('resolvedName');
                 if (!in_array($className, ['self', 'parent', 'static'])) {
                     $event->setReturnTypeCandidate(new Union([new TNamedObject($className)]));
                 }
@@ -75,7 +85,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             return;
         }
 
-        $idArgument = $expr->args[0]->value;
+        $idArgument = $firstArg->value;
 
         if ($idArgument instanceof String_) {
             $serviceId = $idArgument->value;
@@ -106,7 +116,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
 
             if (!self::followsNamingConvention($serviceId) && false === strpos($serviceId, '\\')) {
                 IssueBuffer::accepts(
-                    new NamingConventionViolation(new CodeLocation($statements_source, $expr->args[0]->value)),
+                    new NamingConventionViolation(new CodeLocation($statements_source, $firstArg->value)),
                     $statements_source->getSuppressedIssues()
                 );
             }
@@ -118,17 +128,22 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             }
 
             if (!$service->isPublic()) {
-                $isTestContainer = $context->parent && ('Symfony\Bundle\FrameworkBundle\Test\KernelTestCase' === $context->parent || is_subclass_of($context->parent, 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase'));
+                /** @var class-string $kernelTestCaseClass */
+                $kernelTestCaseClass = 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase';
+                $isTestContainer = $context->parent &&
+                    ($kernelTestCaseClass === $context->parent
+                        || is_subclass_of($context->parent, $kernelTestCaseClass)
+                    );
                 if (!$isTestContainer) {
                     IssueBuffer::accepts(
-                        new PrivateService($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
+                        new PrivateService($serviceId, new CodeLocation($statements_source, $firstArg->value)),
                         $statements_source->getSuppressedIssues()
                     );
                 }
             }
         } catch (ServiceNotFoundException $e) {
             IssueBuffer::accepts(
-                new ServiceNotFound($serviceId, new CodeLocation($statements_source, $expr->args[0]->value)),
+                new ServiceNotFound($serviceId, new CodeLocation($statements_source, $firstArg->value)),
                 $statements_source->getSuppressedIssues()
             );
         }

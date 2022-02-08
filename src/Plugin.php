@@ -2,7 +2,6 @@
 
 namespace Psalm\SymfonyPsalmPlugin;
 
-use function array_merge;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
@@ -18,6 +17,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
+use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
@@ -32,30 +32,6 @@ use Symfony\Component\HttpKernel\Kernel;
 class Plugin implements PluginEntryPointInterface
 {
     /**
-     * @return string[]
-     */
-    protected function getCommonStubs(): array
-    {
-        // GLOB_BRACE is undefined on Alpine Linux https://bugs.php.net/bug.php?id=72095
-        return array_merge(
-            glob(__DIR__.'/Stubs/common/*/*.stubphp'),
-            glob(__DIR__.'/Stubs/common/*.stubphp')
-        ) ?: [];
-    }
-
-    /**
-     * @param int $majorVersion symfony major version
-     *
-     * @return string[]
-     */
-    protected function getStubsForMajorVersion(int $majorVersion): array
-    {
-        $version = (string) $majorVersion;
-
-        return glob(__DIR__.'/Stubs/'.$version.'/*.stubphp') ?: [];
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function __invoke(RegistrationInterface $api, SimpleXMLElement $config = null): void
@@ -68,6 +44,7 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/RequiredPropertyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
+        require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
@@ -101,14 +78,8 @@ class Plugin implements PluginEntryPointInterface
 
         $api->registerHooksFromClass(ContainerHandler::class);
 
-        $stubs = array_merge(
-            $this->getCommonStubs(),
-            $this->getStubsForMajorVersion(Kernel::MAJOR_VERSION)
-        );
-
-        foreach ($stubs as $stubFilePath) {
-            $api->addStubFile($stubFilePath);
-        }
+        $this->addStubs($api, __DIR__.'/Stubs/common');
+        $this->addStubs($api, __DIR__.'/Stubs/'.Kernel::MAJOR_VERSION);
 
         if (isset($config->twigCachePath)) {
             $twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
@@ -135,6 +106,23 @@ class Plugin implements PluginEntryPointInterface
             }
 
             TemplateFileAnalyzer::setTemplateRootPath($twig_root_path);
+        }
+
+        $api->registerHooksFromClass(FormGetErrorsReturnTypeProvider::class);
+    }
+
+    private function addStubs(RegistrationInterface $api, string $path): void
+    {
+        if (!is_dir($path)) {
+            // e.g. looking for stubs for version 3, but there aren't any at time of writing, so don't try and load them.
+            return;
+        }
+
+        $a = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($a as $file) {
+            if (!$file->isDir()) {
+                $api->addStubFile($file->getPathname());
+            }
         }
     }
 }

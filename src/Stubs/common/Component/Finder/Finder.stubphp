@@ -1,0 +1,17 @@
+<?php
+
+namespace Symfony\Component\Finder;
+
+use Countable;
+use IteratorAggregate;
+
+/**
+ * @implements IteratorAggregate<non-empty-string, SplFileInfo>
+ */
+class Finder implements IteratorAggregate, Countable
+{
+    /**
+     * @return \Iterator<non-empty-string, SplFileInfo>
+     */
+    public function getIterator() {}
+}

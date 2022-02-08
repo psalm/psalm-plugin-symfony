@@ -162,16 +162,14 @@ Feature: Messenger Envelope
       $stamps = $envelope->all();
       foreach ($stamps as $className => $classStamps) {
           foreach ($classStamps as $stamp) {
-              if ($stamp instanceof StampInterface) {
-                  echo 'always true';
-              }
+              /** @psalm-trace $stamp */
           }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type                                | Message                                                                                                                                                                                                      |
-      | RedundantConditionGivenDocblockType | Docblock-defined type Symfony\Component\Messenger\Stamp\StampInterface for $stamp is always Symfony\Component\Messenger\Stamp\StampInterface |
+      | Type  | Message                                                  |
+      | Trace | $stamp: Symfony\Component\Messenger\Stamp\StampInterface |
     And I see no other errors
 
   Scenario: Envelope::getMessage returns a message of a valid class

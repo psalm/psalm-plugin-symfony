@@ -45,7 +45,7 @@ jobs:
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v1
         with:
-            dependency-versions: ${{ matrix.dependencies }}
+          dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
         uses: actions/cache@v1
@@ -55,7 +55,12 @@ jobs:
           restore-keys: php-${{ matrix.php-version }}-psalm-
 
       - name: "Run vimeo/psalm"
-        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github --php-version=${{ matrix.php-version }}
+        if: matrix.php-version != '8.0'
+
+      - name: "Run vimeo/psalm"
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github --php-version=8.0
+        if: matrix.php-version == '8.0'
 
   tests:
     name: "Tests (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
@@ -75,12 +80,25 @@ jobs:
         symfony-version:
           - 4
           - 5
+          - 6
 
         exclude:
           - php-version: 7.1
             symfony-version: 5
+          - php-version: 7.1
+            symfony-version: 6
+          - php-version: 7.2
+            symfony-version: 6
+          - php-version: 7.3
+            symfony-version: 6
+          - php-version: 7.4
+            symfony-version: 6
+          - php-version: 7.1
+            symfony-version: 6
           - php-version: 8.0
             symfony-version: 3
+          - php-version: 8.0
+            symfony-version: 6
 
     steps:
       - name: "Checkout"

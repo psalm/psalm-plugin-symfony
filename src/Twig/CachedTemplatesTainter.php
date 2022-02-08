@@ -11,6 +11,7 @@ use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Plugin\EventHandler\Event\MethodReturnTypeProviderEvent;
 use Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface;
+use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use RuntimeException;
@@ -51,7 +52,16 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             isset($call_args[1]) ? [$call_args[1]] : []
         );
 
-        $templateName = TwigUtils::extractTemplateNameFromExpression($call_args[0]->value, $source);
+        try {
+            $templateName = TwigUtils::extractTemplateNameFromExpression($call_args[0]->value, $source);
+        } catch (TemplateNameUnresolvedException $exception) {
+            if ($source instanceof StatementsAnalyzer) {
+                $source->getProjectAnalyzer()->progress->debug($exception->getMessage());
+            }
+
+            return null;
+        }
+
         $cacheClassName = CachedTemplatesMapping::getCacheClassName($templateName);
 
         $context->vars_in_scope['$__fake_twig_env_var__'] = new Union([
