@@ -7,6 +7,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\FileAnalyzer;
 use Twig\Environment;
+use Twig\Extension\ExtensionInterface;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
 
@@ -21,6 +22,16 @@ class TemplateFileAnalyzer extends FileAnalyzer
      * @var string
      */
     private static $rootPath = 'templates';
+
+    /**
+     * @var list<class-string>
+     */
+    private static $extensionClasses = [];
+
+    public static function initExtensions(array $extensionClasses): void
+    {
+        self::$extensionClasses = $extensionClasses;
+    }
 
     public function analyze(
         PsalmContext $file_context = null,
@@ -41,6 +52,11 @@ class TemplateFileAnalyzer extends FileAnalyzer
             'optimizations' => 0,
             'strict_variables' => false,
         ]);
+        foreach (self::$extensionClasses as $extensionClass) {
+            if (class_exists($extensionClass) && is_a($extensionClass, ExtensionInterface::class, true)) {
+                $twig->addExtension((new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor());
+            }
+        }
 
         $local_file_name = str_replace(self::$rootPath.'/', '', $this->file_name);
         $twig_source = $loader->getSourceContext($local_file_name);
