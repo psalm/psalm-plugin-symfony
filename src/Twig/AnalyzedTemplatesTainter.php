@@ -17,6 +17,7 @@ use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
 use RuntimeException;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Twig\Environment;
 
 /**
@@ -34,7 +35,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 
         if (
             null === $codebase->taint_flow_graph
-            || !$expr instanceof MethodCall || $method_id !== Environment::class.'::render' || empty($expr->args)
+            || !$expr instanceof MethodCall || !\in_array($method_id, [Environment::class.'::render', AbstractController::class.'::render', AbstractController::class.'::renderView'], true) || empty($expr->args)
             || !isset($expr->args[0]->value)
             || !isset($expr->args[1]->value)
         ) {

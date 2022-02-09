@@ -22,6 +22,7 @@ use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
 use SimpleXMLElement;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
 /**
@@ -64,6 +65,21 @@ class Plugin implements PluginEntryPointInterface
         if (isset($config->containerXml)) {
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
+
+            try {
+                TemplateFileAnalyzer::initExtensions(array_filter(array_map(function (array $m) use ($containerMeta) {
+                    if ('addExtension' !== $m[0]) {
+                        return null;
+                    }
+
+                    try {
+                        return $containerMeta->get($m[1][0])->getClass();
+                    } catch (ServiceNotFoundException $e) {
+                        return null;
+                    }
+                }, $containerMeta->get('twig')->getMethodCalls())));
+            } catch (ServiceNotFoundException $e) {
+            }
 
             require_once __DIR__.'/Handler/ParameterBagHandler.php';
             ParameterBagHandler::init($containerMeta);
