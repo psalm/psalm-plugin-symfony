@@ -1,0 +1,30 @@
+<?php
+
+namespace Symfony\Component\DependencyInjection;
+
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\NotFoundExceptionInterface;
+use Symfony\Component\DependencyInjection\Exception\RuntimeException;
+use Symfony\Component\DependencyInjection\Exception\ServiceCircularReferenceException;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use Symfony\Contracts\Service\ServiceLocatorTrait;
+use Symfony\Contracts\Service\ServiceProviderInterface;
+use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+/**
+ * @template T
+ */
+class ServiceLocator implements ServiceProviderInterface
+{
+
+    /**
+     * @return T
+     */
+    public function get($id)
+    {}
+
+    /**
+     * @return array<string, string>
+     */
+    public function getProvidedServices(): array;
+}
