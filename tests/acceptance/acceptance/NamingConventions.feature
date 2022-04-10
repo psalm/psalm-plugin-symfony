@@ -83,7 +83,7 @@ Feature: Naming conventions
       }
       """
     When I run Psalm
-    And I see no other errors
+    And I see no errors
 
   Scenario: Detects parameter naming convention violation
     Given I have the following code

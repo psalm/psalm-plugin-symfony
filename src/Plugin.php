@@ -90,6 +90,7 @@ class Plugin implements PluginEntryPointInterface
 
         $this->addStubs($api, __DIR__.'/Stubs/common');
         $this->addStubs($api, __DIR__.'/Stubs/'.Kernel::MAJOR_VERSION);
+        $this->addStubs($api, __DIR__.'/Stubs/php');
 
         if (isset($config->twigCachePath)) {
             $twig_cache_path = getcwd().DIRECTORY_SEPARATOR.ltrim((string) $config->twigCachePath, DIRECTORY_SEPARATOR);
