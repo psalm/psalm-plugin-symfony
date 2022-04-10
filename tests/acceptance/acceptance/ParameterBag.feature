@@ -69,6 +69,6 @@ Feature: ParameterBag
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                      |
-      | Trace           | $nonExistentParameter: array<array-key, mixed>\|null\|scalar |
+      | Type  | Message                                                                |
+      | Trace | $nonExistentParameter: UnitEnum\|array<array-key, mixed>\|null\|scalar |
     And I see no other errors
