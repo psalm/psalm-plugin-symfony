@@ -60,4 +60,3 @@ Feature: Form config builder
       | Trace | $submitData: User\|null                                         |
       | Trace | $postSubmitData: User\|null                                     |
     And I see no other errors
-

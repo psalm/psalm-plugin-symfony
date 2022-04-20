@@ -27,5 +27,5 @@ Feature: Form factory
     When I run Psalm
     Then I see these errors
       | Type  | Message                       |
-      | InvalidArgument | Argument 1 of Symfony\Component\Form\FormFactoryInterface::create expects class-string<Symfony\Component\Form\FormTypeInterface>, stdClass::class provided |
+      | InvalidArgument | Argument 1 of Symfony\Component\Form\FormFactoryInterface::create expects class-string<Symfony\Component\Form\FormTypeInterface>, but stdClass::class provided |
     And I see no other errors

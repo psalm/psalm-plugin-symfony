@@ -34,6 +34,5 @@ Feature: Form builder
     Then I see these errors
       | Type  | Message                                                         |
       | Trace | $form: Symfony\Component\Form\FormInterface<User>               |
-      | InvalidArgument | Argument 2 of Symfony\Component\Form\FormBuilderInterface::create expects class-string<Symfony\Component\Form\FormTypeInterface>\|null, stdClass::class provided |
+      | InvalidArgument | Argument 2 of Symfony\Component\Form\FormBuilderInterface::create expects class-string<Symfony\Component\Form\FormTypeInterface>\|null, but stdClass::class provided |
     And I see no other errors
-

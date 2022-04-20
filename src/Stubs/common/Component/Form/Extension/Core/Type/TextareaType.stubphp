@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\Form\Extension\Core\Type;
+
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\DataTransformerInterface;
+
+/**
+ * @extends AbstractType<string>
+ */
+class TextareaType extends AbstractType
+{
+}
