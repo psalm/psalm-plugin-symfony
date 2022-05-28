@@ -28,6 +28,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         'Symfony\Component\DependencyInjection\ContainerInterface',
         'Symfony\Bundle\FrameworkBundle\Controller\AbstractController',
         'Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait',
+        'Symfony\Bundle\FrameworkBundle\Test\TestContainer',
     ];
 
     /**
