@@ -1,0 +1,32 @@
+<?php
+
+namespace Symfony\Component\Routing\Annotation;
+
+use Symfony\Component\Routing\Requirement\EnumRequirement;
+
+class Route
+{
+    /**
+     * @param string[]|EnumRequirement[] $requirements
+     * @param string[]|string $methods
+     * @param string[]|string $schemes
+     */
+    public function __construct(
+        string|array $path = null,
+        private ?string $name = null,
+        private array $requirements = [],
+        private array $options = [],
+        private array $defaults = [],
+        private ?string $host = null,
+        array|string $methods = [],
+        array|string $schemes = [],
+        private ?string $condition = null,
+        private ?int $priority = null,
+        string $locale = null,
+        string $format = null,
+        bool $utf8 = null,
+        bool $stateless = null,
+        private ?string $env = null
+    ) {
+    }
+}
