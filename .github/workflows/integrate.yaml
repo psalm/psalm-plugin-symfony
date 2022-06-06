@@ -76,6 +76,7 @@ jobs:
           - 7.3
           - 7.4
           - 8.0
+          - 8.1
 
         symfony-version:
           - 4
@@ -128,4 +129,4 @@ jobs:
 
       - name: "Run acceptance tests with codeception PHP8 only tests"
         run: vendor/bin/codecept run -v -g php-8
-        if: matrix.php-version == '8.0'
+        if: matrix.php-version >= '8.0'
