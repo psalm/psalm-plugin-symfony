@@ -26,6 +26,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
         'Symfony\Component\DependencyInjection\ContainerInterface',
+        'Symfony\Component\DependencyInjection\Container',
         'Symfony\Bundle\FrameworkBundle\Controller\AbstractController',
         'Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait',
         'Symfony\Bundle\FrameworkBundle\Test\TestContainer',
