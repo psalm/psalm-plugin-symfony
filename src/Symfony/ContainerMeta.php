@@ -122,7 +122,9 @@ class ContainerMeta
                     $this->addServiceLocator($key, $id, $argument);
                 } elseif ($argument instanceof ServiceClosureArgument) {
                     foreach ($argument->getValues() as $value) {
-                        $this->addServiceLocator($key, $id, $value);
+                        if ($value instanceof Reference) {
+                            $this->addServiceLocator($key, $id, $value);
+                        }
                     }
                 }
             }
