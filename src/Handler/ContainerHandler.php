@@ -65,7 +65,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
                 $argument = $firstArg->value;
-                if ($argument instanceof String_ && !self::followsNamingConvention($argument->value) && false === strpos($argument->value, '\\')) {
+                if ($argument instanceof String_ && !self::followsParameterNamingConvention($argument->value) && false === strpos($argument->value, '\\')) {
                     IssueBuffer::accepts(
                         new NamingConventionViolation(new CodeLocation($statements_source, $argument)),
                         $statements_source->getSuppressedIssues()
@@ -184,6 +184,15 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             ),
             true
         );
+    }
+
+    private static function followsParameterNamingConvention(string $name): bool
+    {
+        if (0 === strpos($name, 'env(')) {
+            return true;
+        }
+
+        return self::followsNamingConvention($name);
     }
 
     /**
