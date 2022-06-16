@@ -105,3 +105,21 @@ Feature: Naming conventions
       | Type                      | Message                                                      |
       | NamingConventionViolation | Use snake_case for configuration parameter and service names |
     And I see no other errors
+
+  Scenario: No parameter naming convention violation when using environment variables
+    Given I have the following code
+      """
+      <?php
+
+      class SomeController
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
+
+        public function __invoke(): void
+        {
+          $this->container->getParameter('env(SOME_ENV_VAR)');
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
