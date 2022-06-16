@@ -77,7 +77,7 @@ Feature: Container service
       <?php
       trait SomeTrait
       {
-        use \Symfony\Component\DependencyInjection\ContainerAwareTrait
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait;
 
         public function showConstant(): mixed
         {
