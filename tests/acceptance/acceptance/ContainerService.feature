@@ -70,3 +70,20 @@ Feature: Container service
     Then I see these errors
       | Type              | Message                                                                  |
       | MissingReturnType | Method SomeController::index does not have a return type, expecting void |
+
+  Scenario: Container get(some undefined constant) should not crash
+    Given I have the following code
+      """
+      <?php
+      trait SomeTrait
+      {
+        use \Symfony\Component\DependencyInjection\ContainerAwareTrait
+
+        public function showConstant(): mixed
+        {
+          return $this->container->get(self::MY_CONSTANT);
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
