@@ -241,3 +241,35 @@ Feature: ConsoleArgument
       | ->addArgument('arg1', InputArgument::IS_ARRAY)                            |
       | ->addArgument('arg1', InputArgument::IS_ARRAY \| InputArgument::REQUIRED) |
       | ->addArgument('arg1', InputArgument::IS_ARRAY \| InputArgument::OPTIONAL) |
+
+  Scenario: Assert using ternary operator as argument mode does not raise false positive
+    Given I have the following code
+      """
+      class MyCommand extends Command
+      {
+        private bool $foo;
+
+        public function __construct(bool $foo)
+        {
+          $this->foo = $foo;
+        }
+
+        public function configure(): void
+        {
+          $this->addArgument('arg', $this->foo ? InputArgument::REQUIRED : InputArgument::OPTIONAL);
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          /** @psalm-trace $arg */
+          $arg = $input->getArgument('arg');
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message            |
+      | Trace | $arg: null\|string |
+    And I see no other errors

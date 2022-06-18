@@ -278,7 +278,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @param mixed $mode
      */
-    private static function getModeValue($mode): int
+    private static function getModeValue($mode): ?int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
             return self::getModeValue($mode->left) | self::getModeValue($mode->right);
@@ -296,6 +296,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             }
 
             return $value;
+        }
+
+        if ($mode instanceof Expr\Ternary) {
+            return null;
         }
 
         throw new InvalidConsoleModeException();
