@@ -28,6 +28,12 @@ Feature: Form view
               $viewData = $view->vars['value'];
               /** @psalm-trace $viewData */
 
+              $valid = $view->vars['valid'];
+              /** @psalm-trace $valid */
+
+              $errors = $view->vars['errors'];
+              /** @psalm-trace $errors */
+
               // assert no errors
               $view->vars['random'] = new \stdClass();
 
@@ -44,6 +50,8 @@ Feature: Form view
       | Trace | $parentView: Symfony\Component\Form\FormView\|null           |
       | Trace | $children: array<string, Symfony\Component\Form\FormView>    |
       | Trace | $viewData: User\|null                                        |
+      | Trace | $valid: bool                                                 |
+      | Trace | $errors: Symfony\Component\Form\FormErrorIterator\|null      |
       | Trace | $attr: array<array-key, mixed>                               |
     And I see no other errors
 
