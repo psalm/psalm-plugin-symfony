@@ -6,6 +6,7 @@
 
 ```
 composer require --dev psalm/plugin-symfony
+vendor/bin/psalm --init
 vendor/bin/psalm-plugin enable psalm/plugin-symfony
 ```
 
