@@ -168,7 +168,7 @@ class CodeceptionModule extends BaseModule
     </issueHandlers>
   </psalm>
 XML
-        );
+);
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void

@@ -14,13 +14,24 @@ class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
      * @psalm-suppress MixedArrayAssignment
      * @psalm-suppress InvalidArrayOffset
      *
-     * @psalm-var array{value: ?T, attr: array<array-key, mixed>, errors: ?FormErrorIterator, valid: bool}&array<string, mixed>
+     * @psalm-var array{value: ?T, attr: array<array-key, mixed>, errors: ?FormErrorIterator, valid: bool, data: ?mixed, required: bool, label_attr: array<array-key, mixed>, help: ?string, help_attr: array<array-key, mixed>, help_html: bool, help_translation_parameters: array<array-key, mixed>, compound: bool, method: string, action: string, submitted: bool}&array<string, mixed>
      */
     public array $vars = [
         'value' => null,
         'attr' => [],
         'errors' => null,
-        'valid' => false,
+        'valid' => true,
+        'data' => null,
+        'required' => false,
+        'label_attr' => [],
+        'help' => null,
+        'help_attr' => [],
+        'help_html' => false,
+        'help_translation_parameters' => [],
+        'compound' => false,
+        'method' => 'POST',
+        'action' => '',
+        'submitted' => false,
     ];
 
     /**
