@@ -23,6 +23,7 @@ class CodeceptionModule extends BaseModule
 {
     /**
      * @var mixed[]
+     *
      * @psalm-suppress NonInvariantDocblockPropertyType
      */
     protected $config = [
@@ -168,7 +169,7 @@ class CodeceptionModule extends BaseModule
     </issueHandlers>
   </psalm>
 XML
-);
+        );
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void

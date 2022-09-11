@@ -25,8 +25,8 @@ Feature: InputBag get return type
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                            |
-      | InvalidScalarArgument | Argument 1 of trim expects string, scalar provided |
+      | Type                  | Message                                                |
+      | InvalidScalarArgument | Argument 1 of trim expects string, but scalar provided |
 
   Scenario Outline: Return type is string if default argument is string.
     Given I have the following code
@@ -61,8 +61,8 @@ Feature: InputBag get return type
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                                  |
-      | InvalidScalarArgument | Argument 1 of trim expects string, null\|scalar provided |
+      | Type                  | Message                                                      |
+      | InvalidScalarArgument | Argument 1 of trim expects string, but null\|scalar provided |
     And I see no other errors
 
   Scenario Outline: Return type is nullable if default argument is not provided.

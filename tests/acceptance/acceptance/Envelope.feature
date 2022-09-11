@@ -75,9 +75,9 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                                                                          |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, parent type "type" provided |
-      | UndefinedClass       | Class, interface or enum named type does not exist                                                               |
+      | Type                 | Message                                                                                                              |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, but parent type "type" provided |
+      | UndefinedClass       | Class, interface or enum named type does not exist                                                                   |
     And I see no other errors
 
   Scenario: Envelope::withoutStampsOfType returns an envelope with the same message class
@@ -99,9 +99,9 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                                                                                   |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, parent type "type" provided |
-      | UndefinedClass       | Class, interface or enum named type does not exist                                                                        |
+      | Type                 | Message                                                                                                                       |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, but parent type "type" provided |
+      | UndefinedClass       | Class, interface or enum named type does not exist                                                                            |
     And I see no other errors
 
   Scenario: Envelope::last() expects a class name implementing StampInterface
@@ -111,8 +111,8 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                                                                                                                                             |
-      | InvalidArgument | Argument 1 of Symfony\Component\Messenger\Envelope::last expects class-string<Symfony\Component\Messenger\Stamp\StampInterface>, Symfony\Component\Messenger\Worker::class provided |
+      | Type            | Message                                                                                                                                                                                 |
+      | InvalidArgument | Argument 1 of Symfony\Component\Messenger\Envelope::last expects class-string<Symfony\Component\Messenger\Stamp\StampInterface>, but Symfony\Component\Messenger\Worker::class provided |
     And I see no other errors
 
   Scenario: Envelope::last() returns a nullable object of the provided class name
@@ -133,8 +133,8 @@ Feature: Messenger Envelope
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                                                                                                                                                  |
-      | InvalidArgument | Argument 1 of Symfony\Component\Messenger\Envelope::all expects class-string<Symfony\Component\Messenger\Stamp\StampInterface>\|null, Symfony\Component\Messenger\Worker::class provided |
+      | Type            | Message                                                                                                                                                                                      |
+      | InvalidArgument | Argument 1 of Symfony\Component\Messenger\Envelope::all expects class-string<Symfony\Component\Messenger\Stamp\StampInterface>\|null, but Symfony\Component\Messenger\Worker::class provided |
     And I see no other errors
 
   Scenario: Envelope::all() returns a list with objects of the provided class name

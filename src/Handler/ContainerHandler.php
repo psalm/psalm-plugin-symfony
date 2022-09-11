@@ -3,6 +3,7 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use function constant;
+
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
