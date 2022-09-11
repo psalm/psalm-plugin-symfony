@@ -52,6 +52,6 @@ Feature: Request getContent
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                     |
-      | InvalidArgument | Argument 1 of json_decode expects string, resource provided |
+      | Type            | Message                                                         |
+      | InvalidArgument | Argument 1 of json_decode expects string, but resource provided |
     And I see no other errors
