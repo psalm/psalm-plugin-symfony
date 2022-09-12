@@ -34,7 +34,7 @@ class ContainerMetaTest extends TestCase
      * @testdox service attributes
      * @dataProvider publicServices
      */
-    public function testServices($id, string $className, bool $isPublic)
+    public function testServices(string $id, string $className, bool $isPublic): void
     {
         $serviceDefinition = $this->containerMeta->get($id);
         $this->assertInstanceOf(Definition::class, $serviceDefinition);
@@ -67,9 +67,9 @@ class ContainerMetaTest extends TestCase
     }
 
     /**
-     * @testdox with non existent xml file
+     * @testdox with non-existent xml file
      */
-    public function testInvalidFile()
+    public function testInvalidFile(): void
     {
         $this->expectException(ConfigException::class);
         $this->containerMeta = new ContainerMeta(['non-existent-file.xml']);
@@ -78,7 +78,7 @@ class ContainerMetaTest extends TestCase
     /**
      * @testdox get non existent service
      */
-    public function testNonExistentService()
+    public function testNonExistentService(): void
     {
         $this->expectException(ServiceNotFoundException::class);
         $this->assertNull($this->containerMeta->get('non-existent-service'));
@@ -87,7 +87,7 @@ class ContainerMetaTest extends TestCase
     /**
      * @testdox one valid, one invalid file should not raise an issue
      */
-    public function testBothValidAndInvalidArray()
+    public function testBothValidAndInvalidArray(): void
     {
         $containerMeta = new ContainerMeta(['non-existent-file.xml', __DIR__.'/../../acceptance/container.xml']);
         $service = $containerMeta->get('service_container');
@@ -142,6 +142,21 @@ class ContainerMetaTest extends TestCase
         yield [
             'dummy_service_with_locator3',
             'App\Controller\DummyController',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
+        yield [
+            'dummy_service_with_locator3',
+            'App\SomeClass',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
+        yield [
+            'dummy_service_with_locator2',
+            'App\SomeClass',
+            'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
+        ];
+        yield [
+            'dummy_service_with_locator',
+            'App\SomeClass',
             'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService'
         ];
     }

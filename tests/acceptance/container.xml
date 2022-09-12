@@ -46,6 +46,11 @@
     <service id="dummy_private_service" class="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService" public="false"/>
     <service id="public_service_wo_public_attr" class="Foo\Bar"/>
     <service id="wronglyNamedService" class="Foo\Bar" public="true" />
+    <!-- service subscriber 1 example -->
+    <service id="App\Controller\DummyController" class="App\Controller\DummyController">
+      <tag name="container.service_subscriber"/>
+      <argument type="service" id=".service_locator.123xyz.App\Controller\DummyController"/>
+    </service>
     <service id=".service_locator.123xyz" class="Symfony\Component\DependencyInjection\ServiceLocator" public="false">
       <tag name="container.service_locator"/>
       <argument type="collection">
@@ -60,6 +65,26 @@
       <argument>App\Controller\DummyController</argument>
       <argument type="service" id="service_container"/>
       <factory service=".service_locator.123xyz" method="withContext"/>
+    </service>
+    <!-- service subscriber 2 example -->
+    <service id="service_subscriber_2" class="App\SomeClass" autowire="true" autoconfigure="true">
+      <tag name="container.service_subscriber"/>
+      <argument type="service" id=".service_locator.456xyz.service_subscriber_2"/>
+    </service>
+    <service id=".service_locator.456xyz.service_subscriber_2" class="Symfony\Component\DependencyInjection\ServiceLocator">
+      <tag name="container.service_locator_context" id="service_subscriber_2"/>
+      <argument>service_subscriber_2</argument>
+      <argument type="service" id="service_container"/>
+      <factory service=".service_locator.456xyz" method="withContext"/>
+    </service>
+    <service id=".service_locator.456xyz" class="Symfony\Component\DependencyInjection\ServiceLocator">
+      <tag name="container.service_locator"/>
+      <argument type="collection">
+        <argument key="dummy_service_with_locator" type="service" id="dummy_private_service"/>
+        <argument key="dummy_service_with_locator2" type="service" id="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService"/>
+        <argument key="dummy_service_with_locator3" type="service_closure" id="Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService"/>
+        <argument key="validator" type="service" id="debug.validator"/>
+      </argument>
     </service>
   </services>
 </container>

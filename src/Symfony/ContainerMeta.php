@@ -107,7 +107,8 @@ class ContainerMeta
             if ($definition->hasTag('container.service_locator_context') && is_array($definitionFactory)) {
                 /** @var Reference $reference */
                 $reference = $definitionFactory[0];
-                $this->classLocators[$definition->getTag('container.service_locator_context')[0]['id']] = (string) $reference;
+                $id = $definition->getTag('container.service_locator_context')[0]['id'];
+                $this->classLocators[$this->container->getDefinition($id)->getClass() ?? $id] = (string) $reference;
             } elseif ($definition->hasTag('container.service_locator')) {
                 continue;
             } elseif ($className = $definition->getClass()) {
