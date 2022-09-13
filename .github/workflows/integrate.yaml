@@ -54,6 +54,11 @@ jobs:
 
       - name: "Run vimeo/psalm"
         run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github --php-version=${{ matrix.php-version }}
+        if: matrix.php-version != '8.0'
+
+      - name: "Run vimeo/psalm"
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github --php-version=8.0
+        if: matrix.php-version == '8.0'
 
   tests:
     name: "Tests (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
