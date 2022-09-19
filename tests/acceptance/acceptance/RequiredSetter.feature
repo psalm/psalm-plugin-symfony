@@ -15,7 +15,8 @@ Feature: Annotation class
       }
 
       final class MyServiceB {
-          private MyServiceA $a;
+          /** @var MyServiceA */
+          private $a;
           public function __construct(){}
 
           /** @required */
@@ -33,7 +34,8 @@ Feature: Annotation class
       }
 
       final class MyServiceB {
-          private MyServiceA $a;
+          /** @var MyServiceA */
+          private $a;
           public function __construct(){}
 
           private function setMyServiceA(MyServiceA $a): void { $this->a = $a; }

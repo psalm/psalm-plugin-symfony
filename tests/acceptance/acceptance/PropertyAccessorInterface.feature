@@ -30,7 +30,10 @@ Feature: PropertyAccessorInterface
       """
       class Company
       {
-          public string $name = 'Acme';
+          /**
+           * @var string
+           */
+          public $name = 'Acme';
       }
       $company = new Company();
 

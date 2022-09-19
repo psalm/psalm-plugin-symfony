@@ -8,11 +8,13 @@ use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ContainerAwareTraitHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
@@ -38,14 +40,18 @@ class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
+        require_once __DIR__.'/Handler/ContainerAwareTraitHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
+        require_once __DIR__.'/Handler/RequiredPropertyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $api->registerHooksFromClass(HeaderBagHandler::class);
         $api->registerHooksFromClass(ConsoleHandler::class);
+        $api->registerHooksFromClass(ContainerAwareTraitHandler::class);
         $api->registerHooksFromClass(ContainerDependencyHandler::class);
+        $api->registerHooksFromClass(RequiredPropertyHandler::class);
         $api->registerHooksFromClass(RequiredSetterHandler::class);
 
         if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
