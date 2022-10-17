@@ -108,7 +108,7 @@ jobs:
         run: vendor/bin/codecept build
 
       - name: "Run acceptance tests with codeception - PHP7"
-        run: vendor/bin/codecept run -v x php-8 -g symfony-common -g symfony-${{ matrix.symfony-version }}
+        run: vendor/bin/codecept run -v -x php-8 -g symfony-common -g symfony-${{ matrix.symfony-version }}
         if: matrix.php-version < '8.0'
 
       - name: "Run acceptance tests with codeception - PHP8"
