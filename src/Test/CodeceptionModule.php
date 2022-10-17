@@ -43,7 +43,7 @@ class CodeceptionModule extends BaseModule
      */
     private $suppressedIssueHandlers = [];
 
-    public function _initialize()
+    public function _initialize(): void
     {
         $this->_setConfig([
             'default_dir' => 'tests/_run/',
