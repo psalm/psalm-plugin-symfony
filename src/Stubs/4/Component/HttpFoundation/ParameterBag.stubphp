@@ -12,6 +12,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
      *
      * @return mixed
      * @psalm-taint-source input
+     * @psalm-mutation-free
      */
     public function get(string $key, $default = null) {}
 
@@ -19,6 +20,9 @@ class ParameterBag implements \IteratorAggregate, \Countable
      * Returns the parameters.
      *
      * @return array An array of parameters
+
+     * @psalm-taint-source input
+     * @psalm-mutation-free
      */
     public function all() {}
 }

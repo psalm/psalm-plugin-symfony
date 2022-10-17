@@ -5,6 +5,11 @@ namespace Symfony\Component\HttpFoundation;
 class Response
 {
     /**
+     * @var array<int, string>
+     */
+    public static $statusTexts;
+
+    /**
      * @throws \InvalidArgumentException When the HTTP status code is not valid
      * @psalm-taint-sink html $content
      */

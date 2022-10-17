@@ -3,6 +3,7 @@
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
 use function constant;
+
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
@@ -26,8 +27,10 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
         'Symfony\Component\DependencyInjection\ContainerInterface',
+        'Symfony\Component\DependencyInjection\Container',
         'Symfony\Bundle\FrameworkBundle\Controller\AbstractController',
         'Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait',
+        'Symfony\Bundle\FrameworkBundle\Test\TestContainer',
     ];
 
     /**
@@ -63,7 +66,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
                 $argument = $firstArg->value;
-                if ($argument instanceof String_ && !self::followsNamingConvention($argument->value) && false === strpos($argument->value, '\\')) {
+                if ($argument instanceof String_ && !self::followsParameterNamingConvention($argument->value) && false === strpos($argument->value, '\\')) {
                     IssueBuffer::accepts(
                         new NamingConventionViolation(new CodeLocation($statements_source, $argument)),
                         $statements_source->getSuppressedIssues()
@@ -182,6 +185,15 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             ),
             true
         );
+    }
+
+    private static function followsParameterNamingConvention(string $name): bool
+    {
+        if (0 === strpos($name, 'env(')) {
+            return true;
+        }
+
+        return self::followsNamingConvention($name);
     }
 
     /**

@@ -26,6 +26,7 @@ class Request
      * @param mixed  $default The default value if the parameter key does not exist
      *
      * @psalm-taint-source input
+     * @psalm-mutation-free
      */
     public function get($key, $default = null) {}
 }
