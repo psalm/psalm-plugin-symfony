@@ -1,4 +1,4 @@
-@symfony-4 @symfony-5
+@symfony-common @php-7
 Feature: Twig tainting with cached templates
 
   Background:
