@@ -21,15 +21,6 @@ use Weirdan\Codeception\Psalm\Module;
  */
 class CodeceptionModule extends BaseModule
 {
-    /**
-     * @var mixed[]
-     *
-     * @psalm-suppress NonInvariantDocblockPropertyType
-     */
-    protected $config = [
-        'default_dir' => 'tests/_run/',
-    ];
-
     private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
 
     /**
@@ -51,6 +42,13 @@ class CodeceptionModule extends BaseModule
      * @var list<string>
      */
     private $suppressedIssueHandlers = [];
+
+    public function _initialize()
+    {
+        $this->_setConfig([
+            'default_dir' => 'tests/_run/',
+        ]);
+    }
 
     public function _after(TestInterface $test): void
     {
