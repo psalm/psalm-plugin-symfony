@@ -18,17 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 7.4
           - 8.0
           - 8.1
 
         dependencies:
           - highest
           - lowest
-
-        exclude:
-          - php-version: 7.4
-            dependencies: lowest
 
     steps:
       - name: "Checkout"
@@ -69,7 +64,6 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 7.4
           - 8.0
           - 8.1
 
@@ -79,8 +73,6 @@ jobs:
           - 6
 
         exclude:
-          - php-version: 7.4
-            symfony-version: 6
           - php-version: 8.0
             symfony-version: 6
 
@@ -107,10 +99,5 @@ jobs:
       - name: "Build acceptance tests with codeception"
         run: vendor/bin/codecept build
 
-      - name: "Run acceptance tests with codeception - PHP7"
-        run: vendor/bin/codecept run -v -x php-8 -g symfony-common -g symfony-${{ matrix.symfony-version }}
-        if: matrix.php-version < '8.0'
-
-      - name: "Run acceptance tests with codeception - PHP8"
-        run: vendor/bin/codecept run -v -x php-7 -g symfony-common -g symfony-${{ matrix.symfony-version }}
-        if: matrix.php-version >= '8.0'
+      - name: "Run acceptance tests with codeception"
+        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
