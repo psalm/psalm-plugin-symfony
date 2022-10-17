@@ -107,9 +107,10 @@ jobs:
       - name: "Build acceptance tests with codeception"
         run: vendor/bin/codecept build
 
-      - name: "Run acceptance tests with codeception"
-        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
+      - name: "Run acceptance tests with codeception - PHP7"
+        run: vendor/bin/codecept run -v x php-8 -g symfony-common -g symfony-${{ matrix.symfony-version }}
+        if: matrix.php-version < '8.0'
 
-      - name: "Run acceptance tests with codeception PHP8 only tests"
-        run: vendor/bin/codecept run -v -g php-8
+      - name: "Run acceptance tests with codeception - PHP8"
+        run: vendor/bin/codecept run -v -x php-7 -g symfony-common -g symfony-${{ matrix.symfony-version }}
         if: matrix.php-version >= '8.0'
