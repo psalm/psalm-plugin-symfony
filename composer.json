@@ -10,7 +10,7 @@
         }
     ],
     "require": {
-        "php": "^7.1 || ^8.0",
+        "php": "^7.4 || ^8.0",
         "ext-simplexml": "*",
         "symfony/framework-bundle": "^4.0 || ^5.0 || ^6.0",
         "vimeo/psalm": "^4.12"
@@ -27,7 +27,7 @@
         "symfony/serializer": "^4.0 || ^5.0 || ^6.0",
         "symfony/validator": "*",
         "twig/twig": "^2.10 || ^3.0",
-        "weirdan/codeception-psalm-module": "^0.13.1"
+        "weirdan/codeception-psalm-module": "dev-master"
     },
     "autoload": {
         "psr-4": {

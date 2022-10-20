@@ -1,4 +1,4 @@
-@symfony-4 @symfony-5 @symfony-6
+@symfony-common
 Feature: Service Subscriber
 
   Background:
@@ -26,7 +26,7 @@ Feature: Service Subscriber
           $this->container = $container;
         }
 
-        public static function getSubscribedServices()
+        public static function getSubscribedServices(): array
         {
           return [
             // takes container.xml into account
