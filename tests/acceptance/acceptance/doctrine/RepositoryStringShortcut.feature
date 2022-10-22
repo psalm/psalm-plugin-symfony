@@ -5,27 +5,21 @@ Feature: RepositoryStringShortcut
   I need Psalm to check preferred repository syntax
 
   Background:
-    Given I have issue handlers "UndefinedClass,UnusedVariable" suppressed
+    Given I have issue handlers "ArgumentTypeCoercion,MixedArgument,UndefinedClass" suppressed
     And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
-      namespace Doctrine\ORM;
-      interface EntityManagerInterface
-      {
-        /**
-         * @param string $className
-         *
-         * @return void
-         */
-        public function getRepository($className);
-      }
+
+      namespace RepositoryStringShortcut;
+
+      use Doctrine\ORM\EntityManagerInterface;
+      use Psalm\SymfonyPsalmPlugin\Tests\Fixture\Doctrine\Foo;
       """
 
   Scenario: Asserting using 'AppBundle:Entity' syntax raises issue
     Given I have the following code
       """
-      use Doctrine\ORM\EntityManagerInterface;
       class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
@@ -36,7 +30,7 @@ Feature: RepositoryStringShortcut
       """
     When I run Psalm
     Then I see these errors
-      | Type                       | Message                            |
+      | Type                      | Message                          |
       | RepositoryStringShortcut  | Use Entity::class syntax instead |
     And I see no other errors
 
@@ -47,7 +41,7 @@ Feature: RepositoryStringShortcut
       {
         public function __construct(EntityManagerInterface $entityManager)
         {
-          $entityManager->getRepository(Entity::class);
+          $entityManager->getRepository(Foo::class);
         }
       }
       """
@@ -61,7 +55,7 @@ Feature: RepositoryStringShortcut
       {
         public function __construct(EntityManagerInterface $entityManager)
         {
-          $className = 'App\Entity\EntityA';
+          $className = Foo::class;
           $entityManager->getRepository($className);
         }
       }
