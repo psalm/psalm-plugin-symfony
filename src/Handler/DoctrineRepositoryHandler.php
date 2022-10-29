@@ -17,6 +17,8 @@ use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
+use ReflectionClass;
+use ReflectionException;
 
 class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
@@ -41,13 +43,17 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                     $statements_source->getSuppressedIssues()
                 );
             } elseif ($entityName instanceof Expr\ClassConstFetch) {
-                /** @psalm-var class-string $className */
+                /** @psalm-var class-string|null $className */
                 $className = $entityName->class->getAttribute('resolvedName');
 
-                try {
-                    $reflectionClass = new \ReflectionClass($className);
+                if (null === $className) {
+                    return;
+                }
 
-                    if (method_exists(\ReflectionClass::class, 'getAttributes')) {
+                try {
+                    $reflectionClass = new ReflectionClass($className);
+
+                    if (\PHP_VERSION_ID >= 80000 && method_exists(ReflectionClass::class, 'getAttributes')) {
                         $entityAttributes = $reflectionClass->getAttributes(EntityAnnotation::class);
 
                         foreach ($entityAttributes as $entityAttribute) {
@@ -70,7 +76,7 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                             $event->setReturnTypeCandidate(new Union([new TNamedObject($entityAnnotation->repositoryClass)]));
                         }
                     }
-                } catch (\ReflectionException $e) {
+                } catch (ReflectionException $e) {
                 }
             }
         }
