@@ -1,0 +1,15 @@
+<?php
+
+namespace Symfony\Component\Serializer;
+
+interface SerializerInterface
+{
+    /**
+     * @template TObject of object
+     * @template TType of string|class-string<TObject>
+     * @psalm-param mixed $data
+     * @psalm-param TType $type
+     * @psalm-return (TType is class-string<TObject> ? TObject : mixed)
+     */
+    public function deserialize($data, string $type, string $format, array $context = []);
+}
