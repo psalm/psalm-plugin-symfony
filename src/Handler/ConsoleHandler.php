@@ -167,7 +167,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($add_null) {
-            $returnTypes[]= new TNull();
+            $returnTypes[] = new TNull();
         }
 
         self::$arguments[$identifier] = new Union($returnTypes);
@@ -221,7 +221,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                         break;
                     case 'false':
                     case 'true':
-                        $returnTypes []= new TBool();
+                        $returnTypes[] = new TBool();
                         break;
                 }
             }
@@ -232,7 +232,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($add_null) {
-            $returnTypes []= new TNull();
+            $returnTypes[] = new TNull();
         }
 
         if ($mode & InputOption::VALUE_NONE) {
