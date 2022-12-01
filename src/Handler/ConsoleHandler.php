@@ -148,23 +148,29 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $mode = InputArgument::OPTIONAL;
         }
 
+        $add_null = false;
         if ($mode & InputArgument::IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+            $returnTypes = [new TArray([new Union([new TInt()]), new Union([new TString()])])];
         } elseif ($mode & InputArgument::REQUIRED) {
-            $returnTypes = new Union([new TString()]);
+            $returnTypes = [new TString()];
         } else {
-            $returnTypes = new Union([new TString(), new TNull()]);
+            $add_null = true;
+            $returnTypes = [new TString()];
         }
 
         $defaultParam = $normalizedParams['default'];
         if ($defaultParam) {
-            $returnTypes->removeType('null');
+            $add_null = false;
             if ($defaultParam->value instanceof Expr\ConstFetch && 'null' === $defaultParam->value->name->parts[0]) {
-                $returnTypes->addType(new TNull());
+                $add_null = true;
             }
         }
 
-        self::$arguments[$identifier] = $returnTypes;
+        if ($add_null) {
+            $returnTypes[]= new TNull();
+        }
+
+        self::$arguments[$identifier] = new Union($returnTypes);
     }
 
     /**
@@ -199,40 +205,45 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $mode = InputOption::VALUE_OPTIONAL;
         }
 
-        $returnTypes = new Union([new TString(), new TNull()]);
+        $add_null = true;
+        $returnTypes = [new TString()];
 
         $defaultParam = $normalizedParams['default'];
         if ($defaultParam) {
             if (0 === ($mode & InputOption::VALUE_OPTIONAL)) {
-                $returnTypes->removeType('null');
+                $add_null = false;
             }
 
             if ($defaultParam->value instanceof Expr\ConstFetch) {
                 switch ($defaultParam->value->name->parts[0]) {
                     case 'null':
-                        $returnTypes->addType(new TNull());
+                        $add_null = true;
                         break;
                     case 'false':
                     case 'true':
-                        $returnTypes->addType(new TBool());
+                        $returnTypes []= new TBool();
                         break;
                 }
             }
         }
 
-        if ($mode & InputOption::VALUE_NONE) {
-            $returnTypes = new Union([new TBool()]);
+        if ($mode & InputOption::VALUE_REQUIRED && $mode & InputOption::VALUE_IS_ARRAY) {
+            $add_null = false;
         }
 
-        if ($mode & InputOption::VALUE_REQUIRED && $mode & InputOption::VALUE_IS_ARRAY) {
-            $returnTypes->removeType('null');
+        if ($add_null) {
+            $returnTypes []= new TNull();
+        }
+
+        if ($mode & InputOption::VALUE_NONE) {
+            $returnTypes = [new TBool()];
         }
 
         if ($mode & InputOption::VALUE_IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), $returnTypes])]);
+            $returnTypes = [new TArray([new Union([new TInt()]), new Union($returnTypes)])];
         }
 
-        self::$options[$identifier] = $returnTypes;
+        self::$options[$identifier] = new Union($returnTypes);
     }
 
     /**
