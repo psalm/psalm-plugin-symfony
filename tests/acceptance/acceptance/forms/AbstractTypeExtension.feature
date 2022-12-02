@@ -11,6 +11,9 @@ Feature: FormType templates
       use Symfony\Component\Form\AbstractTypeExtension;
       use Symfony\Component\Form\Extension\Core\Type\FormType;
 
+      /**
+       * @extends AbstractTypeExtension<string>
+       */
       class TestExtension extends AbstractTypeExtension
       {
           public static function getExtendedTypes(): iterable
@@ -30,6 +33,9 @@ Feature: FormType templates
       use Symfony\Component\Form\AbstractTypeExtension;
       use Symfony\Component\Form\Extension\Core\Type\FormType;
 
+      /**
+       * @extends AbstractTypeExtension<string>
+       */
       class TestExtension extends AbstractTypeExtension
       {
           public static function getExtendedTypes(): iterable
