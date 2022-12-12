@@ -19,14 +19,14 @@ Feature: InputBag get return type
         public function __invoke(Request $request): void
         {
           $string = $request->request->get('foo', 'bar');
-          trim($string);
+          /** @psalm-trace $string */
         }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                                |
-      | InvalidScalarArgument | Argument 1 of trim expects string, but scalar provided |
+      | Type  | Message         |
+      | Trace | $string: scalar |
 
   Scenario Outline: Return type is string if default argument is string.
     Given I have the following code
@@ -36,12 +36,15 @@ Feature: InputBag get return type
         public function __invoke(Request $request): void
         {
           $string = $request-><property>->get('foo', 'bar');
-          trim($string);
+          /** @psalm-trace $string */
         }
       }
       """
     When I run Psalm
-    Then I see no errors
+    Then I see these errors
+      | Type  | Message         |
+      | Trace | $string: string |
+    And I see no other errors
     Examples:
       | property |
       | query    |
@@ -54,15 +57,15 @@ Feature: InputBag get return type
       {
         public function __invoke(Request $request): void
         {
-          $nullableString = $request->request->get('foo');
-          trim($nullableString);
+          $nullableScalar = $request->request->get('foo');
+          /** @psalm-trace $nullableScalar */
         }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type                  | Message                                                      |
-      | InvalidScalarArgument | Argument 1 of trim expects string, but null\|scalar provided |
+      | Type  | Message                       |
+      | Trace | $nullableScalar: null\|scalar |
     And I see no other errors
 
   Scenario Outline: Return type is nullable if default argument is not provided.
@@ -73,14 +76,14 @@ Feature: InputBag get return type
         public function __invoke(Request $request): void
         {
           $nullableString = $request-><property>->get('foo');
-          trim($nullableString);
+          /** @psalm-trace $nullableString */
         }
       }
       """
     When I run Psalm
     Then I see these errors
-      | Type                 | Message                                                         |
-      | PossiblyNullArgument | Argument 1 of trim cannot be null, possibly null value provided |
+      | Type  | Message                       |
+      | Trace | $nullableString: null\|string |
     And I see no other errors
     Examples:
       | property |

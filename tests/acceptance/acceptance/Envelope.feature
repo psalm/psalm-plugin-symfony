@@ -76,7 +76,7 @@ Feature: Messenger Envelope
     When I run Psalm
     Then I see these errors
       | Type                 | Message                                                                                                              |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, but parent type "type" provided |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutAll expects class-string, but parent type 'type' provided |
       | UndefinedClass       | Class, interface or enum named type does not exist                                                                   |
     And I see no other errors
 
@@ -100,7 +100,7 @@ Feature: Messenger Envelope
     When I run Psalm
     Then I see these errors
       | Type                 | Message                                                                                                                       |
-      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, but parent type "type" provided |
+      | ArgumentTypeCoercion | Argument 1 of Symfony\Component\Messenger\Envelope::withoutStampsOfType expects class-string, but parent type 'type' provided |
       | UndefinedClass       | Class, interface or enum named type does not exist                                                                            |
     And I see no other errors
 

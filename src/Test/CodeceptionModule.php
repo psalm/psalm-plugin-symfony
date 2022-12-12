@@ -8,7 +8,6 @@ use Behat\Gherkin\Node\PyStringNode;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
 use Codeception\TestInterface;
-use InvalidArgumentException;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
@@ -182,7 +181,7 @@ XML
     {
         if (null === $this->twigCache) {
             if (!is_dir($cacheDirectory)) {
-                throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
+                throw new \InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
             }
             $this->twigCache = new FilesystemCache($cacheDirectory);
         }

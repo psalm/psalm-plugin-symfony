@@ -2,8 +2,6 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
-use function constant;
-
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
@@ -105,7 +103,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
                 $serviceId = $className;
             } else {
                 try {
-                    $serviceId = constant($className.'::'.$idArgument->name->name);
+                    $serviceId = \constant($className.'::'.$idArgument->name->name);
                 } catch (\Exception $e) {
                     return;
                 }
