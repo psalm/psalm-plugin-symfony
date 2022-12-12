@@ -1,4 +1,4 @@
-@symfony-4 @symfony-5
+@symfony-5
 Feature: Denormalizer interface
   Detect DenormalizerInterface::denormalize() result type
 
