@@ -58,7 +58,7 @@ Feature: Denormalizer interface
         /**
          * @return mixed
          */
-        public function denormalize($data, string $type, string $format = null, array $context = [])
+        public function denormalize(mixed $data, string $type, string $format = null, array $context = [])
         {
           return null;
         }
