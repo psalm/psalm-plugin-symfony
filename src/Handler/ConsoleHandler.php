@@ -21,7 +21,6 @@ use Psalm\Type\Atomic\TBool;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
-use Psalm\Type\MutableUnion;
 use Psalm\Type\Union;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
