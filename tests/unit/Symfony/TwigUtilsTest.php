@@ -30,7 +30,7 @@ class TwigUtilsTest extends TestCase
     {
         $hasErrors = false;
         $code = '<?php'."\n".$expression;
-        $statements = StatementsProvider::parseStatements($code, '7.1', $hasErrors);
+        $statements = StatementsProvider::parseStatements($code, '8_01_00', $hasErrors);
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
             public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
