@@ -22,19 +22,19 @@ Feature: AuthenticatorInterface
        */
       abstract class SomeAuthenticator implements AuthenticatorInterface
       {
-        public function getCredentials(Request $request)
+        public function getCredentials(Request $request): string
         {
           return '';
         }
 
-        public function getUser($credentials, UserProviderInterface $provider)
+        public function getUser($credentials, UserProviderInterface $provider): User
         {
           /** @psalm-trace $credentials */
 
           return new User('name', 'pass');
         }
 
-        public function checkCredentials($credentials, UserInterface $user)
+        public function checkCredentials($credentials, UserInterface $user): bool
         {
           /** @psalm-trace $credentials */
 
@@ -43,7 +43,7 @@ Feature: AuthenticatorInterface
           /** @psalm-trace $user */
         }
 
-        public function createAuthenticatedToken(UserInterface $user, string $providerKey)
+        public function createAuthenticatedToken(UserInterface $user, string $providerKey): PreAuthenticationGuardToken
         {
           /** @psalm-trace $user */
 
