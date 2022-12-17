@@ -11,9 +11,11 @@ class Request
      *
      * @throws \LogicException
      *
-     * @psalm-template TAsResource as bool
-     * @psalm-param TAsResource $asResource
-     * @psalm-return (TAsResource is true ? resource : string)
+     * @psalm-return (
+     *     $asResource is true
+     *     ? resource
+     *     : string
+     * )
      */
     public function getContent($asResource = false) {}
 
