@@ -7,9 +7,9 @@ interface DenormalizerInterface
     /**
      * @template TObject of object
      * @template TType of string|class-string<TObject>
-     * @psalm-param mixed $data
+     *
      * @psalm-param TType $type
      * @psalm-return (TType is class-string<TObject> ? TObject : mixed)
      */
-    public function denormalize($data, string $type, string $format = null, array $context = []);
+    public function denormalize(mixed $data, string $type, string $format = null, array $context = []);
 }

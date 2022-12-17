@@ -21,6 +21,7 @@ use Psalm\Type\Atomic\TBool;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
+use Psalm\Type\MutableUnion;
 use Psalm\Type\Union;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -31,11 +32,11 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @var Union[]
      */
-    private static $arguments = [];
+    private static array $arguments = [];
     /**
      * @var Union[]
      */
-    private static $options = [];
+    private static array $options = [];
 
     /**
      * {@inheritdoc}
@@ -149,11 +150,11 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputArgument::IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+            $returnTypes = new MutableUnion([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
         } elseif ($mode & InputArgument::REQUIRED) {
-            $returnTypes = new Union([new TString()]);
+            $returnTypes = new MutableUnion([new TString()]);
         } else {
-            $returnTypes = new Union([new TString(), new TNull()]);
+            $returnTypes = new MutableUnion([new TString(), new TNull()]);
         }
 
         $defaultParam = $normalizedParams['default'];
@@ -164,7 +165,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             }
         }
 
-        self::$arguments[$identifier] = $returnTypes;
+        self::$arguments[$identifier] = $returnTypes->freeze();
     }
 
     /**
@@ -199,7 +200,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $mode = InputOption::VALUE_OPTIONAL;
         }
 
-        $returnTypes = new Union([new TString(), new TNull()]);
+        $returnTypes = new MutableUnion([new TString(), new TNull()]);
 
         $defaultParam = $normalizedParams['default'];
         if ($defaultParam) {
@@ -221,7 +222,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputOption::VALUE_NONE) {
-            $returnTypes = new Union([new TBool()]);
+            $returnTypes = new MutableUnion([new TBool()]);
         }
 
         if ($mode & InputOption::VALUE_REQUIRED && $mode & InputOption::VALUE_IS_ARRAY) {
@@ -229,10 +230,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputOption::VALUE_IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), $returnTypes])]);
+            $returnTypes = new MutableUnion([new TArray([new Union([new TInt()]), $returnTypes->freeze()])]);
         }
 
-        self::$options[$identifier] = $returnTypes;
+        self::$options[$identifier] = $returnTypes->freeze();
     }
 
     /**

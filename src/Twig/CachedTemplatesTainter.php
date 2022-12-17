@@ -14,7 +14,6 @@ use Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
-use RuntimeException;
 use Twig\Environment;
 
 /**
@@ -35,7 +34,7 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
         $call_args = $event->getCallArgs();
 
         if (!$source instanceof StatementsAnalyzer) {
-            throw new RuntimeException(sprintf('The %s::%s hook can only be called using a %s.', __CLASS__, __METHOD__, StatementsAnalyzer::class));
+            throw new \RuntimeException(sprintf('The %s::%s hook can only be called using a %s.', __CLASS__, __METHOD__, StatementsAnalyzer::class));
         }
 
         if ('render' !== $method_name_lowercase) {

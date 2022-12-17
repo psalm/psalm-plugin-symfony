@@ -1,4 +1,4 @@
-@symfony-4 @symfony-5
+@symfony-5
 Feature: ConstraintValidator
 
   Background:

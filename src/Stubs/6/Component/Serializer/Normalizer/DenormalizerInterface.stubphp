@@ -1,15 +1,15 @@
 <?php
 
-namespace Symfony\Component\Serializer;
+namespace Symfony\Component\Serializer\Normalizer;
 
-interface SerializerInterface
+interface DenormalizerInterface
 {
     /**
      * @template TObject of object
      * @template TType of string|class-string<TObject>
-     * @psalm-param mixed $data
+     *
      * @psalm-param TType $type
      * @psalm-return (TType is class-string<TObject> ? TObject : mixed)
      */
-    public function deserialize($data, string $type, string $format, array $context = []);
+    public function denormalize(mixed $data, string $type, string $format = null, array $context = []);
 }

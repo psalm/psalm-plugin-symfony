@@ -68,7 +68,6 @@ jobs:
           - 8.1
 
         symfony-version:
-          - 4
           - 5
           - 6
 
