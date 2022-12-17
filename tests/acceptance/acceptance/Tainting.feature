@@ -57,23 +57,23 @@ Feature: Tainting
       | query    |
       | cookies  |
 
-#  todo: "@psalm-taint-source input" does not work on get() method
-#  Scenario: The user-agent is used in the body of a Response object
-#    Given I have the following code
-#      """
-#      class MyController
-#      {
-#        public function __invoke(Request $request): Response
-#        {
-#          return new Response($request->headers->get('user-agent'));
-#        }
-#      }
-#      """
-#    When I run Psalm with taint analysis
-#    Then I see these errors
-#      | Type         | Message               |
-#      | TaintedHtml  | Detected tainted HTML |
-#    And I see no other errors
+  todo: "@psalm-taint-source input" does not work on get() method
+  Scenario: The user-agent is used in the body of a Response object
+    Given I have the following code
+      """
+      class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response($request->headers->get('user-agent'));
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message               |
+      | TaintedHtml  | Detected tainted HTML |
+    And I see no other errors
 
   Scenario: All headers are printed in the body of a Response object
     Given I have the following code
