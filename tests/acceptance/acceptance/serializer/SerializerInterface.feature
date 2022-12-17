@@ -3,7 +3,7 @@ Feature: Serializer interface
   Detect SerializerInterface::deserialize() result type
 
   Background:
-    Given I have issue handler "MethodSignatureMustProvideReturnType" suppressed
+    Given I have issue handler "UnusedVariable,MethodSignatureMustProvideReturnType" suppressed
     And I have Symfony plugin enabled
 
   Scenario: Psalm recognizes deserialization result as an object when a class is passed as a type
