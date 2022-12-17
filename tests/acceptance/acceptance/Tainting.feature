@@ -57,7 +57,6 @@ Feature: Tainting
       | query    |
       | cookies  |
 
-  todo: "@psalm-taint-source input" does not work on get() method
   Scenario: The user-agent is used in the body of a Response object
     Given I have the following code
       """
