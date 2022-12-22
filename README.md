@@ -59,7 +59,7 @@ This file path may change based on your Symfony version, file structure and envi
 Default files are:
 - Symfony 3: `var/cache/dev/srcDevDebugProjectContainer.xml`
 - Symfony 4: `var/cache/dev/srcApp_KernelDevDebugContainer.xml`
-- Symfony 5: `var/cache/dev/App_KernelDevDebugContainer.xml`
+- Symfony 5+: `var/cache/dev/App_KernelDevDebugContainer.xml`
 
 Multiple container files can be configured. In this case, the first valid file is taken into account.
 If none of the given files is valid, a configuration exception is thrown.
@@ -78,6 +78,14 @@ If you're using PHP config files for Symfony 5.3+, you also need this for auto-l
 <extraFiles>
     <directory name="var/cache/dev/Symfony/Config" /> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/201 -->
 </extraFiles>
+```
+
+If you're using Symfony's `env()` or `param()` functions in your PHP config files, you also need this for auto-loading them:
+
+```xml
+<stubs>
+    <file name="vendor/symfony/dependency-injection/Loader/Configurator/ContainerConfigurator.php" />
+</stubs>
 ```
 
 If you're getting the following error
