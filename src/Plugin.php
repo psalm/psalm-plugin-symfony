@@ -54,8 +54,10 @@ class Plugin implements PluginEntryPointInterface
 
         if (class_exists(AnnotationRegistry::class)) {
             require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
-            /** @psalm-suppress DeprecatedMethod */
-            AnnotationRegistry::registerLoader('class_exists');
+            if (method_exists(AnnotationRegistry::class, 'registerLoader')) {
+                /** @psalm-suppress DeprecatedMethod */
+                AnnotationRegistry::registerLoader('class_exists');
+            }
             $api->registerHooksFromClass(DoctrineRepositoryHandler::class);
 
             require_once __DIR__.'/Handler/AnnotationHandler.php';
