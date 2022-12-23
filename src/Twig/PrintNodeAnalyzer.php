@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Internal\DataFlow\DataFlowNode;
-use RuntimeException;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
@@ -25,7 +24,7 @@ class PrintNodeAnalyzer
     {
         $expression = $node->getNode('expr');
         if (!$expression instanceof AbstractExpression) {
-            throw new RuntimeException('The expr node has an expected type.');
+            throw new \RuntimeException('The expr node has an expected type.');
         }
 
         if ($this->expressionIsEscaped($expression)) {
