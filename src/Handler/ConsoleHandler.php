@@ -265,7 +265,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
                 $key = array_search($name, $params);
                 Assert::integer($key);
-                $params = array_slice($params, $key + 1);
+                unset($params[$key]);
             } else {
                 $name = array_shift($params);
             }
