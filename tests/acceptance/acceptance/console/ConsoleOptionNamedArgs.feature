@@ -37,3 +37,34 @@ Feature: ConsoleOption named arguments with PHP8
       | Type  | Message         |
       | Trace | $string: string |
     And I see no other errors
+
+  Scenario: Assert adding options with only named arguments works as expected
+    Given I have the following code
+      """
+      class MyCommand extends Command
+      {
+        public function configure(): void
+        {
+          $this->addOption(
+            name: 'test',
+            mode: InputOption::VALUE_REQUIRED,
+            description: 'foo',
+            shortcut: 't',
+            default: 'test'
+          );
+        }
+
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          /** @psalm-trace $string */
+          $string = $input->getOption('test');
+
+          return 0;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message         |
+      | Trace | $string: string |
+    And I see no other errors
