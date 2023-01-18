@@ -31,11 +31,11 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @var Union[]
      */
-    private static $arguments = [];
+    private static array $arguments = [];
     /**
      * @var Union[]
      */
-    private static $options = [];
+    private static array $options = [];
 
     /**
      * {@inheritdoc}
@@ -157,11 +157,8 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         $defaultParam = $normalizedParams['default'];
-        if ($defaultParam) {
+        if ($defaultParam && !$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->parts[0]) {
             $returnTypes->removeType('null');
-            if ($defaultParam->value instanceof Expr\ConstFetch && 'null' === $defaultParam->value->name->parts[0]) {
-                $returnTypes->addType(new TNull());
-            }
         }
 
         self::$arguments[$identifier] = $returnTypes;
