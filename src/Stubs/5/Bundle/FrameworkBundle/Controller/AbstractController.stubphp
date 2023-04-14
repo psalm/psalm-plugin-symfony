@@ -7,7 +7,7 @@ use Psr\Container\ContainerInterface;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormTypeInterface;
 
-class AbstractController implements ServiceSubscriberInterface
+abstract class AbstractController implements ServiceSubscriberInterface
 {
     /**
      * @var ContainerInterface
@@ -23,5 +23,5 @@ class AbstractController implements ServiceSubscriberInterface
      *
      * @psalm-return FormInterface<TData>
      */
-    public function createForm(string $type, $data = null, array $options = []): FormInterface {}
+    protected function createForm(string $type, $data = null, array $options = []): FormInterface {}
 }
