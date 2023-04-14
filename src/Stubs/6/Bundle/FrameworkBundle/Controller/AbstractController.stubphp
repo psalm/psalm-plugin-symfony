@@ -23,5 +23,5 @@ class AbstractController implements ServiceSubscriberInterface
      *
      * @psalm-return FormInterface<TData>
      */
-    public function createForm(string $type, $data = null, array $options = []): FormInterface {}
+    protected function createForm(string $type, $data = null, array $options = []): FormInterface {}
 }
