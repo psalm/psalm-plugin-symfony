@@ -55,8 +55,10 @@ class CachedTemplatesRegistry
             $oldNotation = $baseName;
         }
 
-        if (null !== $oldNotation) {
+        if (null !== $oldNotation && false !== strpos($oldNotation, ':')) {
+            /** @psalm-suppress PossiblyUndefinedArrayOffset */
             list($bundleName, $rest) = explode(':', $oldNotation, 2);
+            /** @psalm-suppress PossiblyUndefinedArrayOffset */
             list($revTemplateName, $revRest) = explode(':', strrev($rest), 2);
             $pathParts = explode('/', strrev($revRest));
             $pathParts = array_merge($pathParts, explode('/', strrev($revTemplateName)));

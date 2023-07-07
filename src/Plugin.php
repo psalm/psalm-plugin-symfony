@@ -68,7 +68,8 @@ class Plugin implements PluginEntryPointInterface
             ContainerHandler::init($containerMeta);
 
             try {
-                TemplateFileAnalyzer::initExtensions(array_filter(array_map(function (array $m) use ($containerMeta) {
+                /** @psalm-var list<class-string> $extensionClasses */
+                $extensionClasses = array_filter(array_map(function (array $m) use ($containerMeta) {
                     if ('addExtension' !== $m[0]) {
                         return null;
                     }
@@ -78,7 +79,8 @@ class Plugin implements PluginEntryPointInterface
                     } catch (ServiceNotFoundException $e) {
                         return null;
                     }
-                }, $containerMeta->get('twig')->getMethodCalls())));
+                }, $containerMeta->get('twig')->getMethodCalls()));
+                TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {
             }
 

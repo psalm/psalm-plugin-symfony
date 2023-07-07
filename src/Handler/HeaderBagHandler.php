@@ -60,7 +60,7 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
      */
     private static function makeReturnType(array $call_args): Union
     {
-        if (3 === count($call_args) && (($arg = $call_args[2]->value) instanceof ConstFetch) && 'false' === $arg->name->parts[0]) {
+        if (3 === count($call_args) && (($arg = $call_args[2]->value) instanceof ConstFetch) && 'false' === $arg->name->getFirst()) {
             return new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
         }
 

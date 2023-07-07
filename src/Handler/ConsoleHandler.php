@@ -158,7 +158,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         $defaultParam = $normalizedParams['default'];
-        if ($defaultParam && (!$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->parts[0])) {
+        if ($defaultParam && (!$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->getFirst())) {
             $returnTypes->removeType('null');
         }
 
@@ -206,7 +206,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             }
 
             if ($defaultParam->value instanceof Expr\ConstFetch) {
-                switch ($defaultParam->value->name->parts[0]) {
+                switch ($defaultParam->value->name->getFirst()) {
                     case 'null':
                         $returnTypes->addType(new TNull());
                         break;

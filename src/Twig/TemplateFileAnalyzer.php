@@ -28,6 +28,9 @@ class TemplateFileAnalyzer extends FileAnalyzer
      */
     private static $extensionClasses = [];
 
+    /**
+     * @param list<class-string> $extensionClasses
+     */
     public static function initExtensions(array $extensionClasses): void
     {
         self::$extensionClasses = $extensionClasses;
