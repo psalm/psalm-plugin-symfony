@@ -27,7 +27,7 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
         $declaring_method_id = $event->getDeclaringMethodId();
         $expr = $event->getExpr();
 
-        if (!self::$containerMeta || 'Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface::get' !== $declaring_method_id) {
+        if (!self::$containerMeta || !in_array($declaring_method_id, ['Symfony\Bundle\FrameworkBundle\Controller\AbstractController::getparameter', 'Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface::get'], true)) {
             return;
         }
 
@@ -36,7 +36,6 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
         }
 
         $argument = $expr->args[0]->value->value;
-
         try {
             $parameter = self::$containerMeta->getParameter($argument);
         } catch (ParameterNotFoundException $e) {
@@ -53,7 +52,7 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
                 $event->setReturnTypeCandidate(new Union([Atomic::create('bool')]));
                 break;
             case 'integer':
-                $event->setReturnTypeCandidate(new Union([Atomic::create('integer')]));
+                $event->setReturnTypeCandidate(new Union([Atomic::create('int')]));
                 break;
             case 'double':
                 $event->setReturnTypeCandidate(new Union([Atomic::create('float')]));
