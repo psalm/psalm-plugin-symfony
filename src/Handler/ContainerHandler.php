@@ -41,9 +41,6 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         self::$containerMeta = $containerMeta;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $declaring_method_id = $event->getDeclaringMethodId();
@@ -131,8 +128,8 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             if (!$service->isPublic()) {
                 /** @var class-string $kernelTestCaseClass */
                 $kernelTestCaseClass = 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase';
-                $isTestContainer = $context->parent &&
-                    ($kernelTestCaseClass === $context->parent
+                $isTestContainer = $context->parent
+                    && ($kernelTestCaseClass === $context->parent
                         || is_subclass_of($context->parent, $kernelTestCaseClass)
                     );
                 if (!$isTestContainer) {
@@ -150,9 +147,6 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
         $codebase = $event->getCodebase();

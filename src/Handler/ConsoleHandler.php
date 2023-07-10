@@ -38,9 +38,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static array $options = [];
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $statements_source = $event->getStatementsSource();
@@ -273,10 +270,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         return $result;
     }
 
-    /**
-     * @param mixed $mode
-     */
-    private static function getModeValue($mode): ?int
+    private static function getModeValue(Expr $mode): ?int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
             return self::getModeValue($mode->left) | self::getModeValue($mode->right);

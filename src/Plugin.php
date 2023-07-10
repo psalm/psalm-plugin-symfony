@@ -29,9 +29,6 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class Plugin implements PluginEntryPointInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public function __invoke(RegistrationInterface $api, \SimpleXMLElement $config = null): void
     {
         require_once __DIR__.'/Handler/HeaderBagHandler.php';

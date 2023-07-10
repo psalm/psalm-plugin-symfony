@@ -27,7 +27,11 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
         $declaring_method_id = $event->getDeclaringMethodId();
         $expr = $event->getExpr();
 
-        if (!self::$containerMeta || !in_array($declaring_method_id, ['Symfony\Bundle\FrameworkBundle\Controller\AbstractController::getparameter', 'Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface::get'], true)) {
+        if (!self::$containerMeta || !in_array($declaring_method_id, [
+                'Symfony\Bundle\FrameworkBundle\Controller\AbstractController::getparameter',
+                'Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface::get',
+                'Symfony\Component\DependencyInjection\ContainerInterface::getparameter',
+            ], true)) {
             return;
         }
 

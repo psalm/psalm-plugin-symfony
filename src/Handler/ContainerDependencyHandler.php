@@ -12,9 +12,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ContainerDependencyHandler implements AfterFunctionLikeAnalysisInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public static function afterStatementAnalysis(AfterFunctionLikeAnalysisEvent $event): ?bool
     {
         $stmt = $event->getStmt();
