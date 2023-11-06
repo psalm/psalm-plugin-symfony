@@ -44,7 +44,7 @@ class ContainerMeta
     /**
      * @throws ServiceNotFoundException
      */
-    public function get(string $id, ?string $contextClass = null): Definition
+    public function get(string $id, string $contextClass = null): Definition
     {
         if ($contextClass && isset($this->classLocators[$contextClass]) && isset($this->serviceLocators[$this->classLocators[$contextClass]]) && isset($this->serviceLocators[$this->classLocators[$contextClass]][$id])) {
             $id = $this->serviceLocators[$this->classLocators[$contextClass]][$id];

@@ -20,9 +20,6 @@ use Psalm\Type\Union;
 
 class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $expr = $event->getExpr();

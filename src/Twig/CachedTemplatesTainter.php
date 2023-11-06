@@ -51,6 +51,10 @@ class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             isset($call_args[1]) ? [$call_args[1]] : []
         );
 
+        if (!isset($call_args[0])) {
+            return null;
+        }
+
         try {
             $templateName = TwigUtils::extractTemplateNameFromExpression($call_args[0]->value, $source);
         } catch (TemplateNameUnresolvedException $exception) {

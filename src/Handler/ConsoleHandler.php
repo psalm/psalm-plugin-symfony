@@ -38,9 +38,6 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static array $options = [];
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $statements_source = $event->getStatementsSource();
@@ -158,7 +155,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         $defaultParam = $normalizedParams['default'];
-        if ($defaultParam && (!$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->parts[0])) {
+        if ($defaultParam && (!$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->getFirst())) {
             $returnTypes->removeType('null');
         }
 
@@ -206,7 +203,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             }
 
             if ($defaultParam->value instanceof Expr\ConstFetch) {
-                switch ($defaultParam->value->name->parts[0]) {
+                switch ($defaultParam->value->name->getFirst()) {
                     case 'null':
                         $returnTypes->addType(new TNull());
                         break;
@@ -273,10 +270,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         return $result;
     }
 
-    /**
-     * @param mixed $mode
-     */
-    private static function getModeValue($mode): ?int
+    private static function getModeValue(Expr $mode): ?int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
             return self::getModeValue($mode->left) | self::getModeValue($mode->right);

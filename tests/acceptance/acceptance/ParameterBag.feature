@@ -1,5 +1,5 @@
 @symfony-5 @symfony-6
-Feature: ParameterBag
+Feature: ParameterBag return type detection if container.xml is provided
 
   Background:
     Given I have Symfony plugin enabled with the following config
@@ -13,7 +13,7 @@ Feature: ParameterBag
       use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
       """
 
-  Scenario: Asserting psalm recognizes return type of Symfony parameters if container.xml is provided
+  Scenario: Asserting psalm recognizes return type of Symfony parameters for ParameterBag
     Given I have the following code
       """
       class Foo
@@ -40,6 +40,48 @@ Feature: ParameterBag
 
           /** @psalm-trace $collection1 */
           $collection1 = $parameterBag->get('collection1');
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                      |
+      | Trace | $kernelEnvironment: string   |
+      | Trace | $debugEnabled: bool          |
+      | Trace | $debugDisabled: bool         |
+      | Trace | $version: string             |
+      | Trace | $integerOne: int             |
+      | Trace | $pi: float                   |
+      | Trace | $collection1: array          |
+    And I see no other errors
+
+  Scenario: Asserting psalm recognizes return type of Symfony parameters for AbstractController
+    Given I have the following code
+      """
+      class Foo extends \Symfony\Bundle\FrameworkBundle\Controller\AbstractController
+      {
+        public function __invoke()
+        {
+          /** @psalm-trace $kernelEnvironment */
+          $kernelEnvironment = $this->getParameter('kernel.environment');
+
+          /** @psalm-trace $debugEnabled */
+          $debugEnabled = $this->getParameter('debug_enabled');
+
+          /** @psalm-trace $debugDisabled */
+          $debugDisabled = $this->getParameter('debug_disabled');
+
+          /** @psalm-trace $version */
+          $version = $this->getParameter('version');
+
+          /** @psalm-trace $integerOne */
+          $integerOne = $this->getParameter('integer_one');
+
+          /** @psalm-trace $pi */
+          $pi = $this->getParameter('pi');
+
+          /** @psalm-trace $collection1 */
+          $collection1 = $this->getParameter('collection1');
         }
       }
       """
