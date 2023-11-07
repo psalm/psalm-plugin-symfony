@@ -78,7 +78,7 @@ jobs:
             symfony-version: 6
           - php-version: 8.0
             symfony-version: 7
-          - php-version: 8.2
+          - php-version: 8.1
             symfony-version: 7
 
     steps:
