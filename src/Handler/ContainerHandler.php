@@ -9,8 +9,10 @@ use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
+use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
@@ -20,7 +22,7 @@ use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 
-class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
+class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface
 {
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
@@ -161,6 +163,19 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
                     $codebase->queueClassLikeForScanning($className);
                     $fileStorage->referenced_classlikes[strtolower($className)] = $className;
                 }
+            }
+        }
+    }
+
+    public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
+    {
+        $containerClassNames = array_map(function (string $className): string {
+            return strtolower($className);
+        }, self::$containerMeta->getClassNames());
+
+        foreach ($event->getCodebase()->classlike_storage_provider->getAll() as $name => $storage) {
+            if (in_array($name, $containerClassNames, true)) {
+                $storage->suppressed_issues[] = 'UnusedClass';
             }
         }
     }
