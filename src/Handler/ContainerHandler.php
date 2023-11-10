@@ -165,7 +165,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
-    private static function isContainerMethod(string $declaringMethodId, string $methodName): bool
+    public static function isContainerMethod(string $declaringMethodId, string $methodName): bool
     {
         return in_array(
             $declaringMethodId,
