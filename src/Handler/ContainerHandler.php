@@ -169,6 +169,10 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
 
     public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
     {
+        if (null === self::$containerMeta) {
+            return;
+        }
+
         $containerClassNames = array_map(function (string $className): string {
             return strtolower($className);
         }, self::$containerMeta->getClassNames());
