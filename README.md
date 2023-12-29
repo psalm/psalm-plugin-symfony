@@ -10,6 +10,16 @@ vendor/bin/psalm --init
 vendor/bin/psalm-plugin enable psalm/plugin-symfony
 ```
 
+### Versions & Dependencies
+
+| Symfony Psalm Plugin | PHP        | Symfony | Psalm |
+|----------------------|------------|---------|-------|
+| 5.x                  | ^7.4, ^8.0 | 5, 6    | 5     |
+| 4.x                  | ^7.4, ^8.0 | 4, 5, 6 | 4     |
+| 3.x                  | ^7.1, ^8.0 | 4, 5, 6 | 4     |
+| 2.x                  | ^7.1, ^8.0 | 4, 5    | 4     |
+| 1.x                  | ^7.1       | 3, 4, 5 | 3     |
+
 ### Features
 
 - Detects the `ContainerInterface::get()` result type. Works better if you [configure](#configuration) a compiled container XML file.
@@ -59,7 +69,7 @@ This file path may change based on your Symfony version, file structure and envi
 Default files are:
 - Symfony 3: `var/cache/dev/srcDevDebugProjectContainer.xml`
 - Symfony 4: `var/cache/dev/srcApp_KernelDevDebugContainer.xml`
-- Symfony 5: `var/cache/dev/App_KernelDevDebugContainer.xml`
+- Symfony 5+: `var/cache/dev/App_KernelDevDebugContainer.xml`
 
 Multiple container files can be configured. In this case, the first valid file is taken into account.
 If none of the given files is valid, a configuration exception is thrown.
@@ -78,6 +88,14 @@ If you're using PHP config files for Symfony 5.3+, you also need this for auto-l
 <extraFiles>
     <directory name="var/cache/dev/Symfony/Config" /> <!-- https://github.com/psalm/psalm-plugin-symfony/issues/201 -->
 </extraFiles>
+```
+
+If you're using Symfony's `env()` or `param()` functions in your PHP config files, you also need this for auto-loading them:
+
+```xml
+<stubs>
+    <file name="vendor/symfony/dependency-injection/Loader/Configurator/ContainerConfigurator.php" />
+</stubs>
 ```
 
 If you're getting the following error

@@ -9,9 +9,6 @@ use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 
 class AnnotationHandler implements AfterClassLikeVisitInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
         $stmt = $event->getStmt();

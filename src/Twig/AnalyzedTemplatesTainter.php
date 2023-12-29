@@ -16,7 +16,6 @@ use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
-use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Twig\Environment;
 
@@ -86,7 +85,7 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     {
         $type = $source->getNodeTypeProvider()->getType($templateParameters);
         if (null === $type) {
-            throw new RuntimeException(sprintf('Can not retrieve type for the given expression (%s)', get_class($templateParameters)));
+            throw new \RuntimeException(sprintf('Can not retrieve type for the given expression (%s)', get_class($templateParameters)));
         }
 
         if ($templateParameters instanceof Array_) {
@@ -112,6 +111,6 @@ class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             return $parameters;
         }
 
-        throw new RuntimeException(sprintf('Can not retrieve template parameters from given expression (%s)', get_class($templateParameters)));
+        throw new \RuntimeException(sprintf('Can not retrieve template parameters from given expression (%s)', get_class($templateParameters)));
     }
 }

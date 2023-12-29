@@ -20,9 +20,6 @@ use Psalm\Type\Union;
 
 class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $expr = $event->getExpr();
@@ -41,13 +38,17 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
                     $statements_source->getSuppressedIssues()
                 );
             } elseif ($entityName instanceof Expr\ClassConstFetch) {
-                /** @psalm-var class-string $className */
+                /** @psalm-var class-string|null $className */
                 $className = $entityName->class->getAttribute('resolvedName');
+
+                if (null === $className) {
+                    return;
+                }
 
                 try {
                     $reflectionClass = new \ReflectionClass($className);
 
-                    if (method_exists(\ReflectionClass::class, 'getAttributes')) {
+                    if (\PHP_VERSION_ID >= 80000 && method_exists(\ReflectionClass::class, 'getAttributes')) {
                         $entityAttributes = $reflectionClass->getAttributes(EntityAnnotation::class);
 
                         foreach ($entityAttributes as $entityAttribute) {
