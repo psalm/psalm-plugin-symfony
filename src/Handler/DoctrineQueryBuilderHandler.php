@@ -12,9 +12,6 @@ use Psalm\SymfonyPsalmPlugin\Issue\QueryBuilderSetParameter;
 
 class DoctrineQueryBuilderHandler implements AfterMethodCallAnalysisInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $expr = $event->getExpr();

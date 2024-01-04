@@ -1,4 +1,4 @@
-@symfony-4 @symfony-5 @symfony-6
+@symfony-5 @symfony-6
 Feature: Test Container service
 
   Background:
@@ -21,7 +21,7 @@ Feature: Test Container service
       {
         public function testService(): void
         {
-          $service = static::$container->get('dummy_private_service');
+          $service = static::getContainer()->get('dummy_private_service');
           trim($service->foo());
         }
       }
@@ -42,7 +42,7 @@ Feature: Test Container service
       {
         public function testService(): void
         {
-          $service = static::$container->get('dummy_private_service');
+          $service = static::getContainer()->get('dummy_private_service');
           trim($service->foo());
         }
       }

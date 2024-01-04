@@ -18,23 +18,16 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 7.3
-          - 7.4
           - 8.0
+          - 8.1
 
         dependencies:
           - highest
           - lowest
 
-        exclude:
-          - php-version: 7.3
-            dependencies: lowest
-          - php-version: 7.4
-            dependencies: lowest
-
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install PHP with extensions"
         uses: shivammathur/setup-php@v2
@@ -48,7 +41,7 @@ jobs:
           dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: .build/psalm
           key: php-${{ matrix.php-version }}-psalm-${{ github.sha }}
@@ -71,38 +64,26 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 7.1
-          - 7.2
-          - 7.3
-          - 7.4
           - 8.0
+          - 8.1
+          - 8.2
 
         symfony-version:
-          - 4
           - 5
           - 6
+          - 7
 
         exclude:
-          - php-version: 7.1
-            symfony-version: 5
-          - php-version: 7.1
-            symfony-version: 6
-          - php-version: 7.2
-            symfony-version: 6
-          - php-version: 7.3
-            symfony-version: 6
-          - php-version: 7.4
-            symfony-version: 6
-          - php-version: 7.1
-            symfony-version: 6
-          - php-version: 8.0
-            symfony-version: 3
           - php-version: 8.0
             symfony-version: 6
+          - php-version: 8.0
+            symfony-version: 7
+          - php-version: 8.1
+            symfony-version: 7
 
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install PHP with extensions"
         uses: shivammathur/setup-php@v2
@@ -125,7 +106,3 @@ jobs:
 
       - name: "Run acceptance tests with codeception"
         run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
-
-      - name: "Run acceptance tests with codeception PHP8 only tests"
-        run: vendor/bin/codecept run -v -g php-8
-        if: matrix.php-version == '8.0'

@@ -17,4 +17,10 @@ class HeaderBag implements \IteratorAggregate, \Countable
      * @psalm-taint-source input
      */
     public function __toString() {}
+
+    /**
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function get(string $key, string $default = null): ?string {}
 }

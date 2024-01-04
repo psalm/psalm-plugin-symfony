@@ -1,19 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.7.3@38c452ae584467e939d55377aaf83b5a26f19dd1">
+<files psalm-version="5.13.1@086b94371304750d1c673315321a55d15fc59015">
+  <file src="src/Plugin.php">
+    <UnusedPsalmSuppress occurrences="1">
+      <code>DeprecatedMethod</code>
+    </UnusedPsalmSuppress>
+  </file>
   <file src="src/Twig/Context.php">
-    <UnnecessaryVarAnnotation occurrences="2">
+    <UnnecessaryVarAnnotation>
       <code>int</code>
       <code>string</code>
     </UnnecessaryVarAnnotation>
-  </file>
-  <file src="src/Test/CodeceptionModule.php">
-    <UnusedPsalmSuppress occurrences="1">
-      <code>NonInvariantDocblockPropertyType</code>
-    </UnusedPsalmSuppress>
-  </file>
-  <file src="src/Symfony/ContainerMeta.php">
-    <PossiblyNullReference occurrences="1">
-      <code>attributes</code>
-    </PossiblyNullReference>
   </file>
 </files>
