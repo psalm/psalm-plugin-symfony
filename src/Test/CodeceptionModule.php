@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Test;
 
+use Behat\Gherkin\Node\PyStringNode;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
 use Codeception\TestInterface;
-use InvalidArgumentException;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
@@ -21,15 +21,6 @@ use Weirdan\Codeception\Psalm\Module;
  */
 class CodeceptionModule extends BaseModule
 {
-    /**
-     * @var mixed[]
-     *
-     * @psalm-suppress NonInvariantDocblockPropertyType
-     */
-    protected $config = [
-        'default_dir' => 'tests/_run/',
-    ];
-
     private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
 
     /**
@@ -52,6 +43,13 @@ class CodeceptionModule extends BaseModule
      */
     private $suppressedIssueHandlers = [];
 
+    public function _initialize(): void
+    {
+        $this->_setConfig([
+            'default_dir' => 'tests/_run/',
+        ]);
+    }
+
     public function _after(TestInterface $test): void
     {
         $this->twigCache = $this->lastCachePath = null;
@@ -69,7 +67,7 @@ class CodeceptionModule extends BaseModule
     /**
      * @Given I have the following :templateName template :code
      */
-    public function haveTheFollowingTemplate(string $templateName, string $code): void
+    public function haveTheFollowingTemplate(string $templateName, PyStringNode $code): void
     {
         $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
         $templatePath = (
@@ -82,7 +80,7 @@ class CodeceptionModule extends BaseModule
             mkdir($templateDirectory, 0755, true);
         }
 
-        file_put_contents($templatePath, $code);
+        file_put_contents($templatePath, $code->getRaw());
     }
 
     /**
@@ -137,9 +135,16 @@ class CodeceptionModule extends BaseModule
 
     /**
      * @Given I have Symfony plugin enabled
+     */
+    public function configureCommonPsalmconfigEmpty(): void
+    {
+        $this->configureCommonPsalmconfig(new PyStringNode([], 0));
+    }
+
+    /**
      * @Given I have Symfony plugin enabled with the following config :configuration
      */
-    public function configureCommonPsalmconfig(string $configuration = ''): void
+    public function configureCommonPsalmconfig(PyStringNode $configuration): void
     {
         $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
             return "<$issueHandler errorLevel=\"info\"/>";
@@ -161,7 +166,7 @@ class CodeceptionModule extends BaseModule
 
     <plugins>
       <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
-        $configuration
+        {$configuration->getRaw()}
       </pluginClass>
     </plugins>
     <issueHandlers>
@@ -176,7 +181,7 @@ XML
     {
         if (null === $this->twigCache) {
             if (!is_dir($cacheDirectory)) {
-                throw new InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
+                throw new \InvalidArgumentException(sprintf('The %s twig cache directory does not exist or is not readable.', $cacheDirectory));
             }
             $this->twigCache = new FilesystemCache($cacheDirectory);
         }

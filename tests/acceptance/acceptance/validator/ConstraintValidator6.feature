@@ -1,4 +1,4 @@
-@symfony-common
+@symfony-6
 Feature: ConstraintValidator
 
   Background:
@@ -16,7 +16,7 @@ Feature: ConstraintValidator
       {
           public function __construct() {}
 
-          public function validate($value, Constraint $constraint): void
+          public function validate(mixed $value, Constraint $constraint): void
           {
               if ($value) {
                   $this->context

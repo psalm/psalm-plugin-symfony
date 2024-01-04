@@ -2,8 +2,6 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
-use function constant;
-
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
@@ -11,9 +9,13 @@ use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
+use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
+use Psalm\Plugin\EventHandler\BeforeAddIssueInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
+use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
+use Psalm\Plugin\EventHandler\Event\BeforeAddIssueEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
@@ -22,7 +24,7 @@ use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 
-class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
+class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, BeforeAddIssueInterface
 {
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
@@ -38,14 +40,20 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
      */
     private static $containerMeta;
 
+    /**
+     * @var array<string> collection of cower-cased class names that are present in the container
+     */
+    private static array $containerClassNames = [];
+
     public static function init(ContainerMeta $containerMeta): void
     {
         self::$containerMeta = $containerMeta;
+
+        self::$containerClassNames = array_map(function (string $className): string {
+            return strtolower($className);
+        }, self::$containerMeta->getClassNames());
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $declaring_method_id = $event->getDeclaringMethodId();
@@ -105,7 +113,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
                 $serviceId = $className;
             } else {
                 try {
-                    $serviceId = constant($className.'::'.$idArgument->name->name);
+                    $serviceId = \constant($className.'::'.$idArgument->name->name);
                 } catch (\Exception $e) {
                     return;
                 }
@@ -133,8 +141,8 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
             if (!$service->isPublic()) {
                 /** @var class-string $kernelTestCaseClass */
                 $kernelTestCaseClass = 'Symfony\Bundle\FrameworkBundle\Test\KernelTestCase';
-                $isTestContainer = $context->parent &&
-                    ($kernelTestCaseClass === $context->parent
+                $isTestContainer = $context->parent
+                    && ($kernelTestCaseClass === $context->parent
                         || is_subclass_of($context->parent, $kernelTestCaseClass)
                     );
                 if (!$isTestContainer) {
@@ -152,9 +160,6 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
         $codebase = $event->getCodebase();
@@ -173,7 +178,34 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
-    private static function isContainerMethod(string $declaringMethodId, string $methodName): bool
+    public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
+    {
+        if (null === self::$containerMeta) {
+            return;
+        }
+
+        foreach ($event->getCodebase()->classlike_storage_provider->getAll() as $name => $storage) {
+            if (in_array($name, self::$containerClassNames, true)) {
+                $storage->suppressed_issues[] = 'UnusedClass';
+            }
+        }
+    }
+
+    public static function beforeAddIssue(BeforeAddIssueEvent $event): ?bool
+    {
+        $data = $event->getIssue()->toIssueData('error');
+        if ('PossiblyUnusedMethod' === $data->type
+            && '__construct' === $data->selected_text
+            && null !== $data->dupe_key
+            && in_array(preg_replace('/::__construct$/', '', $data->dupe_key), self::$containerClassNames, true)) {
+            // Don't report service constructors as PossiblyUnusedMethod
+            return false;
+        }
+
+        return null;
+    }
+
+    public static function isContainerMethod(string $declaringMethodId, string $methodName): bool
     {
         return in_array(
             $declaringMethodId,

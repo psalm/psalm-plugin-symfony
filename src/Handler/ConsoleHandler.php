@@ -21,6 +21,7 @@ use Psalm\Type\Atomic\TBool;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
+use Psalm\Type\MutableUnion;
 use Psalm\Type\Union;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -31,15 +32,12 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @var Union[]
      */
-    private static $arguments = [];
+    private static array $arguments = [];
     /**
      * @var Union[]
      */
-    private static $options = [];
+    private static array $options = [];
 
-    /**
-     * {@inheritdoc}
-     */
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $statements_source = $event->getStatementsSource();
@@ -149,22 +147,19 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputArgument::IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
+            $returnTypes = new MutableUnion([new TArray([new Union([new TInt()]), new Union([new TString()])])]);
         } elseif ($mode & InputArgument::REQUIRED) {
-            $returnTypes = new Union([new TString()]);
+            $returnTypes = new MutableUnion([new TString()]);
         } else {
-            $returnTypes = new Union([new TString(), new TNull()]);
+            $returnTypes = new MutableUnion([new TString(), new TNull()]);
         }
 
         $defaultParam = $normalizedParams['default'];
-        if ($defaultParam) {
+        if ($defaultParam && (!$defaultParam->value instanceof Expr\ConstFetch || 'null' !== $defaultParam->value->name->getFirst())) {
             $returnTypes->removeType('null');
-            if ($defaultParam->value instanceof Expr\ConstFetch && 'null' === $defaultParam->value->name->parts[0]) {
-                $returnTypes->addType(new TNull());
-            }
         }
 
-        self::$arguments[$identifier] = $returnTypes;
+        self::$arguments[$identifier] = $returnTypes->freeze();
     }
 
     /**
@@ -199,7 +194,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             $mode = InputOption::VALUE_OPTIONAL;
         }
 
-        $returnTypes = new Union([new TString(), new TNull()]);
+        $returnTypes = new MutableUnion([new TString(), new TNull()]);
 
         $defaultParam = $normalizedParams['default'];
         if ($defaultParam) {
@@ -208,7 +203,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
             }
 
             if ($defaultParam->value instanceof Expr\ConstFetch) {
-                switch ($defaultParam->value->name->parts[0]) {
+                switch ($defaultParam->value->name->getFirst()) {
                     case 'null':
                         $returnTypes->addType(new TNull());
                         break;
@@ -221,7 +216,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputOption::VALUE_NONE) {
-            $returnTypes = new Union([new TBool()]);
+            $returnTypes = new MutableUnion([new TBool()]);
         }
 
         if ($mode & InputOption::VALUE_REQUIRED && $mode & InputOption::VALUE_IS_ARRAY) {
@@ -229,10 +224,10 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         if ($mode & InputOption::VALUE_IS_ARRAY) {
-            $returnTypes = new Union([new TArray([new Union([new TInt()]), $returnTypes])]);
+            $returnTypes = new MutableUnion([new TArray([new Union([new TInt()]), $returnTypes->freeze()])]);
         }
 
-        self::$options[$identifier] = $returnTypes;
+        self::$options[$identifier] = $returnTypes->freeze();
     }
 
     /**
@@ -264,7 +259,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
                 $key = array_search($name, $params);
                 Assert::integer($key);
-                $params = array_slice($params, $key + 1);
+                unset($params[$key]);
             } else {
                 $name = array_shift($params);
             }
@@ -275,10 +270,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         return $result;
     }
 
-    /**
-     * @param mixed $mode
-     */
-    private static function getModeValue($mode): ?int
+    private static function getModeValue(Expr $mode): ?int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
             return self::getModeValue($mode->left) | self::getModeValue($mode->right);

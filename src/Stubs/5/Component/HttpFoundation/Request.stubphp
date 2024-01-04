@@ -18,9 +18,4 @@ class Request
      * @psalm-var InputBag<string>
      */
     public $cookies;
-
-    /**
-     * @return \Symfony\Component\HttpFoundation\Session\Session
-     */
-    public function getSession(): SessionInterface;
 }

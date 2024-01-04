@@ -21,7 +21,6 @@ use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
-use SimpleXMLElement;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -30,10 +29,7 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class Plugin implements PluginEntryPointInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function __invoke(RegistrationInterface $api, SimpleXMLElement $config = null): void
+    public function __invoke(RegistrationInterface $api, \SimpleXMLElement $config = null): void
     {
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
@@ -54,8 +50,10 @@ class Plugin implements PluginEntryPointInterface
 
         if (class_exists(AnnotationRegistry::class)) {
             require_once __DIR__.'/Handler/DoctrineRepositoryHandler.php';
-            /** @psalm-suppress DeprecatedMethod */
-            AnnotationRegistry::registerLoader('class_exists');
+            if (method_exists(AnnotationRegistry::class, 'registerLoader')) {
+                /** @psalm-suppress DeprecatedMethod */
+                AnnotationRegistry::registerLoader('class_exists');
+            }
             $api->registerHooksFromClass(DoctrineRepositoryHandler::class);
 
             require_once __DIR__.'/Handler/AnnotationHandler.php';
@@ -67,7 +65,8 @@ class Plugin implements PluginEntryPointInterface
             ContainerHandler::init($containerMeta);
 
             try {
-                TemplateFileAnalyzer::initExtensions(array_filter(array_map(function (array $m) use ($containerMeta) {
+                /** @psalm-var list<class-string> $extensionClasses */
+                $extensionClasses = array_filter(array_map(function (array $m) use ($containerMeta) {
                     if ('addExtension' !== $m[0]) {
                         return null;
                     }
@@ -77,7 +76,8 @@ class Plugin implements PluginEntryPointInterface
                     } catch (ServiceNotFoundException $e) {
                         return null;
                     }
-                }, $containerMeta->get('twig')->getMethodCalls())));
+                }, $containerMeta->get('twig')->getMethodCalls()));
+                TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {
             }
 

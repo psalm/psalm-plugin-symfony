@@ -6,7 +6,6 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
-use RuntimeException;
 
 /**
  * This class is used to store a mapping of all analyzed twig template cache files with their corresponding actual templates.
@@ -66,7 +65,7 @@ class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
     public static function getCacheClassName(string $templateName): string
     {
         if (null === self::$cacheRegistry) {
-            throw new RuntimeException(sprintf('Can not load template %s, because no cache registry is provided.', $templateName));
+            throw new \RuntimeException(sprintf('Can not load template %s, because no cache registry is provided.', $templateName));
         }
 
         return self::$cacheRegistry->getCacheClassName($templateName);
