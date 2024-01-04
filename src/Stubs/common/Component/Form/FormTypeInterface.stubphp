@@ -23,7 +23,6 @@ interface FormTypeInterface
     /**
      * @psalm-param FormView<T> $view
      * @psalm-param FormInterface<T> $form
-     * @psalm-param array<array-key, mixed> $options
      */
     public function finishView(FormView $view, FormInterface $form, array $options);
 }

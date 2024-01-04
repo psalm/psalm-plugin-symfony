@@ -2,10 +2,34 @@
 
 namespace Symfony\Component\Form;
 
+use Symfony\Component\OptionsResolver\OptionsResolver;
+
 /**
  * @template T
  * @implements FormTypeExtensionInterface<T>
  */
 abstract class AbstractTypeExtension implements FormTypeExtensionInterface
 {
+  /**
+   * @param FormBuilderInterface<T> $builder
+   *
+   * @return void
+   */
+  public function buildForm(FormBuilderInterface $builder, array $options){}
+
+  /**
+   * @param FormInterface<T> $form
+   * @param FormView<T> $view
+   *
+   * @return void
+   */
+  public function buildView(FormView $view, FormInterface $form, array $options){}
+
+  /**
+   * @param FormInterface<T> $form
+   * @param FormView<T> $view
+   *
+   * @return void
+   */
+  public function finishView(FormView $view, FormInterface $form, array $options){}
 }

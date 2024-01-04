@@ -13,10 +13,10 @@
         "php": "^7.1 || ^8.0",
         "ext-simplexml": "*",
         "symfony/framework-bundle": "^4.0 || ^5.0 || ^6.0",
-        "vimeo/psalm": "^4.12"
+        "vimeo/psalm": "^5"
     },
     "require-dev": {
-        "symfony/form": "^4.0 || ^5.0 || ^6.0",
+        "symfony/form": "^6.4",
         "doctrine/annotations": "^1.8",
         "doctrine/orm": "^2.7",
         "phpunit/phpunit": "~7.5 || ~9.5",

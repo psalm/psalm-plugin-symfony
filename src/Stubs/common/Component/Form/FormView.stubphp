@@ -6,16 +6,15 @@ use Symfony\Component\Form\Exception\BadMethodCallException;
 
 /**
  * @template T
+ * @implements \ArrayAccess<int|string, FormView>
+ * @implements \IteratorAggregate<int|string, FormView>
  */
 class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
 {
-    /**
-     * @psalm-suppress MixedArrayAssignment
-     * @psalm-suppress InvalidArrayOffset
-     *
-     * @psalm-var array{value: ?T, attr: array<array-key, mixed>}&array<string, mixed>
-     */
-    public array $vars = [
+  /**
+   * @psalm-var array{value: ?T, attr: array<string, mixed>, ...}
+   */
+    public  $vars = [
         'value' => null,
         'attr' => [],
     ];
@@ -26,7 +25,7 @@ class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
     public $parent;
 
     /**
-     * @psalm-var array<string, FormView>
+     * @psalm-var array<int|string, FormView>
      */
     public $children = [];
 }

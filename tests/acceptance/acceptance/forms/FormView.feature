@@ -40,10 +40,9 @@ Feature: Form view
       """
     When I run Psalm
     Then I see these errors
-      | Type  | Message                                                      |
-      | Trace | $parentView: Symfony\Component\Form\FormView\|null           |
-      | Trace | $children: array<string, Symfony\Component\Form\FormView>    |
-      | Trace | $viewData: User\|null                                        |
-      | Trace | $attr: array<array-key, mixed>                               |
+      | Type  | Message                                                         |
+      | Trace | $parentView: Symfony\Component\Form\FormView\|null              |
+      | Trace | $children: array<int\|string, Symfony\Component\Form\FormView   |
+      | Trace | $viewData: User\|null                                           |
+      | Trace | $attr: array<string, mixed>                                     |
     And I see no other errors
-
