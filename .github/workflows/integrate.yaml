@@ -41,7 +41,7 @@ jobs:
           dependency-versions: ${{ matrix.dependencies }}
 
       - name: "Cache cache directory for vimeo/psalm"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .build/psalm
           key: php-${{ matrix.php-version }}-psalm-${{ github.sha }}
