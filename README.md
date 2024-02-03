@@ -131,7 +131,7 @@ To leverage the real Twig file analyzer, you have to configure a checker for the
 ```xml
 <fileExtensions>
    <extension name=".php" />
-   <extension name=".twig" checker="./vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
+   <extension name=".twig" checker="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
 </fileExtensions>
 ```
 
