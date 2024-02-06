@@ -5,6 +5,8 @@ namespace Symfony\Component\Form;
 /**
  * @template T
  * @method void clearErrors(bool $deep)
+ * @extends \ArrayAccess<string, FormInterface>
+ * @extends \Traversable<string, FormInterface>
  */
 interface FormInterface extends \ArrayAccess, \Traversable, \Countable
 {
