@@ -9,7 +9,7 @@ interface CacheInterface
     /**
      * @template T
      *
-     * @psalm-param CallbackInterface|callable(CacheItemInterface, bool): T $callback
+     * @psalm-param (callable(CacheItemInterface,bool):T)|(callable(ItemInterface,bool):T)|CallbackInterface<T> $callback
      * @psalm-return T
      */
     public function get(string $key, callable $callback, float $beta = null, array &$metadata = null);
