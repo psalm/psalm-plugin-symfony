@@ -36,7 +36,7 @@ jobs:
           php-version: ${{ matrix.php-version }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v1
+        uses: ramsey/composer-install@v3
         with:
           dependency-versions: ${{ matrix.dependencies }}
 
@@ -96,7 +96,7 @@ jobs:
         run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v1
+        uses: ramsey/composer-install@v3
 
       - name: "Run unit tests with phpunit"
         run: vendor/bin/phpunit --configuration=phpunit.xml
