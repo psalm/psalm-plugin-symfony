@@ -200,7 +200,7 @@ class ContainerMeta
         $type = preg_match('/^%env\((\w+):/', $envParameter, $matches) ? $matches[1] : null;
 
         $envVarTypes = EnvVarProcessor::getProvidedTypes();
-        if (!isset($envVarTypes[$type])) {
+        if (null === $type || !isset($envVarTypes[$type])) {
             return null;
         }
 
