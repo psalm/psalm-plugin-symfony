@@ -10,7 +10,7 @@ use Psalm\Type\Atomic;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 
-class ParameterBagHandler implements AfterMethodCallAnalysisInterface
+final class ParameterBagHandler implements AfterMethodCallAnalysisInterface
 {
     /**
      * @var ContainerMeta|null
@@ -22,6 +22,7 @@ class ParameterBagHandler implements AfterMethodCallAnalysisInterface
         self::$containerMeta = $containerMeta;
     }
 
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         if (!self::$containerMeta) {

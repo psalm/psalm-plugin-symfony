@@ -5,7 +5,7 @@ namespace Psalm\SymfonyPsalmPlugin\Issue;
 use Psalm\CodeLocation;
 use Psalm\Issue\PluginIssue;
 
-class RepositoryStringShortcut extends PluginIssue
+final class RepositoryStringShortcut extends PluginIssue
 {
     public function __construct(CodeLocation $code_location)
     {

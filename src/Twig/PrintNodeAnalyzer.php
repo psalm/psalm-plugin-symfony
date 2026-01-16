@@ -10,7 +10,7 @@ use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\PrintNode;
 
-class PrintNodeAnalyzer
+final class PrintNodeAnalyzer
 {
     /** @var Context */
     private $context;

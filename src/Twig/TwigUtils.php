@@ -13,7 +13,7 @@ use Psalm\Type\Atomic\TLiteralString;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Union;
 
-class TwigUtils
+final class TwigUtils
 {
     public static function extractTemplateNameFromExpression(Expr $templateName, StatementsSource $source): string
     {

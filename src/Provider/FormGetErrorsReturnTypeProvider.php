@@ -8,13 +8,15 @@ use Psalm\Type\Atomic\TNamedObject;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormErrorIterator;
 
-class FormGetErrorsReturnTypeProvider implements \Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface
+final class FormGetErrorsReturnTypeProvider implements \Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface
 {
+    #[\Override]
     public static function getClassLikeNames(): array
     {
         return ['Symfony\Component\Form\FormInterface'];
     }
 
+    #[\Override]
     public static function getMethodReturnType(MethodReturnTypeProviderEvent $event): ?Type\Union
     {
         $method_name_lowercase = $event->getMethodNameLowercase();
