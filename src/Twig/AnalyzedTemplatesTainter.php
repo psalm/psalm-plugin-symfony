@@ -23,8 +23,9 @@ use Twig\Environment;
  * This hook adds paths from all taint sources going to a `Twig\Environment::render()` call to all taint sinks of the corresponding template.
  * The TemplateFileAnalyzer should be declared in configuration.
  */
-class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
+final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 {
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $codebase = $event->getCodebase();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-class CachedTemplatesRegistry
+final class CachedTemplatesRegistry
 {
     /**
      * @var array<string, string>
@@ -34,7 +34,7 @@ class CachedTemplatesRegistry
     }
 
     /**
-     * @return \Generator<string>
+     * @psalm-return \Generator<int, null|string, mixed, void>
      */
     private static function generateNames(string $baseName): \Generator
     {

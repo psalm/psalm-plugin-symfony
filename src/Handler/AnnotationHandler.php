@@ -7,8 +7,9 @@ use PhpParser\Node\Stmt\Class_;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 
-class AnnotationHandler implements AfterClassLikeVisitInterface
+final class AnnotationHandler implements AfterClassLikeVisitInterface
 {
+    #[\Override]
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
         $stmt = $event->getStmt();

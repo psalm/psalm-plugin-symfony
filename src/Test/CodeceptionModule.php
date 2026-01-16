@@ -19,7 +19,7 @@ use Weirdan\Codeception\Psalm\Module;
  * @psalm-suppress UnusedClass
  * This class is to be used in codeception configuration - like in tests/acceptance/acceptance.suite.yml.
  */
-class CodeceptionModule extends BaseModule
+final class CodeceptionModule extends BaseModule
 {
     private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
 
@@ -34,6 +34,7 @@ class CodeceptionModule extends BaseModule
      */
     private array $suppressedIssueHandlers = [];
 
+    #[\Override]
     public function _initialize(): void
     {
         $this->_setConfig([
@@ -41,6 +42,7 @@ class CodeceptionModule extends BaseModule
         ]);
     }
 
+    #[\Override]
     public function _after(TestInterface $test): void
     {
         $this->twigCache = $this->lastCachePath = null;
@@ -110,6 +112,7 @@ class CodeceptionModule extends BaseModule
         ));
     }
 
+    #[\Override]
     public function _before(TestInterface $test): void
     {
         $this->suppressedIssueHandlers = ['UnusedVariable'];

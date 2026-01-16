@@ -8,7 +8,7 @@ use Psalm\Issue\PluginIssue;
 /**
  * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
  */
-class NamingConventionViolation extends PluginIssue
+final class NamingConventionViolation extends PluginIssue
 {
     public function __construct(CodeLocation $code_location)
     {

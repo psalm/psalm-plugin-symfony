@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 
-class ContainerMeta
+final class ContainerMeta
 {
     /**
      * @var array<string>
