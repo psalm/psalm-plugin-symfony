@@ -13,7 +13,7 @@ use Symfony\Component\DependencyInjection\EnvVarProcessor;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
-use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Psalm\SymfonyPsalmPlugin\Symfony\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 
 class ContainerMeta
