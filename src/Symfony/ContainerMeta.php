@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
+use Psalm\SymfonyPsalmPlugin\Symfony\Loader\XmlFileLoader;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -13,7 +14,6 @@ use Symfony\Component\DependencyInjection\EnvVarProcessor;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
-use Psalm\SymfonyPsalmPlugin\Symfony\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 
 class ContainerMeta

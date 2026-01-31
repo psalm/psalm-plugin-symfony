@@ -412,14 +412,14 @@ class XmlFileLoader extends FileLoader
             }
 
             foreach ([
-                         'Attribute "synthetic"' => 'isSynthetic',
-                         'Attribute "file"' => 'getFile',
-                         'Tag "<factory>"' => 'getFactory',
-                         'Tag "<argument>"' => 'getArguments',
-                         'Tag "<property>"' => 'getProperties',
-                         'Tag "<configurator>"' => 'getConfigurator',
-                         'Tag "<call>"' => 'getMethodCalls',
-                     ] as $key => $method) {
+                'Attribute "synthetic"' => 'isSynthetic',
+                'Attribute "file"' => 'getFile',
+                'Tag "<factory>"' => 'getFactory',
+                'Tag "<argument>"' => 'getArguments',
+                'Tag "<property>"' => 'getProperties',
+                'Tag "<configurator>"' => 'getConfigurator',
+                'Tag "<call>"' => 'getMethodCalls',
+            ] as $key => $method) {
                 if ($definition->$method()) {
                     throw new InvalidArgumentException($key.\sprintf(' is unsupported when using "<from-callable>" on service "%s".', $service->getAttribute('id')));
                 }
@@ -635,7 +635,7 @@ class XmlFileLoader extends FileLoader
                     break;
                 case 'tagged':
                     trigger_deprecation('symfony/dependency-injection', '7.2', 'Type "tagged" is deprecated for tag <%s>, use "tagged_iterator" instead in "%s".', $name, $file);
-                // no break
+                    // no break
                 case 'tagged_iterator':
                 case 'tagged_locator':
                     $forLocator = 'tagged_locator' === $type;
