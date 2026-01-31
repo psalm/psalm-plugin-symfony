@@ -12,7 +12,7 @@
     "require": {
         "php": ">=8.1",
         "ext-simplexml": "*",
-        "symfony/expression-language": "^7.0 || ^8.0",
+        "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "vimeo/psalm": "^6 || dev-master"
     },
