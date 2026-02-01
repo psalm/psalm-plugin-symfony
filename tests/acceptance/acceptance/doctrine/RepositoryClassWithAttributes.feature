@@ -17,7 +17,7 @@ Feature: RepositoryClass using attributes
   Scenario: The plugin can find correct repository class from entity
     Given I have the following code
       """
-      class SomeService
+      final class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
         {
@@ -35,7 +35,7 @@ Feature: RepositoryClass using attributes
   Scenario: Passing variable class does not crash the plugin
     Given I have the following code
       """
-      class SomeService
+      final class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
         {

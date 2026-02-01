@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Reference;
 
-class ContainerMeta
+final class ContainerMeta
 {
     /**
      * @var array<string>

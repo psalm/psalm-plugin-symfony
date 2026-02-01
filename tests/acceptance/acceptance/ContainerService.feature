@@ -10,7 +10,7 @@ Feature: Container service
 
       use \Symfony\Component\DependencyInjection\ContainerInterface;
 
-      class SomeService
+      final class SomeService
       {
         public function do(): void {}
       }
@@ -19,7 +19,7 @@ Feature: Container service
   Scenario: Asserting psalm recognizes return type of service got via 'ContainerInterface::get()'
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -33,7 +33,7 @@ Feature: Container service
   Scenario: Asserting psalm recognizes return type of service got via 'ContainerInterface::get()'.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -50,7 +50,7 @@ Feature: Container service
   Scenario: Container get(self::class) should not crash
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(ContainerInterface $container): void
         {

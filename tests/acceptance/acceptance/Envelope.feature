@@ -10,7 +10,7 @@ Feature: Messenger Envelope
       use Symfony\Component\Messenger\Envelope;
       use Symfony\Component\Messenger\Stamp\StampInterface;
 
-      class TestStamp implements StampInterface
+      final class TestStamp implements StampInterface
       {
           public function getDummy(): string
           {

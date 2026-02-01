@@ -40,8 +40,6 @@ class XmlFileLoader extends FileLoader
 {
     public const NS = 'http://symfony.com/schema/dic/services';
 
-    protected bool $autoRegisterAliasesForSinglyImplementedInterfaces = false;
-
     public function load(mixed $resource, ?string $type = null): mixed
     {
         $path = $this->locator->locate($resource);

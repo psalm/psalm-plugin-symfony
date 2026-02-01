@@ -16,7 +16,7 @@ use Twig\NodeTraverser;
  *
  * @psalm-suppress UnusedClass
  */
-class TemplateFileAnalyzer extends FileAnalyzer
+final class TemplateFileAnalyzer extends FileAnalyzer
 {
     private static string $rootPath = 'templates';
 
@@ -33,6 +33,7 @@ class TemplateFileAnalyzer extends FileAnalyzer
         self::$extensionClasses = $extensionClasses;
     }
 
+    #[\Override]
     public function analyze(
         ?PsalmContext $file_context = null,
         ?PsalmContext $global_context = null,

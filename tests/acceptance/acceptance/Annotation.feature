@@ -15,7 +15,7 @@ Feature: Annotation class
       /**
        * @Annotation
        */
-      class Foo
+      final class Foo
       {
         /**
          * @var string
@@ -33,7 +33,7 @@ Feature: Annotation class
       """
       <?php
 
-      class Foo
+      final class Foo
       {
         /**
          * @var string

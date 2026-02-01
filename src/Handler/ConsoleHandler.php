@@ -27,7 +27,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Webmozart\Assert\Assert;
 
-class ConsoleHandler implements AfterMethodCallAnalysisInterface
+final class ConsoleHandler implements AfterMethodCallAnalysisInterface
 {
     /**
      * @var Union[]
@@ -38,6 +38,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static array $options = [];
 
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $statements_source = $event->getStatementsSource();

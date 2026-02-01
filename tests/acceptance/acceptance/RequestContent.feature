@@ -14,7 +14,7 @@ Feature: Request getContent
   Scenario: Asserting '$request->getContent()' without any argument returns string
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(Request $request): void
         {
@@ -32,7 +32,7 @@ Feature: Request getContent
   Scenario: Asserting '$request->getContent(false)' returns string
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(Request $request): void
         {
@@ -50,7 +50,7 @@ Feature: Request getContent
   Scenario: Asserting '$request->getContent(true)' returns resource
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(Request $request): void
         {

@@ -13,7 +13,7 @@ Feature: RouteCollection
   Scenario: Assert router collection iterator return types
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(RouterInterface $router): void
         {
@@ -36,7 +36,7 @@ Feature: RouteCollection
   Scenario: Assert RouteCollection::all() return types
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(RouterInterface $router): void
         {

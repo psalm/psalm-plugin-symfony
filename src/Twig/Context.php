@@ -14,7 +14,7 @@ use Twig\Node\Node;
 use Twig\Node\PrintNode;
 use Twig\Source;
 
-class Context
+final class Context
 {
     /** @var array<string, DataFlowNode> */
     private $unassignedVariables = [];
