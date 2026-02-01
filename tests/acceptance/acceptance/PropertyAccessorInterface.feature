@@ -32,7 +32,7 @@ Feature: PropertyAccessorInterface
   Scenario: Set value keeps object instance if an object is passed
     Given I have the following code
       """
-      class Company
+      final class Company
       {
           public string $name = 'Acme';
       }
@@ -51,7 +51,7 @@ Feature: PropertyAccessorInterface
   Scenario: Set value does not modify the propertyAccessor variable
     Given I have the following code
       """
-      class Company
+      final class Company
       {
           public function __construct(
             private PropertyAccessorInterface $propertyAccessor,

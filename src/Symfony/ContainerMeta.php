@@ -15,6 +15,7 @@ use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpKernel\Kernel;
 
 final class ContainerMeta
 {
@@ -105,7 +106,18 @@ final class ContainerMeta
     private function init(array $containerXmlPaths): void
     {
         $this->container = new ContainerBuilder();
-        $xml = new XmlFileLoader($this->container, new FileLocator());
+
+        if (Kernel::MAJOR_VERSION >= 8) {
+            $xmlLoaderClass = XmlFileLoader::class;
+        } else {
+            $xmlLoaderClass = 'Symfony\Component\DependencyInjection\Loader\XmlFileLoader';
+        }
+
+        if (!class_exists($xmlLoaderClass)) {
+            throw new \RuntimeException("The loader class '$xmlLoaderClass' does not exist.");
+        }
+
+        $xml = new $xmlLoaderClass($this->container, new FileLocator());
 
         $containerXmlPath = null;
         foreach ($containerXmlPaths as $filePath) {
