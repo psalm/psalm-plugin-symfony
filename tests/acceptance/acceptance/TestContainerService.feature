@@ -17,7 +17,7 @@ Feature: Test Container service
 
       use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
-      class TestService extends KernelTestCase
+      final class TestService extends KernelTestCase
       {
         public function testService(): void
         {
@@ -38,7 +38,7 @@ Feature: Test Container service
 
       use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
-      class TestService extends WebTestCase
+      final class TestService extends WebTestCase
       {
         public function testService(): void
         {

@@ -16,7 +16,7 @@ Feature: ParameterBag return type detection if container.xml is provided
   Scenario: Asserting psalm recognizes return type of Symfony parameters for ParameterBag
     Given I have the following code
       """
-      class Foo
+      final class Foo
       {
         public function __invoke(ParameterBagInterface $parameterBag)
         {
@@ -58,7 +58,7 @@ Feature: ParameterBag return type detection if container.xml is provided
   Scenario: Asserting psalm recognizes return type of Symfony parameters for AbstractController
     Given I have the following code
       """
-      class Foo extends \Symfony\Bundle\FrameworkBundle\Controller\AbstractController
+      final class Foo extends \Symfony\Bundle\FrameworkBundle\Controller\AbstractController
       {
         public function __invoke()
         {
@@ -100,7 +100,7 @@ Feature: ParameterBag return type detection if container.xml is provided
   Scenario: Get non-existent parameter
     Given I have the following code
       """
-      class Foo
+      final class Foo
       {
         public function __invoke(ParameterBagInterface $parameterBag)
         {

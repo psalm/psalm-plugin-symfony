@@ -14,7 +14,7 @@ Feature: InputBag get return type
   Scenario: Return type is scalar for request property if default argument is string.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(Request $request): void
         {
@@ -31,7 +31,7 @@ Feature: InputBag get return type
   Scenario Outline: Return type is string if default argument is string.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(Request $request): void
         {
@@ -53,7 +53,7 @@ Feature: InputBag get return type
   Scenario: Return type is nullable for request property if default argument is not provided.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(Request $request): void
         {
@@ -71,7 +71,7 @@ Feature: InputBag get return type
   Scenario Outline: Return type is nullable if default argument is not provided.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(Request $request): void
         {

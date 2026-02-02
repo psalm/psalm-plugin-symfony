@@ -50,11 +50,13 @@ Feature: Serializer interface
 
       final class Serializer implements SerializerInterface
       {
+        #[\Override]
         public function serialize(mixed $data, string $format, array $context = []): string
         {
           return '';
         }
 
+        #[\Override]
         public function deserialize(mixed $data, string $type, string $format, array $context = []): mixed
         {
           return [];
