@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-class CachedTemplateNotFoundException extends \Exception
+final class CachedTemplateNotFoundException extends \Exception
 {
     public function __construct()
     {

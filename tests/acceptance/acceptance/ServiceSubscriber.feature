@@ -17,7 +17,7 @@ Feature: Service Subscriber
       use Symfony\Contracts\Service\ServiceSubscriberInterface;
       use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-      class DummyController implements ServiceSubscriberInterface
+      final class DummyController implements ServiceSubscriberInterface
       {
         private $container;
 
@@ -26,6 +26,7 @@ Feature: Service Subscriber
           $this->container = $container;
         }
 
+        #[\Override]
         public static function getSubscribedServices(): array
         {
           return [

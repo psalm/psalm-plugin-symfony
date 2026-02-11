@@ -19,13 +19,15 @@ use Twig\Environment;
 /**
  * This hook transforms a call to `Twig\Environment::render()` in a call to the actual twig compiled template `doDisplay()` method.
  */
-class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
+final class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
 {
+    #[\Override]
     public static function getClassLikeNames(): array
     {
         return [Environment::class];
     }
 
+    #[\Override]
     public static function getMethodReturnType(MethodReturnTypeProviderEvent $event): ?Union
     {
         $source = $event->getSource();

@@ -17,8 +17,9 @@ Feature: ConsoleArgument
   Scenario: Using argument mode other than defined constants raises issue
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addArgument('required_string', 1, 'String required argument');
@@ -34,8 +35,9 @@ Feature: ConsoleArgument
   Scenario: Asserting arguments return types have inferred (without error)
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addArgument(
@@ -52,6 +54,7 @@ Feature: ConsoleArgument
           $this->addArgument('required_array', InputArgument::REQUIRED | InputArgument::IS_ARRAY);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -74,8 +77,9 @@ Feature: ConsoleArgument
   Scenario: Asserting arguments return types have inferred (without error) using Definition array
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->setDefinition([
@@ -84,6 +88,7 @@ Feature: ConsoleArgument
           ]);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -108,8 +113,9 @@ Feature: ConsoleArgument
       """
       use Symfony\Component\Console\Input\InputDefinition;
 
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->setDefinition(new InputDefinition([
@@ -118,6 +124,7 @@ Feature: ConsoleArgument
           ]));
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -140,15 +147,17 @@ Feature: ConsoleArgument
   Scenario: Asserting arguments return types have inferred with const name
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
         const FOO_ARGUMENT_NAME = 'foo_argument_name';
 
+        #[\Override]
         public function configure(): void
         {
           $this->addArgument(self::FOO_ARGUMENT_NAME, InputArgument::REQUIRED);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -167,8 +176,9 @@ Feature: ConsoleArgument
   Scenario: Asserting string arguments return types have inferred
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this
@@ -183,6 +193,7 @@ Feature: ConsoleArgument
           ;
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -229,8 +240,9 @@ Feature: ConsoleArgument
   Scenario Outline: Asserting array arguments return types have inferred
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this
@@ -238,6 +250,7 @@ Feature: ConsoleArgument
           ;
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg1 */
@@ -261,7 +274,7 @@ Feature: ConsoleArgument
   Scenario: Assert using ternary operator as argument mode does not raise false positive
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
         private bool $foo;
 
@@ -270,11 +283,13 @@ Feature: ConsoleArgument
           $this->foo = $foo;
         }
 
+        #[\Override]
         public function configure(): void
         {
           $this->addArgument('arg', $this->foo ? InputArgument::REQUIRED : InputArgument::OPTIONAL);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $arg */
@@ -293,8 +308,9 @@ Feature: ConsoleArgument
   Scenario: Use suggested values for argument
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addArgument(
@@ -310,6 +326,7 @@ Feature: ConsoleArgument
           );
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           return self::SUCCESS;

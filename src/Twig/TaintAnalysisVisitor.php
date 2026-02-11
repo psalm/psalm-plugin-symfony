@@ -12,7 +12,7 @@ use Twig\Node\PrintNode;
 use Twig\Node\SetNode;
 use Twig\NodeVisitor\NodeVisitorInterface;
 
-class TaintAnalysisVisitor implements NodeVisitorInterface
+final class TaintAnalysisVisitor implements NodeVisitorInterface
 {
     /** @var Context */
     private $context;
@@ -22,6 +22,7 @@ class TaintAnalysisVisitor implements NodeVisitorInterface
         $this->context = $context;
     }
 
+    #[\Override]
     public function enterNode(Node $node, Environment $env): Node
     {
         if ($node instanceof PrintNode) {
@@ -47,11 +48,13 @@ class TaintAnalysisVisitor implements NodeVisitorInterface
         return $node;
     }
 
+    #[\Override]
     public function leaveNode(Node $node, Environment $env): ?Node
     {
         return $node;
     }
 
+    #[\Override]
     public function getPriority()
     {
         return 0;

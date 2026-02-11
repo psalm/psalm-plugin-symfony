@@ -12,8 +12,9 @@ use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 use Psalm\Storage\ClassLikeStorage;
 
-class RequiredSetterHandler implements AfterClassLikeVisitInterface
+final class RequiredSetterHandler implements AfterClassLikeVisitInterface
 {
+    #[\Override]
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event)
     {
         $stmt = $event->getStmt();

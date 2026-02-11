@@ -5,7 +5,7 @@ namespace Psalm\SymfonyPsalmPlugin\Issue;
 use Psalm\CodeLocation;
 use Psalm\Issue\PluginIssue;
 
-class ContainerDependency extends PluginIssue
+final class ContainerDependency extends PluginIssue
 {
     public function __construct(CodeLocation $code_location)
     {

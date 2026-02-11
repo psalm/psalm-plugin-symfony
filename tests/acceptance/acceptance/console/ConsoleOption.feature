@@ -17,8 +17,9 @@ Feature: ConsoleOption
   Scenario: Using option mode other than defined constants raises issue
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('option', null, 1);
@@ -34,8 +35,9 @@ Feature: ConsoleOption
   Scenario: Asserting options return types have inferred (without error)
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('required_array', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY);
@@ -43,6 +45,7 @@ Feature: ConsoleOption
           $this->addOption('boolean', null, InputOption::VALUE_NONE);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
@@ -69,8 +72,9 @@ Feature: ConsoleOption
   Scenario: Asserting options return types have inferred (without error), with a default value
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('option1', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
@@ -81,6 +85,7 @@ Feature: ConsoleOption
           $this->addOption('option6', null, InputOption::VALUE_OPTIONAL, '', 'default');
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $option1 */
@@ -119,8 +124,9 @@ Feature: ConsoleOption
   Scenario: Asserting options return types have inferred with -- prefix in names
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('--option1', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, '', []);
@@ -128,6 +134,7 @@ Feature: ConsoleOption
           $this->addOption('--option3', null, InputOption::VALUE_NONE, '', true);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $option1 */
@@ -156,8 +163,9 @@ Feature: ConsoleOption
       """
       use Symfony\Component\Console\Input\InputDefinition;
 
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->setDefinition(new InputDefinition([
@@ -167,6 +175,7 @@ Feature: ConsoleOption
           ]));
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
@@ -195,8 +204,9 @@ Feature: ConsoleOption
       """
       use Symfony\Component\Console\Input\InputDefinition;
 
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->setDefinition([
@@ -206,6 +216,7 @@ Feature: ConsoleOption
           ]);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string = $input->getOption('required_string');
@@ -232,8 +243,9 @@ Feature: ConsoleOption
   Scenario: Asserting options return types have inferred (with errors)
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('optional_string1');
@@ -242,6 +254,7 @@ Feature: ConsoleOption
           $this->addOption('optional_array', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY);
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $string1 = $input->getOption('optional_string1');
@@ -274,13 +287,15 @@ Feature: ConsoleOption
   Scenario: Cannot evaluate dynamic option names
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('foo');
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           $optionName = 'foo';
@@ -301,8 +316,9 @@ Feature: ConsoleOption
   Scenario: Using suggested values for option
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption(
@@ -319,6 +335,7 @@ Feature: ConsoleOption
           );
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           return self::SUCCESS;

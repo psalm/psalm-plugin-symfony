@@ -14,8 +14,9 @@ use Psalm\Type\TaintKindGroup;
 use Psalm\Type\Union;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
-class HeaderBagHandler implements MethodReturnTypeProviderInterface
+final class HeaderBagHandler implements MethodReturnTypeProviderInterface
 {
+    #[\Override]
     public static function getClassLikeNames(): array
     {
         return [
@@ -23,6 +24,7 @@ class HeaderBagHandler implements MethodReturnTypeProviderInterface
         ];
     }
 
+    #[\Override]
     public static function getMethodReturnType(MethodReturnTypeProviderEvent $event): ?Union
     {
         $fq_classlike_name = $event->getFqClasslikeName();

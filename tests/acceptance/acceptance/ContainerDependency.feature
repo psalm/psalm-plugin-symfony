@@ -12,7 +12,7 @@ Feature: ContainerDependency
       """
       <?php
       use Symfony\Component\DependencyInjection\ContainerInterface;
-      class SomeService
+      final class SomeService
       {
         public function __construct(ContainerInterface $container)
         {
@@ -30,7 +30,7 @@ Feature: ContainerDependency
       """
       <?php
       use Symfony\Component\DependencyInjection\ContainerInterface;
-      class SomeService
+      final class SomeService
       {
         /** @psalm-suppress ContainerDependency */
         public function __construct(ContainerInterface $container)

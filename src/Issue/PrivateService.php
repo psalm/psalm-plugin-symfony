@@ -5,7 +5,7 @@ namespace Psalm\SymfonyPsalmPlugin\Issue;
 use Psalm\CodeLocation;
 use Psalm\Issue\PluginIssue;
 
-class PrivateService extends PluginIssue
+final class PrivateService extends PluginIssue
 {
     public function __construct(string $id, CodeLocation $code_location)
     {

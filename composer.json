@@ -12,14 +12,15 @@
     "require": {
         "php": ">=8.1",
         "ext-simplexml": "*",
-        "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0",
+        "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
+        "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "vimeo/psalm": "^6 || dev-master"
     },
     "require-dev": {
         "doctrine/annotations": "^1.8|^2",
         "doctrine/orm": "^2.9",
         "phpunit/phpunit": "~7.5 || ~9.5",
-        "symfony/cache-contracts": "^1.0 || ^2.0",
+        "symfony/cache-contracts": "^1.0 || ^2.0 || ^3.0",
         "symfony/console": "*",
         "symfony/form": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/messenger": "^5.0 || ^6.0 || ^7.0 || ^8.0",

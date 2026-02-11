@@ -8,7 +8,7 @@ Feature: Form factory
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\FormFactoryInterface;
       use Symfony\Component\Form\Extension\Core\Type\CollectionType;

@@ -27,8 +27,9 @@ use Symfony\Component\HttpKernel\Kernel;
 /**
  * @psalm-suppress UnusedClass
  */
-class Plugin implements PluginEntryPointInterface
+final class Plugin implements PluginEntryPointInterface
 {
+    #[\Override]
     public function __invoke(RegistrationInterface $registration, ?\SimpleXMLElement $config = null): void
     {
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
@@ -88,8 +89,10 @@ class Plugin implements PluginEntryPointInterface
 
         $registration->registerHooksFromClass(ContainerHandler::class);
 
+        $symfonyMajorVersion = (string) ($config->symfonyMajorVersion ?? Kernel::MAJOR_VERSION);
+
         $this->addStubs($registration, __DIR__.'/Stubs/common');
-        $this->addStubs($registration, __DIR__.'/Stubs/'.($config->symfonyMajorVersion ?? Kernel::MAJOR_VERSION));
+        $this->addStubs($registration, __DIR__.'/Stubs/'.$symfonyMajorVersion);
         $this->addStubs($registration, __DIR__.'/Stubs/php');
 
         if (isset($config->twigCachePath)) {

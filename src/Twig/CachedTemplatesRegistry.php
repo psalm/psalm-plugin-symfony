@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-class CachedTemplatesRegistry
+final class CachedTemplatesRegistry
 {
     /**
      * @var array<string, string>

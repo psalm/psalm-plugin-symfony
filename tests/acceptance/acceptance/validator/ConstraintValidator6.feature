@@ -12,10 +12,11 @@ Feature: ConstraintValidator
       use Symfony\Component\Validator\Constraint;
       use Symfony\Component\Validator\ConstraintValidator;
 
-      class CustomValidator extends ConstraintValidator
+      final class CustomValidator extends ConstraintValidator
       {
           public function __construct() {}
 
+          #[\Override]
           public function validate(mixed $value, Constraint $constraint): void
           {
               if ($value) {

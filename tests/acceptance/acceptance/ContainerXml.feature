@@ -18,7 +18,7 @@ Feature: Container XML config
   Scenario: Asserting psalm recognizes return type of service got via 'ContainerInterface::get() using service ID'
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): bool
         {
@@ -32,7 +32,7 @@ Feature: Container XML config
   Scenario: Psalm emits when service ID not found in container'
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -48,7 +48,7 @@ Feature: Container XML config
   Scenario: Using service both via alias and class const
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -63,7 +63,7 @@ Feature: Container XML config
   Scenario: Using private service
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {

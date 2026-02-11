@@ -16,13 +16,15 @@ Feature: ConsoleArgument named arguments with PHP8
   Scenario: Assert adding console argument skipping default arguments with named arguments works as expected
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         protected function configure(): void
         {
           $this->addArgument('test', default: 'test');
         }
 
+        #[\Override]
         protected function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $argument */
@@ -41,13 +43,15 @@ Feature: ConsoleArgument named arguments with PHP8
   Scenario: Assert adding console argument with only named arguments works as expected
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         protected function configure(): void
         {
           $this->addArgument(name: 'test', description: 'foo', mode: InputArgument::OPTIONAL, default: 'test');
         }
 
+        #[\Override]
         protected function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $argument */

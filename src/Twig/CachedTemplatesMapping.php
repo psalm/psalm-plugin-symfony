@@ -10,7 +10,7 @@ use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 /**
  * This class is used to store a mapping of all analyzed twig template cache files with their corresponding actual templates.
  */
-class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
+final class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
 {
     /**
      * @var string
@@ -24,6 +24,7 @@ class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
 
     private static ?CachedTemplatesRegistry $cacheRegistry = null;
 
+    #[\Override]
     public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
     {
         $codebase = $event->getCodebase();
