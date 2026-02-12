@@ -79,12 +79,19 @@ jobs:
           - 6
           - 7.0
           - 7.4
+          - 8.0
 
         exclude:
           - php-version: 8.1
             symfony-version: 7.0
           - php-version: 8.1
             symfony-version: 7.4
+          - php-version: 8.1
+            symfony-version: 8.0
+          - php-version: 8.2
+            symfony-version: 8.0
+          - php-version: 8.3
+            symfony-version: 8.0
 
     steps:
       - name: "Checkout"
