@@ -6,7 +6,9 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
+use Psalm\Codebase;
 use Psalm\CodeLocation;
+use Psalm\Internal\MethodIdentifier;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
@@ -20,9 +22,14 @@ use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\Type\Atomic\TArray;
+use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, BeforeAddIssueInterface
 {
@@ -68,6 +75,7 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
         if (!$firstArg instanceof Arg) {
             return;
         }
+        $secondArg = $expr->args[1] ?? null;
 
         if (!self::isContainerMethod($declaring_method_id, 'get')) {
             if (self::isContainerMethod($declaring_method_id, 'getparameter')) {
@@ -78,6 +86,13 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
                         $statements_source->getSuppressedIssues()
                     );
                 }
+            }
+
+            // when calling `$denormalizer->denormalize([], Foo::class)` mark constructor of Foo as used
+            if (self::isDenormalizerMethod($declaring_method_id) && $secondArg instanceof Arg && ($value = $secondArg->value) instanceof ClassConstFetch) {
+                $className = $value->class->getAttribute('resolvedName');
+                $visited = [];
+                self::markConstructorChainAsUsed($className, $codebase, $declaring_method_id, $visited);
             }
 
             return;
@@ -235,5 +250,80 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
     private static function followsNamingConvention(string $name): bool
     {
         return !preg_match('/[A-Z]/', $name);
+    }
+
+    private static function isDenormalizerMethod(string $methodName): bool
+    {
+        if (!str_starts_with($methodName, 'Symfony\Component\Serializer\\')) {
+            return false;
+        }
+
+        return str_ends_with($methodName, 'denormalize') || str_ends_with($methodName, 'deserialize');
+    }
+
+    /**
+     * Marks the constructor of $className as used, then recurses into all
+     * property types to mark their constructors as used too. This is needed
+     * because Symfony's Serializer constructs the full object graph at
+     * runtime without any static instantiation in PHP code.
+     *
+     * @param array<string, true> $visited guard against circular references
+     */
+    private static function markConstructorChainAsUsed(string $className, Codebase $codebase, string $callingMethodId, array &$visited): void
+    {
+        if (isset($visited[$className])) {
+            return;
+        }
+        $visited[$className] = true;
+
+        $codebase->methodExists(new MethodIdentifier($className, '__construct'), null, $callingMethodId);
+
+        if (!$codebase->classlike_storage_provider->has($className)) {
+            return;
+        }
+
+        $classStorage = $codebase->classlike_storage_provider->get($className);
+
+        foreach ($classStorage->properties as $propertyStorage) {
+            $type = $propertyStorage->type ?? $propertyStorage->signature_type;
+            if (null === $type) {
+                continue;
+            }
+            foreach (self::extractNamedObjectClassNames($type) as $nestedClassName) {
+                self::markConstructorChainAsUsed($nestedClassName, $codebase, $callingMethodId, $visited);
+            }
+        }
+    }
+
+    /**
+     * Recursively extracts fully-qualified class names from a Union type,
+     * unwrapping array containers (SubObject[], array<K,V>, list<SubObject>)
+     * so that collection-typed properties are also followed.
+     *
+     * @return list<string>
+     */
+    private static function extractNamedObjectClassNames(Union $type): array
+    {
+        $classNames = [];
+        foreach ($type->getAtomicTypes() as $atomic) {
+            if ($atomic instanceof TNamedObject) {
+                $classNames[] = $atomic->value;
+            } elseif ($atomic instanceof TKeyedArray) {
+                // covers list<SubObject>, non-empty-list<SubObject>, and array{key: SubObject}
+                // for list<T>, properties[0] already holds T (same as fallback_params[1])
+                foreach ($atomic->properties as $propType) {
+                    foreach (self::extractNamedObjectClassNames($propType) as $name) {
+                        $classNames[] = $name;
+                    }
+                }
+            } elseif ($atomic instanceof TArray) {
+                // covers SubObject[] (array<array-key, SubObject>) and TNonEmptyArray
+                foreach (self::extractNamedObjectClassNames($atomic->type_params[1]) as $name) {
+                    $classNames[] = $name;
+                }
+            }
+        }
+
+        return $classNames;
     }
 }
