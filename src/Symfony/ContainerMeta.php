@@ -138,6 +138,10 @@ final class ContainerMeta
                 continue;
             }
 
+            if ($definition->hasTag('container.excluded')) {
+                continue;
+            }
+
             $definitionFactory = $definition->getFactory();
             if ($definition->hasTag('container.service_locator_context') && is_array($definitionFactory)) {
                 /** @var Reference $reference */

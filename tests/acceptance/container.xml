@@ -100,5 +100,12 @@
       <argument type="service" id="service_container"/>
       <factory service=".service_locator.890xyz" method="withContext"/>
     </service>
+    <!-- excluded services still present in debug container -->
+    <service id=".abstract.App\FooInterface" class="App\FooInterface" autowire="true" autoconfigure="true" abstract="true">
+      <tag name="container.excluded" source="because the class is abstract"/>
+    </service>
+    <service id="App\Exception\FooException" class="App\Exception\FooException" abstract="true">
+      <tag name="container.excluded" source="in &quot;config/services.php&quot;"/>
+    </service>
   </services>
 </container>

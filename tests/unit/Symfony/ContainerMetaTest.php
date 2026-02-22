@@ -66,6 +66,14 @@ class ContainerMetaTest extends TestCase
         ];
     }
 
+    public function testGetClassesDoesNotContainExcludedServices(): void
+    {
+        $classNames = $this->containerMeta->getClassNames();
+
+        $this->assertNotContains('App\Exception\FooException', $classNames);
+        $this->assertNotContains('App\FooInterface', $classNames);
+    }
+
     /**
      * @testdox with non-existent xml file
      */
