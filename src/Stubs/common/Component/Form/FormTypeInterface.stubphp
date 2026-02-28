@@ -6,6 +6,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * @template T
+ * @implements \ArrayAccess<int|string, FormView>
+ * @implements \IteratorAggregate<int|string, FormView>
  */
 interface FormTypeInterface
 {

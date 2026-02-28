@@ -5,6 +5,7 @@ namespace Symfony\Component\Form;
 /**
  * @template T
  * @implements FormInterface<T>
+ * @implements \IteratorAggregate<string, FormInterface>
  */
 class Form implements \IteratorAggregate, FormInterface, ClearableErrorsInterface
 {

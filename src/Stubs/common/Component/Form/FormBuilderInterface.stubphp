@@ -6,6 +6,7 @@ use Symfony\Component\Form\FormTypeInterface;
 
 /**
  * @template T
+ * @template-extends \Traversable<string, FormBuilderInterface>
  * @template-extends FormConfigBuilderInterface<T>
  */
 interface FormBuilderInterface extends \Traversable, \Countable, FormConfigBuilderInterface
