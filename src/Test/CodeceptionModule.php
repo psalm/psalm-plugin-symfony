@@ -77,6 +77,22 @@ final class CodeceptionModule extends BaseModule
     }
 
     /**
+     * @Given I have the following file :filename :code
+     */
+    public function haveTheFollowingFile(string $filename, PyStringNode $code): void
+    {
+        $rootDirectory = rtrim($this->config['default_dir'], DIRECTORY_SEPARATOR);
+        $filePath = $rootDirectory.DIRECTORY_SEPARATOR.ltrim($filename, DIRECTORY_SEPARATOR);
+        $directory = dirname($filePath);
+
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        file_put_contents($filePath, $code->getRaw());
+    }
+
+    /**
      * @Given the :templateName template is compiled in the :cacheDirectory directory
      */
     public function haveTheTemplateCompiled(string $templateName, string $cacheDirectory): void
