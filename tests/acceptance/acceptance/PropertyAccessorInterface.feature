@@ -1,4 +1,4 @@
-@symfony-7
+@symfony-7 @symfony-8
 Feature: PropertyAccessorInterface
 
   Background:

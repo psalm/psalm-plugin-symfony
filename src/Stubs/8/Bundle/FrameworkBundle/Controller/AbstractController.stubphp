@@ -10,10 +10,9 @@ use Symfony\Component\Form\FormTypeInterface;
 abstract class AbstractController implements ServiceSubscriberInterface
 {
     /**
-     * @var ContainerInterface
      * @psalm-suppress PropertyNotSetInConstructor
      */
-    protected $container;
+    protected ContainerInterface $container;
 
     /**
      * @template TData
@@ -23,5 +22,5 @@ abstract class AbstractController implements ServiceSubscriberInterface
      *
      * @psalm-return FormInterface<TData>
      */
-    protected function createForm(string $type, $data = null, array $options = []): FormInterface {}
+    protected function createForm(string $type, mixed $data = null, array $options = []): FormInterface {}
 }
