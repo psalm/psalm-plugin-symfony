@@ -76,14 +76,11 @@ jobs:
           - 8.4
 
         symfony-version:
-          - 6
-          - 7.0
+          - 6.4
           - 7.4
           - 8.0
 
         exclude:
-          - php-version: 8.1
-            symfony-version: 7.0
           - php-version: 8.1
             symfony-version: 7.4
           - php-version: 8.1
@@ -116,5 +113,8 @@ jobs:
       - name: "Build acceptance tests with codeception"
         run: vendor/bin/codecept build
 
+      - name: "Determine major Symfony version for test group matching"
+        run: echo "SYMFONY_MAJOR=$(echo ${{ matrix.symfony-version }} | cut -d. -f1)" >> $GITHUB_ENV
+
       - name: "Run acceptance tests with codeception"
-        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
+        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }} -g symfony-${{ env.SYMFONY_MAJOR }}

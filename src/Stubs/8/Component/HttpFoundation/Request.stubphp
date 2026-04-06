@@ -7,15 +7,15 @@ class Request
     /**
      * @psalm-var InputBag
      */
-    public $request;
+    public InputBag $request;
 
     /**
      * @psalm-var InputBag<string>
      */
-    public $query;
+    public InputBag $query;
 
     /**
      * @psalm-var InputBag<string>
      */
-    public $cookies;
+    public InputBag $cookies;
 }

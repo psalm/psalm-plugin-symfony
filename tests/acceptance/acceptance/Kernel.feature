@@ -1,4 +1,4 @@
-@symfony-5 @symfony-6
+@symfony-6 @symfony-7 @symfony-8
 Feature: Kernel
 
   Background:

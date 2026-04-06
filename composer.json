@@ -12,20 +12,19 @@
     "require": {
         "php": ">=8.1",
         "ext-simplexml": "*",
-        "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
-        "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
+        "symfony/expression-language": "^6.4 || ^7.4 || ^8.0",
+        "symfony/framework-bundle": "^6.4 || ^7.4 || ^8.0",
         "vimeo/psalm": "^6 || dev-master"
     },
     "require-dev": {
-        "doctrine/annotations": "^1.8|^2",
         "doctrine/orm": "^2.9 || ^3.6",
         "phpunit/phpunit": "~7.5 || ~9.5",
         "symfony/cache-contracts": "^1.0 || ^2.0 || ^3.0",
         "symfony/console": "*",
-        "symfony/form": "^5.0 || ^6.0 || ^7.0 || ^8.0",
-        "symfony/messenger": "^5.0 || ^6.0 || ^7.0 || ^8.0",
+        "symfony/form": "^6.4 || ^7.4 || ^8.0",
+        "symfony/messenger": "^6.4 || ^7.4 || ^8.0",
         "symfony/security-core": "*",
-        "symfony/serializer": "^5.0 || ^6.0 || ^7.0 || ^8.0",
+        "symfony/serializer": "^6.4 || ^7.4 || ^8.0",
         "symfony/validator": "*",
         "twig/twig": "^2.10 || ^3.0",
         "weirdan/codeception-psalm-module": "dev-master"

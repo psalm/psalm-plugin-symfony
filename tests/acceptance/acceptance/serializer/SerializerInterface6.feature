@@ -1,4 +1,4 @@
-@symfony-6
+@symfony-6 @symfony-7 @symfony-8
 Feature: Serializer interface
   Detect SerializerInterface::deserialize() result type
 
