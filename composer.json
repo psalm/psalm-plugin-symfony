@@ -12,7 +12,6 @@
     "require": {
         "php": ">=8.1",
         "ext-simplexml": "*",
-        "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "vimeo/psalm": "^6 || dev-master"
     },
@@ -22,6 +21,7 @@
         "phpunit/phpunit": "~7.5 || ~9.5",
         "symfony/cache-contracts": "^1.0 || ^2.0 || ^3.0",
         "symfony/console": "*",
+        "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/form": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/messenger": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/security-core": "*",
