@@ -6,7 +6,7 @@ use Psalm\CodeLocation;
 use Psalm\Issue\PluginIssue;
 
 /**
- * @see https://www.doctrine-project.org/projects/doctrine-orm/en/2.8/reference/query-builder.html#binding-parameters-to-your-query
+ * @see https://www.doctrine-project.org/projects/doctrine-orm/en/latest/reference/query-builder.html#binding-parameters-to-your-query
  */
 final class QueryBuilderSetParameter extends PluginIssue
 {
