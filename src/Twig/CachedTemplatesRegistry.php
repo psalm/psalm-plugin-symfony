@@ -11,6 +11,9 @@ final class CachedTemplatesRegistry
      */
     private $mapping = [];
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
     public function addTemplate(string $cacheClassName, string $templateName): void
     {
         $this->mapping[$templateName] = $cacheClassName;
@@ -35,6 +38,8 @@ final class CachedTemplatesRegistry
 
     /**
      * @return \Generator<string>
+     *
+     * @psalm-capabilities read-props
      */
     private static function generateNames(string $baseName): \Generator
     {

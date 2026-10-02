@@ -235,6 +235,8 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
      * @param array<Arg> $args
      *
      * @psalm-return array{name: Arg, shortcut: ?Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     *
+     * @psalm-pure
      */
     private static function normalizeOptionParams(array $args): array
     {
@@ -245,12 +247,17 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
      * @param array<Arg> $args
      *
      * @psalm-return array{name: Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     *
+     * @psalm-pure
      */
     private static function normalizeArgumentParams(array $args): array
     {
         return self::normalizeParams(['name', 'mode', 'description', 'default', 'suggestedValues'], $args);
     }
 
+    /**
+     * @psalm-pure
+     */
     private static function normalizeParams(array $params, array $args): array
     {
         $result = array_fill_keys($params, null);
@@ -298,6 +305,9 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
         throw new InvalidConsoleModeException();
     }
 
+    /**
+     * @psalm-capabilities read-props
+     */
     private static function getNodeIdentifier(Expr $expr): ?string
     {
         if ($expr instanceof String_) {

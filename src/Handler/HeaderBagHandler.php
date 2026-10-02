@@ -10,12 +10,15 @@ use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TInt;
 use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
-use Psalm\Type\TaintKindGroup;
+use Psalm\Type\TaintKind;
 use Psalm\Type\Union;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
 final class HeaderBagHandler implements MethodReturnTypeProviderInterface
 {
+    /**
+     * @psalm-pure
+     */
     #[\Override]
     public static function getClassLikeNames(): array
     {
@@ -45,12 +48,7 @@ final class HeaderBagHandler implements MethodReturnTypeProviderInterface
 
         if ($call_args[0]->value instanceof String_ && 'user-agent' === $call_args[0]->value->value) {
             $uniqId = $source->getFileName().':'.$code_location->getLineNumber().'-'.$code_location->getColumn();
-            $source->getCodebase()->addTaintSource(
-                $type,
-                'tainted-'.$uniqId,
-                TaintKindGroup::ALL_INPUT,
-                $code_location
-            );
+            $type = $source->getCodebase()->addTaintSource($type, 'tainted-'.$uniqId, $code_location, TaintKind::ALL_INPUT);
         }
 
         return $type;

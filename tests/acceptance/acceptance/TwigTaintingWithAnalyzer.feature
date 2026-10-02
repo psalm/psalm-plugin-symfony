@@ -35,6 +35,7 @@ Feature: Twig tainting with analyzer
       /**
        * @psalm-suppress InvalidReturnType
        * @return Environment
+       * @psalm-capabilities read-props
        */
       function twig() {}
       """

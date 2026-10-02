@@ -8,7 +8,6 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
-use Psalm\CodeLocation;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
@@ -53,24 +52,20 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         }
 
         // Taints going _in_ the template
-        $methodNode = DataFlowNode::getForMethodArgument(
-            $method_id,
-            $method_id,
-            1,
-            new CodeLocation($statements_source, $expr->args[1]),
-            new CodeLocation($statements_source, $expr->name)
-        );
+        $methodNode = DataFlowNode::getForMethodArgumentById($codebase->methods, $method_id, 1);
+        if (null === $methodNode) {
+            return;
+        }
 
         $templateParameters = self::generateTemplateParameters($expr->args[1]->value, $statements_source);
         foreach ($templateParameters as $parameterName) {
-            $label = $argumentId = strtolower($templateName).'#'.strtolower($parameterName);
-            $destinationNode = new DataFlowNode($argumentId, $label, null, null);
+            $destinationNode = Context::getForTemplateVariable(strtolower($templateName).'#'.strtolower($parameterName));
 
             $codebase->taint_flow_graph->addPath($methodNode, $destinationNode, 'arg');
         }
 
         // Taints going _out_ of the template
-        $source = new DataFlowNode($templateName, $templateName, null);
+        $source = Context::getForTemplate($templateName);
         $return_type_candidate = $event->getReturnTypeCandidate();
         if (null !== $return_type_candidate) {
             foreach ($return_type_candidate->parent_nodes as $sink) {
