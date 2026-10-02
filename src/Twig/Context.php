@@ -8,6 +8,7 @@ use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Environment;
+use Twig\Error\Error;
 use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
@@ -227,7 +228,12 @@ final class Context
             return self::$contextVariables[$templateName];
         }
 
-        $tree = $this->twig->parse($this->twig->tokenize($this->twig->getLoader()->getSourceContext($templateName)));
+        try {
+            $tree = $this->twig->parse($this->twig->tokenize($this->twig->getLoader()->getSourceContext($templateName)));
+        } catch (Error) {
+            // a template the analysis cannot load or parse: its own analysis reports why
+            return self::$contextVariables[$templateName] = [];
+        }
 
         $assigned = [];
         $read = [];

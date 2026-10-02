@@ -428,3 +428,15 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: A twig template the analysis cannot parse is skipped
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|some_unknown_filter }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
