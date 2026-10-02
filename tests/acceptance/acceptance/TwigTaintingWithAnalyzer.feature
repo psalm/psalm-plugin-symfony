@@ -16,7 +16,7 @@ Feature: Twig tainting with analyzer
         </projectFiles>
         <fileExtensions>
            <extension name=".php" />
-           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php"/>
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
         </fileExtensions>
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
@@ -50,6 +50,21 @@ Feature: Twig tainting with analyzer
       <h1>
         Nothing.
       </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A template generating PHP code is not parsed as PHP
+    Given I have the following code
+      """
+      twig()->render('index.php.twig', ['name' => 'Foo']);
+      """
+    And I have the following "index.php.twig" template
+      """
+      <?php
+
+      final class {{ name }} {
+      }
       """
     When I run Psalm with taint analysis
     And I see no errors
@@ -243,7 +258,7 @@ Feature: Twig tainting with analyzer
         </projectFiles>
         <fileExtensions>
            <extension name=".php" />
-           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php"/>
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
         </fileExtensions>
         <plugins>
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
