@@ -43,7 +43,8 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             return;
         }
 
-        $loader = new FilesystemLoader(self::$rootPath, $codebase->config->base_dir);
+        // a template outside of the root is named after its path in the project
+        $loader = new FilesystemLoader([self::$rootPath, '.'], $codebase->config->base_dir);
         $twig = new Environment($loader, [
             'cache' => false,
             'auto_reload' => true,
@@ -57,11 +58,13 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             }
         }
 
-        $local_file_name = str_replace(self::$rootPath.'/', '', $this->file_name);
+        $local_file_name = str_starts_with($this->file_name, self::$rootPath.'/')
+            ? substr($this->file_name, \strlen(self::$rootPath) + 1)
+            : $this->file_name;
         $twig_source = $loader->getSourceContext($local_file_name);
         $tree = $twig->parse($twig->tokenize($twig_source));
 
-        $twigContext = new Context($twig_source, $taint);
+        $twigContext = new Context($twig_source, $taint, $twig);
 
         $traverser = new NodeTraverser($twig, [
             new TaintAnalysisVisitor($twigContext),

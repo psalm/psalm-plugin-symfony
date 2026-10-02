@@ -270,3 +270,161 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: A tainted attribute of a parameter of the twig template is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['user' => ['name' => $_GET['untrusted']]]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ user.name|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted attribute of a parameter of the twig template is displayed with autoescaping on
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['user' => ['name' => $_GET['untrusted']]]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ user.name }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: The items of a tainted parameter of the twig template are displayed in a loop with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['items' => [$_GET['untrusted']]]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% for item in items %}
+        <li>{{ item|raw }}</li>
+      {% endfor %}
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A variable set from an expression using a tainted parameter is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% set greeting = 'Hello ' ~ untrusted %}
+      <h1>{{ greeting|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter of the twig template is displayed with only the raw filter, then escaped
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      <p>{{ untrusted }}</p>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter is displayed with only the raw filter by an included template
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{% include 'part.html.twig' %}</h1>
+      """
+    And I have the following "part.html.twig" template
+      """
+      {{ untrusted|raw }}
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter given to an included template with `with` is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{% include 'part.html.twig' with {value: untrusted} %}</h1>
+      """
+    And I have the following "part.html.twig" template
+      """
+      {{ value|raw }}
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: An included template only given its own variables does not display a tainted parameter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{% include 'part.html.twig' with {value: 'safe'} only %}</h1>
+      """
+    And I have the following "part.html.twig" template
+      """
+      {{ value|raw }} {{ untrusted|raw }}
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: One tainted parameter of a twig template outside of the template root directory is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('views/index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And the template root directory is "views"
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    And the template root directory is "templates"
+    And I have the following "layout.html.twig" template
+      """
+      <html></html>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors

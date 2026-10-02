@@ -8,6 +8,7 @@ use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\Node;
 use Twig\Node\PrintNode;
 
 final class PrintNodeAnalyzer
@@ -26,46 +27,52 @@ final class PrintNodeAnalyzer
     public function analyzePrintNode(PrintNode $node): void
     {
         $expression = $node->getNode('expr');
+
         if (!$expression instanceof AbstractExpression) {
             throw new \RuntimeException('The expr node has an expected type.');
         }
 
-        if ($this->expressionIsEscaped($expression)) {
-            return;
-        }
-
-        $source = $this->getTaintSource($expression);
-        if (null !== $source) {
+        foreach ($this->getTaintSources($expression) as $source) {
             $this->context->addSink($node, $source);
         }
     }
 
-    private function expressionIsEscaped(AbstractExpression $expression): bool
-    {
-        if ($expression instanceof FilterExpression && 'escape' === $expression->getNode('filter')->getAttribute('value')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private function getTaintSource(AbstractExpression $expression): ?DataFlowNode
+    /**
+     * The nodes the taints of the value of $expression come from: those of the variables it reads, through the
+     * filters it applies. An escaped value has none.
+     *
+     * @return list<DataFlowNode>
+     */
+    public function getTaintSources(Node $expression): array
     {
         if ($expression instanceof FilterExpression) {
-            /** @var AbstractExpression $filteredExpression */
-            $filteredExpression = $expression->getNode('node');
-            $taintSource = $this->getTaintSource($filteredExpression);
-            if (null === $taintSource) {
-                return null;
+            if (self::isEscapingFilter($expression)) {
+                return [];
             }
 
-            return $this->context->getTaintDestination($taintSource, $expression);
+            return array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
+                $this->getTaintSources($expression->getNode('node')),
+            );
         }
 
         if ($expression instanceof NameExpression) {
-            return $this->context->taintVariable($expression);
+            return [$this->context->taintVariable($expression)];
         }
 
-        return null;
+        // anything else (an attribute, a call, an operator, ...) takes the taints of what it is made of
+        $sources = [];
+        foreach ($expression as $child) {
+            $sources = [...$sources, ...$this->getTaintSources($child)];
+        }
+
+        return $sources;
+    }
+
+    private static function isEscapingFilter(FilterExpression $expression): bool
+    {
+        $filterName = $expression->getNode('filter')->getAttribute('value');
+
+        return 'escape' === $filterName || 'e' === $filterName;
     }
 }

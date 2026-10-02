@@ -7,6 +7,8 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
+use Twig\Environment;
+use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Node;
@@ -30,13 +32,20 @@ final class Context
     /** @var array<DataFlowNode> */
     private $parentNodes = [];
 
+    /** @var Environment */
+    private $twig;
+
+    /** @var array<string, list<string>> template name => the variables it reads from its context */
+    private static $contextVariables = [];
+
     /**
      * @psalm-capabilities read-props
      */
-    public function __construct(Source $sourceContext, TaintFlowGraph $taint)
+    public function __construct(Source $sourceContext, TaintFlowGraph $taint, Environment $twig)
     {
         $this->sourceContext = $sourceContext;
         $this->taint = $taint;
+        $this->twig = $twig;
     }
 
     public function addSink(Node $node, DataFlowNode $source): void
@@ -82,23 +91,63 @@ final class Context
         return $taintDestination;
     }
 
-    public function taintAssignment(NameExpression $destinationVariable, NameExpression $sourceVariable): void
+    /**
+     * Assigns $destinationVariable a value whose taints come from $sources.
+     *
+     * @param list<DataFlowNode> $sources
+     */
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
         $taintDestination = $this->addVariableTaintNode($destinationVariable);
 
-        /** @var string $sourceName */
-        $sourceName = $sourceVariable->getAttribute('name');
-        $taintSource = $this->addVariableTaintNode($sourceVariable);
+        foreach ($sources as $source) {
+            $this->taint->addPath($source, $taintDestination, 'arg');
+        }
 
         $this->localVariables[$destinationName] = $taintDestination;
-        $previousTaint = $this->addVariableUsage($sourceName, $taintSource);
+    }
 
-        $this->taint->addPath($taintSource, $taintDestination, 'arg');
+    /**
+     * Makes the variables of an included template take the taints of what the include gives them: the variables
+     * of `with`, and unless it is `only` the variables of the including template.
+     *
+     * @param array<string, list<DataFlowNode>> $withVariables
+     */
+    public function taintInclude(Node $includeNode, string $includedTemplateName, array $withVariables, bool $only): void
+    {
+        $location = $this->getNodeLocation($includeNode);
 
-        if ($previousTaint !== $taintSource) {
-            $this->taint->addPath($previousTaint, $taintSource, 'arg');
+        // what the included template outputs is part of what this one outputs
+        $includedOutput = self::getForTemplate($includedTemplateName);
+        $this->taint->addNode($includedOutput);
+        $this->parentNodes[] = $includedOutput;
+
+        foreach ($withVariables as $variableName => $sources) {
+            $destination = self::getForTemplateVariable(strtolower($includedTemplateName).'#'.strtolower($variableName));
+            $this->taint->addNode($destination);
+            foreach ($sources as $source) {
+                $this->taint->addPath($source, $destination, 'arg');
+            }
+        }
+
+        if ($only) {
+            return;
+        }
+
+        foreach ($this->getContextVariables($includedTemplateName) as $variableName) {
+            if (isset($withVariables[$variableName])) {
+                continue;
+            }
+
+            $usage = DataFlowNode::getForAssignment($variableName, $location);
+            $this->taint->addNode($usage);
+            $source = $this->addVariableUsage($variableName, $usage);
+
+            $destination = self::getForTemplateVariable(strtolower($includedTemplateName).'#'.strtolower($variableName));
+            $this->taint->addNode($destination);
+            $this->taint->addPath($source, $destination, 'arg');
         }
     }
 
@@ -160,10 +209,42 @@ final class Context
     private function addVariableUsage(string $variableName, DataFlowNode $variableTaint): DataFlowNode
     {
         if (!isset($this->localVariables[$variableName])) {
-            return $this->unassignedVariables[$variableName] = $variableTaint;
+            // every use of a variable of the template goes through the node of its first use
+            return $this->unassignedVariables[$variableName] ??= $variableTaint;
         }
 
         return $this->localVariables[$variableName];
+    }
+
+    /**
+     * The variables a template reads from the context it is rendered with.
+     *
+     * @return list<string>
+     */
+    private function getContextVariables(string $templateName): array
+    {
+        if (isset(self::$contextVariables[$templateName])) {
+            return self::$contextVariables[$templateName];
+        }
+
+        $tree = $this->twig->parse($this->twig->tokenize($this->twig->getLoader()->getSourceContext($templateName)));
+
+        $assigned = [];
+        $read = [];
+        $collect = static function (Node $node) use (&$collect, &$assigned, &$read): void {
+            if ($node instanceof AssignNameExpression) {
+                $assigned[(string) $node->getAttribute('name')] = true;
+            } elseif ($node instanceof NameExpression) {
+                $read[(string) $node->getAttribute('name')] = true;
+            }
+
+            foreach ($node as $child) {
+                $collect($child);
+            }
+        };
+        $collect($tree);
+
+        return self::$contextVariables[$templateName] = array_keys(array_diff_key($read, $assigned));
     }
 
     private function getNodeLocation(Node $node): CodeLocation
