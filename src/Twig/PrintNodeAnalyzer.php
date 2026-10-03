@@ -6,8 +6,11 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Node\Expression\AbstractExpression;
+use Twig\Node\Expression\ConditionalExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\Expression\ReturnBoolInterface;
+use Twig\Node\Expression\ReturnNumberInterface;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
 
@@ -58,6 +61,19 @@ final class PrintNodeAnalyzer
 
         if ($expression instanceof NameExpression) {
             return [$this->context->taintVariable($expression)];
+        }
+
+        if ($expression instanceof ConditionalExpression) {
+            // the condition chooses the branch that is output, but isn't output itself
+            return [
+                ...$this->getTaintSources($expression->getNode('expr2')),
+                ...$this->getTaintSources($expression->getNode('expr3')),
+            ];
+        }
+
+        if ($expression instanceof ReturnBoolInterface || $expression instanceof ReturnNumberInterface) {
+            // a comparison, a test or an arithmetic operation gives a boolean or a number, which holds no markup
+            return [];
         }
 
         // anything else (an attribute, a call, an operator, ...) takes the taints of what it is made of

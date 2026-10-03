@@ -84,6 +84,40 @@ Feature: Twig tainting with analyzer
     When I run Psalm with taint analysis
     And I see no errors
 
+  Scenario: A tainted parameter is only the condition of what is displayed
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1 class="{{ untrusted ? 'set' : 'unset' }}">
+        {{ (untrusted == 'a')|raw }} {{ (untrusted is empty)|raw }} {{ (untrusted|length + 1)|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter is a branch of what is displayed with the raw filter
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ (untrusted ? untrusted : 'none')|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message               |
+      | TaintedHtml           | Detected tainted HTML |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: One tainted parameter of the twig template is rendered with only the raw filter but the not displayed
     Given I have the following code
       """
