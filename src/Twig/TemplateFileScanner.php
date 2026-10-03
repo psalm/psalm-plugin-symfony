@@ -14,6 +14,8 @@ use Psalm\Storage\FileStorage;
  *
  * A template declares nothing PHP code can use, and is not PHP: parsing it as such reports parse errors for the
  * templates containing `<?php`, such as those generating PHP code.
+ *
+ * @psalm-api
  */
 final class TemplateFileScanner extends FileScanner
 {
