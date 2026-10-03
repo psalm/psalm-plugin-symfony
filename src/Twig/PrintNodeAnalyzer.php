@@ -7,12 +7,16 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ConditionalExpression;
+use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
+use Twig\Node\Expression\FunctionExpression;
+use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
+use Twig\Template;
 
 final class PrintNodeAnalyzer
 {
@@ -59,6 +63,23 @@ final class PrintNodeAnalyzer
             );
         }
 
+        if ($expression instanceof FunctionExpression) {
+            // what a function returns comes from its arguments, through what its PHP callable does with them
+            $sources = [];
+            foreach ($expression->getNode('arguments') as $argument) {
+                $sources = [...$sources, ...$this->getTaintSources($argument)];
+            }
+
+            return array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getFunctionTaintDestination($source, $expression),
+                $sources,
+            );
+        }
+
+        if ($expression instanceof GetAttrExpression) {
+            return $this->getAttributeTaintSources($expression);
+        }
+
         if ($expression instanceof NameExpression) {
             return [$this->context->taintVariable($expression)];
         }
@@ -80,6 +101,39 @@ final class PrintNodeAnalyzer
         $sources = [];
         foreach ($expression as $child) {
             $sources = [...$sources, ...$this->getTaintSources($child)];
+        }
+
+        return $sources;
+    }
+
+    /**
+     * `item.name` and `item['name']` give the value of the key `name` of `item`, whose other keys can hold other taints:
+     * like an array fetch in PHP. An attribute that is a method call, or that the analysis can't tell, gives the
+     * taints of the whole of `item`, and of the arguments of the call.
+     *
+     * @return list<DataFlowNode>
+     */
+    private function getAttributeTaintSources(GetAttrExpression $expression): array
+    {
+        $sources = $this->getTaintSources($expression->getNode('node'));
+        $attribute = $expression->getNode('attribute');
+
+        if (Template::METHOD_CALL !== $expression->getAttribute('type') && $attribute instanceof ConstantExpression) {
+            $key = (string) $attribute->getAttribute('value');
+
+            return array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getFetchDestination(
+                    $source,
+                    $expression,
+                    $key,
+                    "arrayvalue-fetch-'".$key."'",
+                ),
+                $sources,
+            );
+        }
+
+        if ($expression->hasNode('arguments')) {
+            $sources = [...$sources, ...$this->getTaintSources($expression->getNode('arguments'))];
         }
 
         return $sources;

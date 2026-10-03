@@ -53,12 +53,12 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         }
 
         if ($node instanceof ForNode) {
-            // the loop variables take the taints of what is looped over
+            // the loop variables take the taints of the keys and of the values of what is looped over
             $sources = $this->expressionAnalyzer->getTaintSources($node->getNode('seq'));
-            foreach (['key_target', 'value_target'] as $target) {
+            foreach (['key_target' => 'arraykey-fetch', 'value_target' => 'arrayvalue-fetch'] as $target => $pathType) {
                 $variable = $node->getNode($target);
                 if ($variable instanceof NameExpression) {
-                    $this->context->taintAssignmentFromSources($variable, $sources);
+                    $this->context->taintAssignmentFromSources($variable, $sources, $pathType);
                 }
             }
         }

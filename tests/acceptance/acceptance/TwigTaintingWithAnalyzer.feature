@@ -400,6 +400,48 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario: Another attribute of a parameter with a tainted attribute is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['user' => ['name' => $_GET['untrusted'], 'id' => 'literal']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ user.id|raw }}{{ user['id']|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: The keys of a parameter with tainted items are displayed in a loop with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['items' => ['literal' => $_GET['untrusted']]]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% for key, item in items %}
+        <li>{{ key|raw }}</li>
+      {% endfor %}
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter given to a function is displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ max(untrusted, 'literal')|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: A variable set from an expression using a tainted parameter is displayed with only the raw filter
     Given I have the following code
       """

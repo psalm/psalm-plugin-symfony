@@ -14,6 +14,7 @@ use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\FilterExpression;
+use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
@@ -111,6 +112,48 @@ final class Context
     }
 
     /**
+     * The node of what a function returns from $taintSource, one of its arguments: like a filter (see
+     * getTaintDestination()), the function removes the taints its PHP callable removes.
+     */
+    public function getFunctionTaintDestination(DataFlowNode $taintSource, FunctionExpression $expression): DataFlowNode
+    {
+        /** @var string $functionName */
+        $functionName = $expression->getAttribute('name');
+
+        $removedTaints = 0;
+        $function = null;
+        foreach ($this->twig->getExtensions() as $extension) {
+            foreach ($extension->getFunctions() as $extensionFunction) {
+                // the last extension declaring a function wins
+                $function = $extensionFunction->getName() === $functionName ? $extensionFunction : $function;
+            }
+        }
+        if (null !== $function) {
+            $removedTaints = $this->getCallableRemovedTaints($function->getCallable());
+        }
+
+        $taintDestination = DataFlowNode::getForAssignment('function_'.$functionName, $this->getNodeLocation($expression));
+
+        $this->taint->addNode($taintDestination);
+        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $removedTaints);
+
+        return $taintDestination;
+    }
+
+    /**
+     * The node of what is fetched from $taintSource: a key of it, or what looping over it gives.
+     */
+    public function getFetchDestination(DataFlowNode $taintSource, Node $expression, string $label, string $pathType): DataFlowNode
+    {
+        $taintDestination = DataFlowNode::getForAssignment('fetch_'.$label, $this->getNodeLocation($expression));
+
+        $this->taint->addNode($taintDestination);
+        $this->taint->addPath($taintSource, $taintDestination, $pathType);
+
+        return $taintDestination;
+    }
+
+    /**
      * The taints the PHP callable of a filter removes from what it is given: those its storage says
      * it escapes (`@psalm-taint-escape`), and those its native return type cannot hold.
      *
@@ -170,18 +213,18 @@ final class Context
     }
 
     /**
-     * Assigns $destinationVariable a value whose taints come from $sources.
+     * Assigns $destinationVariable a value whose taints come from $sources, through a path of type $pathType.
      *
      * @param list<DataFlowNode> $sources
      */
-    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources): void
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg'): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
         $taintDestination = $this->addVariableTaintNode($destinationVariable);
 
         foreach ($sources as $source) {
-            $this->taint->addPath($source, $taintDestination, 'arg');
+            $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
         $this->localVariables[$destinationName] = $taintDestination;

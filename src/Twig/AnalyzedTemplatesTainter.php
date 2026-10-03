@@ -61,7 +61,8 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         foreach ($templateParameters as $parameterName) {
             $destinationNode = Context::getForTemplateVariable(strtolower($templateName).'#'.strtolower($parameterName));
 
-            $codebase->taint_flow_graph->addPath($methodNode, $destinationNode, 'arg');
+            // the variable holds the parameter of its name, not the other ones
+            $codebase->taint_flow_graph->addPath($methodNode, $destinationNode, "arrayvalue-fetch-'".$parameterName."'");
         }
 
         // Taints going _out_ of the template
