@@ -118,6 +118,40 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario: A tainted parameter goes through a filter whose PHP callable returns a number
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|length|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter goes through a filter whose PHP callable returns what it is given, and is displayed with the raw filter
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|upper|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message               |
+      | TaintedHtml           | Detected tainted HTML |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: One tainted parameter of the twig template is rendered with only the raw filter but the not displayed
     Given I have the following code
       """

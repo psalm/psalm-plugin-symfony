@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
+use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
+use Psalm\Internal\MethodIdentifier;
+use Psalm\Storage\FunctionLikeStorage;
 use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\Expression\AssignNameExpression;
@@ -36,17 +39,21 @@ final class Context
     /** @var Environment */
     private $twig;
 
+    /** @var Codebase|null */
+    private $codebase;
+
     /** @var array<string, list<string>> template name => the variables it reads from its context */
     private static $contextVariables = [];
 
     /**
      * @psalm-capabilities read-props
      */
-    public function __construct(Source $sourceContext, TaintFlowGraph $taint, Environment $twig)
+    public function __construct(Source $sourceContext, TaintFlowGraph $taint, Environment $twig, ?Codebase $codebase = null)
     {
         $this->sourceContext = $sourceContext;
         $this->taint = $taint;
         $this->twig = $twig;
+        $this->codebase = $codebase;
     }
 
     public function addSink(Node $node, DataFlowNode $source): void
@@ -83,13 +90,83 @@ final class Context
         /** @var string $filterName */
         $filterName = $expression->getNode('filter')->getAttribute('value');
 
-        $returnLocation = $this->getNodeLocation($expression);
-        $taintDestination = DataFlowNode::getForAssignment('filter_'.$filterName, $returnLocation);
+        $removedTaints = 0;
+        $filter = null;
+        foreach ($this->twig->getExtensions() as $extension) {
+            foreach ($extension->getFilters() as $extensionFilter) {
+                // the last extension declaring a filter wins
+                $filter = $extensionFilter->getName() === $filterName ? $extensionFilter : $filter;
+            }
+        }
+        if (null !== $filter) {
+            $removedTaints = $this->getCallableRemovedTaints($filter->getCallable());
+        }
+
+        $taintDestination = DataFlowNode::getForAssignment('filter_'.$filterName, $this->getNodeLocation($expression));
 
         $this->taint->addNode($taintDestination);
-        $this->taint->addPath($taintSource, $taintDestination, 'arg');
+        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $removedTaints);
 
         return $taintDestination;
+    }
+
+    /**
+     * The taints the PHP callable of a filter removes from what it is given: those its storage says
+     * it escapes (`@psalm-taint-escape`), and those its native return type cannot hold.
+     *
+     * @param callable|array{0: class-string|object, 1: string}|string|null $callable
+     */
+    private function getCallableRemovedTaints($callable): int
+    {
+        $storage = null === $this->codebase ? null : self::getCallableStorage($this->codebase, $callable);
+        if (null === $storage) {
+            return 0;
+        }
+
+        return $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+    }
+
+    /**
+     * @param callable|array{0: class-string|object, 1: string}|string|null $callable
+     */
+    private static function getCallableStorage(Codebase $codebase, $callable): ?FunctionLikeStorage
+    {
+        if ($callable instanceof \Closure) {
+            // a first-class callable of a method or function, or else a closure the analysis can't find
+            $reflection = new \ReflectionFunction($callable);
+            $scope = $reflection->getClosureScopeClass();
+            if (str_contains($reflection->getName(), '{closure')) {
+                return null;
+            }
+            $callable = null === $scope ? $reflection->getName() : $scope->getName().'::'.$reflection->getName();
+        } elseif (\is_array($callable)) {
+            $class = \is_object($callable[0]) ? $callable[0]::class : $callable[0];
+            $callable = $class.'::'.$callable[1];
+        }
+
+        if (!\is_string($callable) || '' === $callable) {
+            return null;
+        }
+
+        if (str_contains($callable, '::')) {
+            $declaringMethodId = $codebase->methodExists($callable) ? $codebase->getDeclaringMethodId($callable) : null;
+
+            return null === $declaringMethodId ? null : $codebase->methods->getStorage(MethodIdentifier::wrap($declaringMethodId));
+        }
+
+        if (!\function_exists($callable)) {
+            return null;
+        }
+
+        $file = (new \ReflectionFunction($callable))->getFileName();
+
+        try {
+            return false === $file
+                ? $codebase->functions->getStorage(null, strtolower($callable))
+                : $codebase->functions->getStorage(null, strtolower($callable), $file, $file);
+        } catch (\UnexpectedValueException) {
+            return null;
+        }
     }
 
     /**

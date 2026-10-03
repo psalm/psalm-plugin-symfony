@@ -72,7 +72,7 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             return;
         }
 
-        $twigContext = new Context($twig_source, $taint, $twig);
+        $twigContext = new Context($twig_source, $taint, $twig, $codebase);
 
         $traverser = new NodeTraverser($twig, [
             new TaintAnalysisVisitor($twigContext),
