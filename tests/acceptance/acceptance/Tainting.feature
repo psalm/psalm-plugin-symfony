@@ -14,7 +14,7 @@ Feature: Tainting
   Scenario Outline: One parameter of the Request's request/query/cookies is printed in the body of a Response object
     And I have the following code
       """
-      class MyController
+      final class MyController
       {
         public function __invoke(Request $request): Response
         {
@@ -37,7 +37,7 @@ Feature: Tainting
   Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
     And I have the following code
       """
-      class MyController
+      final class MyController
       {
         public function __invoke(Request $request): Response
         {
@@ -61,7 +61,7 @@ Feature: Tainting
 #  Scenario: The user-agent is used in the body of a Response object
 #    Given I have the following code
 #      """
-#      class MyController
+#      final class MyController
 #      {
 #        public function __invoke(Request $request): Response
 #        {
@@ -78,7 +78,7 @@ Feature: Tainting
   Scenario: All headers are printed in the body of a Response object
     Given I have the following code
       """
-      class MyController
+      final class MyController
       {
         public function __invoke(Request $request): Response
         {
