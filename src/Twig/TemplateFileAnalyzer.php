@@ -7,6 +7,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\FileAnalyzer;
 use Twig\Environment;
+use Twig\Error\Error;
 use Twig\Extension\ExtensionInterface;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
@@ -43,7 +44,8 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             return;
         }
 
-        $loader = new FilesystemLoader(self::$rootPath, $codebase->config->base_dir);
+        // a template outside of the root is named after its path in the project
+        $loader = new FilesystemLoader([self::$rootPath, '.'], $codebase->config->base_dir);
         $twig = new Environment($loader, [
             'cache' => false,
             'auto_reload' => true,
@@ -57,11 +59,20 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             }
         }
 
-        $local_file_name = str_replace(self::$rootPath.'/', '', $this->file_name);
-        $twig_source = $loader->getSourceContext($local_file_name);
-        $tree = $twig->parse($twig->tokenize($twig_source));
+        $local_file_name = str_starts_with($this->file_name, self::$rootPath.'/')
+            ? substr($this->file_name, \strlen(self::$rootPath) + 1)
+            : $this->file_name;
+        try {
+            $twig_source = $loader->getSourceContext($local_file_name);
+            $tree = $twig->parse($twig->tokenize($twig_source));
+        } catch (Error $error) {
+            // e.g. a filter of an extension the analysis was not given
+            $this->project_analyzer->progress->warning(\sprintf('The taints of the Twig template %s are not analyzed: %s', $local_file_name, $error->getMessage()));
 
-        $twigContext = new Context($twig_source, $taint);
+            return;
+        }
+
+        $twigContext = new Context($twig_source, $taint, $twig);
 
         $traverser = new NodeTraverser($twig, [
             new TaintAnalysisVisitor($twigContext),

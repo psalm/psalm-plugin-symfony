@@ -139,14 +139,16 @@ When it comes to taint analysis for Twig templates, there are currently two appr
 This approach is more robust since it relies on the official Twig parser and node visitor mechanisms.
 For the moment, it is only able to detect simple tainted paths.
 
-To leverage the real Twig file analyzer, you have to configure a checker for the `.twig` extension as follows:
+To leverage the real Twig file analyzer, you have to configure a checker and a scanner for the `.twig` extension as follows:
 
 ```xml
 <fileExtensions>
    <extension name=".php" />
-   <extension name=".twig" checker="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
+   <extension name=".twig" checker="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php" scanner="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileScanner.php"/>
 </fileExtensions>
 ```
+
+Without the scanner, Psalm also parses the templates as PHP, and reports parse errors for those containing `<?php`.
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
