@@ -7,7 +7,6 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
-use Psalm\Type\TaintKind;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Node;
@@ -31,6 +30,9 @@ final class Context
     /** @var array<DataFlowNode> */
     private $parentNodes = [];
 
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(Source $sourceContext, TaintFlowGraph $taint)
     {
         $this->sourceContext = $sourceContext;
@@ -46,15 +48,7 @@ final class Context
             $sinkName = 'twig_print';
         }
 
-        $sink = DataFlowNode::getForMethodArgument(
-            $sinkName, $sinkName, 0, null, $codeLocation
-        );
-
-        $sink->taints = [
-            TaintKind::INPUT_HTML,
-            TaintKind::USER_SECRET,
-            TaintKind::SYSTEM_SECRET,
-        ];
+        $sink = DataFlowNode::getForAssignment($sinkName, $codeLocation);
 
         $this->taint->addNode($sink);
         $this->taint->addPath($source, $sink, 'arg');
@@ -80,7 +74,7 @@ final class Context
         $filterName = $expression->getNode('filter')->getAttribute('value');
 
         $returnLocation = $this->getNodeLocation($expression);
-        $taintDestination = DataFlowNode::getForMethodReturn('filter_'.$filterName, 'filter_'.$filterName, $returnLocation, $returnLocation);
+        $taintDestination = DataFlowNode::getForAssignment('filter_'.$filterName, $returnLocation);
 
         $this->taint->addNode($taintDestination);
         $this->taint->addPath($taintSource, $taintDestination, 'arg');
@@ -112,7 +106,7 @@ final class Context
     {
         foreach ($this->unassignedVariables as $variableName => $taintable) {
             $label = strtolower($templateName).'#'.strtolower($variableName);
-            $taintSource = new DataFlowNode($label, $label, null);
+            $taintSource = self::getForTemplateVariable($label);
 
             $this->taint->addNode($taintSource);
             $this->taint->addPath($taintSource, $taintable, 'arg');
@@ -121,11 +115,32 @@ final class Context
 
     public function taintSinks(string $templateName): void
     {
-        $sink = new DataFlowNode($templateName, $templateName, null);
+        $sink = self::getForTemplate($templateName);
         $this->taint->addNode($sink);
         foreach ($this->parentNodes as $source) {
             $this->taint->addPath($source, $sink, 'return');
         }
+    }
+
+    /**
+     * The node of what the template outputs, which taints flow out of the template through.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplate(string $templateName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch($templateName);
+    }
+
+    /**
+     * The node of a variable of the template (`<template name>#<variable name>`, lowercased), which taints
+     * flow into the template through.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplateVariable(string $label): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch($label);
     }
 
     private function addVariableTaintNode(NameExpression $variableNode): DataFlowNode
@@ -139,6 +154,9 @@ final class Context
         return $taintNode;
     }
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
     private function addVariableUsage(string $variableName, DataFlowNode $variableTaint): DataFlowNode
     {
         if (!isset($this->localVariables[$variableName])) {

@@ -15,6 +15,9 @@ final class PrintNodeAnalyzer
     /** @var Context */
     private $context;
 
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(Context $context)
     {
         $this->context = $context;

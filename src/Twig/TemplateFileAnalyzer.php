@@ -13,8 +13,6 @@ use Twig\NodeTraverser;
 
 /**
  * This class is to be used as a "checker" for the `.twig` files in the psalm configuration.
- *
- * @psalm-suppress UnusedClass
  */
 final class TemplateFileAnalyzer extends FileAnalyzer
 {

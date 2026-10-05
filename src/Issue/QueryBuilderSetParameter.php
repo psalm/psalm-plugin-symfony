@@ -10,6 +10,9 @@ use Psalm\Issue\PluginIssue;
  */
 final class QueryBuilderSetParameter extends PluginIssue
 {
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(CodeLocation $code_location)
     {
         parent::__construct('To improve performance set explicit type for objects', $code_location);

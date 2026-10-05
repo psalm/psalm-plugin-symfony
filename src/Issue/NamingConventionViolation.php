@@ -10,6 +10,9 @@ use Psalm\Issue\PluginIssue;
  */
 final class NamingConventionViolation extends PluginIssue
 {
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(CodeLocation $code_location)
     {
         parent::__construct('Use snake_case for configuration parameter and service names', $code_location);

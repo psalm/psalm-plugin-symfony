@@ -21,6 +21,11 @@ use Weirdan\Codeception\Psalm\Module;
  */
 final class CodeceptionModule extends BaseModule
 {
+    /**
+     * The purity annotations Psalm suggests for the code under test, which is not what the tests are about.
+     */
+    private const PURITY_SUGGESTIONS = ['MissingPureAnnotation', 'MissingImmutableAnnotation', 'MissingAbstractPureAnnotation', 'MissingInterfaceImmutableAnnotation'];
+
     private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
 
     private string $twigTemplateDir = self::DEFAULT_TWIG_TEMPLATES_DIR;
@@ -42,6 +47,9 @@ final class CodeceptionModule extends BaseModule
         ]);
     }
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
     #[\Override]
     public function _after(TestInterface $test): void
     {
@@ -51,6 +59,8 @@ final class CodeceptionModule extends BaseModule
 
     /**
      * @Given the template root directory is :rootDir
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
      */
     public function setTheTemplateRootDirectory(string $rootDir): void
     {
@@ -112,6 +122,9 @@ final class CodeceptionModule extends BaseModule
         ));
     }
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
     #[\Override]
     public function _before(TestInterface $test): void
     {
@@ -121,6 +134,8 @@ final class CodeceptionModule extends BaseModule
     /**
      * @Given I have issue handler :issueHandlers suppressed
      * @Given I have issue handlers :issueHandlers suppressed
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
      */
     public function configureIgnoredIssueHandlers(string $issueHandlers): void
     {
@@ -142,7 +157,7 @@ final class CodeceptionModule extends BaseModule
     {
         $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
             return "<$issueHandler errorLevel=\"info\"/>";
-        }, $this->suppressedIssueHandlers));
+        }, [...$this->suppressedIssueHandlers, ...self::PURITY_SUGGESTIONS]));
 
         $psalmModule = $this->getModule(Module::class);
 

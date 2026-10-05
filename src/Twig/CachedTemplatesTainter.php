@@ -21,6 +21,9 @@ use Twig\Environment;
  */
 final class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
 {
+    /**
+     * @psalm-pure
+     */
     #[\Override]
     public static function getClassLikeNames(): array
     {

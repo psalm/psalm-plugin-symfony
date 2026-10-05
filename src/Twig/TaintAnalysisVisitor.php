@@ -17,6 +17,9 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
     /** @var Context */
     private $context;
 
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(Context $context)
     {
         $this->context = $context;
@@ -48,12 +51,18 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         return $node;
     }
 
+    /**
+     * @psalm-pure
+     */
     #[\Override]
     public function leaveNode(Node $node, Environment $env): ?Node
     {
         return $node;
     }
 
+    /**
+     * @psalm-pure
+     */
     #[\Override]
     public function getPriority()
     {
