@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Expr\Variable;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
-use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
-use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -51,17 +46,36 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             return;
         }
 
-        // Taints going _in_ the template
-        $methodNode = DataFlowNode::getForMethodArgumentById($codebase->methods, $method_id, 1);
-        if (null === $methodNode) {
+        // Taints going _in_ the template: those of the parameters of this call, rather than of every call to the
+        // method. Each variable of the template holds the parameter of its name.
+        $parameters = $statements_source->getNodeTypeProvider()->getType($expr->args[1]->value);
+        if (null === $parameters) {
             return;
         }
 
-        $templateParameters = self::generateTemplateParameters($expr->args[1]->value, $statements_source);
-        foreach ($templateParameters as $parameterName) {
-            $destinationNode = Context::getForTemplateVariable(strtolower($templateName).'#'.strtolower($parameterName));
+        $parameterNames = [];
+        $hasUnknownParameters = false;
+        foreach ($parameters->getAtomicTypes() as $atomic) {
+            if ($atomic instanceof TKeyedArray) {
+                $parameterNames = [...$parameterNames, ...array_map('strval', array_keys($atomic->properties))];
+                $hasUnknownParameters = $hasUnknownParameters || null !== $atomic->fallback_params;
+            } else {
+                $hasUnknownParameters = true;
+            }
+        }
 
-            $codebase->taint_flow_graph->addPath($methodNode, $destinationNode, 'arg');
+        foreach ($parameters->parent_nodes as $parameterNode) {
+            foreach (array_unique($parameterNames) as $parameterName) {
+                $codebase->taint_flow_graph->addPath(
+                    $parameterNode,
+                    Context::getForTemplateVariable($templateName, $parameterName),
+                    "arrayvalue-fetch-'".$parameterName."'",
+                );
+            }
+
+            if ($hasUnknownParameters) {
+                $codebase->taint_flow_graph->addPath($parameterNode, Context::getForTemplateContext($templateName), '=');
+            }
         }
 
         // Taints going _out_ of the template
@@ -72,41 +86,5 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
                 $codebase->taint_flow_graph->addPath($source, $sink, '=');
             }
         }
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function generateTemplateParameters(Expr $templateParameters, StatementsSource $source): array
-    {
-        $type = $source->getNodeTypeProvider()->getType($templateParameters);
-        if (null === $type) {
-            throw new \RuntimeException(sprintf('Can not retrieve type for the given expression (%s)', get_class($templateParameters)));
-        }
-
-        if ($templateParameters instanceof Array_) {
-            $parameters = [];
-            foreach ($type->parent_nodes as $node) {
-                if (preg_match('/array\[\'([a-zA-Z]+)\'\]/', $node->label, $matches)) {
-                    $parameters[] = $matches[1];
-                }
-            }
-
-            return $parameters;
-        }
-
-        if ($templateParameters instanceof Variable && array_key_exists('array', $type->getAtomicTypes())) {
-            /** @var TKeyedArray $arrayValues */
-            $arrayValues = $type->getAtomicTypes()['array'];
-
-            $parameters = [];
-            foreach (array_keys($arrayValues->properties) as $parameterName) {
-                $parameters[] = (string) $parameterName;
-            }
-
-            return $parameters;
-        }
-
-        throw new \RuntimeException(sprintf('Can not retrieve template parameters from given expression (%s)', get_class($templateParameters)));
     }
 }

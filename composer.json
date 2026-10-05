@@ -15,7 +15,7 @@
         "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "psalm/psalm-plugin-api": "^0.3",
-        "vimeo/psalm": "^7 || dev-master"
+        "vimeo/psalm": "^7.0.0-beta24 || dev-master"
     },
     "require-dev": {
         "doctrine/annotations": "^1.8|^2",
@@ -30,6 +30,9 @@
         "symfony/validator": "*",
         "twig/twig": "^2.10 || ^3.0",
         "weirdan/codeception-psalm-module": "dev-master"
+    },
+    "conflict": {
+        "fidry/cpu-core-counter": "<1.2"
     },
     "autoload": {
         "psr-4": {
@@ -70,5 +73,6 @@
     "suggest": {
         "weirdan/doctrine-psalm-plugin": "If Doctrine is used, it is recommended install this plugin"
     },
-    "minimum-stability": "beta"
+    "minimum-stability": "beta",
+    "prefer-stable": true
 }
