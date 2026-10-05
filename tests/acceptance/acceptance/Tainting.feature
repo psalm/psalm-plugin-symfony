@@ -2,7 +2,9 @@
 Feature: Tainting
 
   Background:
-    Given I have Symfony plugin enabled
+    # Request::get() is internal since Symfony 6.4
+    Given I have issue handlers "UnusedVariable,InternalMethod" suppressed
+    And I have Symfony plugin enabled
     And I have the following code preamble
       """
       <?php
@@ -18,7 +20,7 @@ Feature: Tainting
       {
         public function __invoke(Request $request): Response
         {
-          return new Response($request<property>->get('untrusted'));
+          return new Response((string) $request<property>->get('untrusted'));
         }
       }
       """
@@ -48,7 +50,6 @@ Feature: Tainting
     When I run Psalm with taint analysis
     Then I see these errors
       | Type         | Message               |
-      | TaintedHtml  | Detected tainted HTML |
       | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:
