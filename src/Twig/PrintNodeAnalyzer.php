@@ -42,9 +42,31 @@ final class PrintNodeAnalyzer
             throw new \RuntimeException('The expr node has an expected type.');
         }
 
-        foreach ($this->getTaintSources($expression) as $source) {
+        foreach ($this->getPrintedTaintSources($expression) as $source) {
             $this->context->addSink($node, $source);
         }
+    }
+
+    /**
+     * The nodes the taints of what printing $expression outputs come from: a variable printed as is, or with `raw`,
+     * gives what it gives as a string (see Context::getForTemplateVariableString()).
+     *
+     * @return list<DataFlowNode>
+     */
+    private function getPrintedTaintSources(Node $expression): array
+    {
+        if ($expression instanceof NameExpression) {
+            return $this->context->getVariableChannels($expression)['string'];
+        }
+
+        if ($expression instanceof FilterExpression && 'raw' === Context::getFilterName($expression)) {
+            return array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
+                $this->getPrintedTaintSources($expression->getNode('node')),
+            );
+        }
+
+        return $this->getTaintSources($expression);
     }
 
     /**
@@ -129,7 +151,9 @@ final class PrintNodeAnalyzer
      */
     private function getAttributeTaintSources(GetAttrExpression $expression): array
     {
-        $sources = $this->getTaintSources($expression->getNode('node'));
+        // the attributes of a variable are those of what it holds, not of what it gives as a string
+        $node = $expression->getNode('node');
+        $sources = $node instanceof NameExpression ? $this->context->getVariableChannels($node)['object'] : $this->getTaintSources($node);
         $attribute = $expression->getNode('attribute');
 
         // 'method' is the value of the internal Twig\Template::METHOD_CALL

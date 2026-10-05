@@ -33,13 +33,16 @@ use Twig\TwigFunction;
  *     whole: list<DataFlowNode>,
  * } the variables an include gives: the values of the keys of `with` by name, those of its keys the analysis can't
  *   tell, and the arrays it can't tell the keys of
+ * @psalm-type Channels = array{object: non-empty-list<DataFlowNode>, string: non-empty-list<DataFlowNode>} the nodes
+ *   of the values of a variable, as the template reads them: as an object (its attributes), and as a string (printing
+ *   the variable itself), see getForTemplateVariableString()
  */
 final class Context
 {
-    /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
+    /** @var array<string, array{object: DataFlowNode, string: DataFlowNode}> the nodes of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
-    /** @var array<string, non-empty-list<DataFlowNode>> the nodes of the values a variable set by the template can have */
+    /** @var array<string, Channels> the nodes of the values a variable set by the template can have */
     private $localVariables = [];
 
     /** @var Source */
@@ -60,7 +63,7 @@ final class Context
     /** @var int how many `if` and `for` the analysis is in, whose body may not run */
     private $conditionalDepth = 0;
 
-    /** @var list<array<string, non-empty-list<DataFlowNode>|null>> the values the targets of the loops the analysis is in had before them */
+    /** @var list<array<string, Channels|null>> the values the targets of the loops the analysis is in had before them */
     private $loopTargets = [];
 
     /** @var array<string, DataFlowNode> the nodes of the template, by Twig node and label */
@@ -116,10 +119,20 @@ final class Context
      */
     public function taintVariable(NameExpression $expression): array
     {
+        return self::mergeChannels($this->getVariableChannels($expression));
+    }
+
+    /**
+     * The nodes of the values the variable read by $expression can have, read as an object and as a string.
+     *
+     * @return Channels
+     */
+    public function getVariableChannels(NameExpression $expression): array
+    {
         /** @var string $variableName */
         $variableName = $expression->getAttribute('name');
 
-        return $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $expression)];
+        return $this->localVariables[$variableName] ?? self::getChannels($this->getContextVariable($variableName, $expression));
     }
 
     public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
@@ -269,9 +282,79 @@ final class Context
             $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
-        $this->localVariables[$destinationName] = 0 < $this->conditionalDepth && !$always
-            ? [...$this->taintVariable($destinationVariable), $taintDestination]
-            : [$taintDestination];
+        $this->assign($destinationVariable, self::getChannels(['object' => $taintDestination, 'string' => $taintDestination]), $always);
+    }
+
+    /**
+     * Like taintAssignmentFromSources(), assigns $destinationVariable the value of $sourceVariable, keeping apart what
+     * it gives as an object and as a string.
+     */
+    public function taintAssignmentFromVariable(NameExpression $destinationVariable, NameExpression $sourceVariable, string $pathType = 'arg', bool $always = false): void
+    {
+        /** @var string $destinationName */
+        $destinationName = $destinationVariable->getAttribute('name');
+        $destinations = [
+            'object' => $this->getNode($destinationVariable, $destinationName),
+            'string' => $this->getNode($destinationVariable, '(string) '.$destinationName),
+        ];
+
+        foreach ($this->getVariableChannels($sourceVariable) as $channel => $sources) {
+            foreach ($sources as $source) {
+                $this->taint->addPath($source, $destinations[$channel], $pathType);
+            }
+        }
+
+        $this->assign($destinationVariable, self::getChannels($destinations), $always);
+    }
+
+    /**
+     * Gives $variable $value. In the body of an `if` or of a `for`, which may not run, the variable can also keep the
+     * value it had, unless $always.
+     *
+     * @param Channels $value
+     */
+    private function assign(NameExpression $variable, array $value, bool $always): void
+    {
+        if (0 < $this->conditionalDepth && !$always) {
+            $previous = $this->getVariableChannels($variable);
+            $value = [
+                'object' => [...$previous['object'], ...$value['object']],
+                'string' => [...$previous['string'], ...$value['string']],
+            ];
+        }
+
+        $this->localVariables[(string) $variable->getAttribute('name')] = $value;
+    }
+
+    /**
+     * @param array{object: DataFlowNode, string: DataFlowNode} $nodes
+     *
+     * @return Channels
+     *
+     * @psalm-pure
+     */
+    private static function getChannels(array $nodes): array
+    {
+        return ['object' => [$nodes['object']], 'string' => [$nodes['string']]];
+    }
+
+    /**
+     * The nodes of both channels, once each.
+     *
+     * @param Channels $channels
+     *
+     * @return non-empty-list<DataFlowNode>
+     *
+     * @psalm-pure
+     */
+    private static function mergeChannels(array $channels): array
+    {
+        $nodes = [];
+        foreach ([...$channels['object'], ...$channels['string']] as $node) {
+            $nodes[$node->id] = $node;
+        }
+
+        return array_values($nodes);
     }
 
     /**
@@ -350,9 +433,16 @@ final class Context
             }
 
             if ($withContext && !isset($variables['keyed'][$variableName])) {
-                $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
-                foreach ($values as $source) {
-                    $this->taint->addPath($source, $destination, 'arg');
+                // the included template reads the variable of this template the same way
+                $channels = $this->localVariables[$variableName] ?? self::getChannels($this->getContextVariable($variableName, $includeNode));
+                foreach ($channels as $channel => $sources) {
+                    $channelDestination = 'object' === $channel
+                        ? self::getForTemplateVariableObject($includedTemplateName, $variableName)
+                        : self::getForTemplateVariableString($includedTemplateName, $variableName);
+                    $this->taint->addNode($channelDestination);
+                    foreach ($sources as $source) {
+                        $this->taint->addPath($source, $channelDestination, 'arg');
+                    }
                 }
             }
         }
@@ -372,11 +462,20 @@ final class Context
         $context = self::getForTemplateContext($templateName);
         $this->taint->addNode($context);
 
-        foreach ($this->unassignedVariables as $variableName => $taintable) {
+        foreach ($this->unassignedVariables as $variableName => $reads) {
             $variable = self::getForTemplateVariable($templateName, $variableName);
             $this->taint->addNode($variable);
             $this->taint->addPath($context, $variable, "arrayvalue-fetch-'".$variableName."'");
-            $this->taint->addPath($variable, $taintable, 'arg');
+
+            $channels = [
+                'object' => self::getForTemplateVariableObject($templateName, $variableName),
+                'string' => self::getForTemplateVariableString($templateName, $variableName),
+            ];
+            foreach ($channels as $channel => $channelNode) {
+                $this->taint->addNode($channelNode);
+                $this->taint->addPath($variable, $reads[$channel], 'arg');
+                $this->taint->addPath($channelNode, $reads[$channel], 'arg');
+            }
         }
     }
 
@@ -410,6 +509,32 @@ final class Context
     public static function getForTemplateVariable(string $templateName, string $variableName): DataFlowNode
     {
         return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName);
+    }
+
+    /**
+     * The node of what a variable of the context of the template gives when the template reads it as an object: what
+     * it reads of its attributes. Taints given to getForTemplateVariable() reach it too.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplateVariableObject(string $templateName, string $variableName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName.'#object');
+    }
+
+    /**
+     * The node of what a variable of the context of the template gives when the template prints it, as is or with
+     * `raw`: converted to a string. Taints given to getForTemplateVariable() reach it too.
+     *
+     * Rather than the variable, an integration that knows what converting the value to a string gives (e.g. what the
+     * __toString of an object returns, escaping what it has) gives this node what it gives as a string, and
+     * getForTemplateVariableObject() what it has. Elsewhere (e.g. given to a function), the template uses both.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplateVariableString(string $templateName, string $variableName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName.'#string');
     }
 
     /**
@@ -512,12 +637,17 @@ final class Context
     }
 
     /**
-     * The node of the variable $variableName of the context of the template: every read of it goes through the node
-     * of the first one, $expression.
+     * The nodes of the variable $variableName of the context of the template, read as an object and as a string: every
+     * read of it goes through the nodes of the first one, $expression.
+     *
+     * @return array{object: DataFlowNode, string: DataFlowNode}
      */
-    private function getContextVariable(string $variableName, Node $expression): DataFlowNode
+    private function getContextVariable(string $variableName, Node $expression): array
     {
-        return $this->unassignedVariables[$variableName] ??= $this->getNode($expression, $variableName, 'read');
+        return $this->unassignedVariables[$variableName] ??= [
+            'object' => $this->getNode($expression, $variableName, 'read'),
+            'string' => $this->getNode($expression, '(string) '.$variableName, 'read'),
+        ];
     }
 
     /**

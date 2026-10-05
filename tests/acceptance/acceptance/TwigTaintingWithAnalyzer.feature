@@ -911,3 +911,555 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     And I see no errors
+
+  Scenario: A variable given safe to print, holding a tainted attribute, is displayed with only the raw filter
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ value|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: The tainted attribute of a variable given safe to print is displayed with only the raw filter
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ value.url|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A variable given safe to print, holding a tainted attribute, is displayed with only the raw filter through another variable
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% set copy = value %}<h1>{{ copy|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A variable given safe to print, holding a tainted attribute, goes through a filter and is displayed with only the raw filter
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ value|upper|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: The items of a variable given safe to print, holding a tainted attribute, are displayed in a loop with only the raw filter
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% for item in value %}{{ item|raw }}{% endfor %}
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A variable given safe to print, holding a tainted attribute, is displayed with only the raw filter by an included template
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+            <file name="ChannelPlugin.php" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+          <plugin filename="ChannelPlugin.php" />
+        </plugins>
+        <issueHandlers>
+          <UnusedParam errorLevel="info"/>
+          <MissingPureAnnotation errorLevel="info"/>
+        </issueHandlers>
+      </psalm>
+      """
+    And I have the following code in "ChannelPlugin.php"
+      """
+      <?php
+
+      use PhpParser\Node\Scalar\String_;
+      use Psalm\CodeLocation;
+      use Psalm\Internal\DataFlow\DataFlowNode;
+      use Psalm\Plugin\EventHandler\AfterFunctionCallAnalysisInterface;
+      use Psalm\Plugin\EventHandler\Event\AfterFunctionCallAnalysisEvent;
+      use Psalm\SymfonyPsalmPlugin\Twig\Context;
+      use Psalm\Type\TaintKind;
+
+      /**
+       * render_view($template, $value, $printed) renders $template, whose variable `value` holds $value, and gives
+       * $printed when printed: like an object whose __toString escapes what it has.
+       */
+      final class ChannelPlugin implements AfterFunctionCallAnalysisInterface
+      {
+          public static function afterFunctionCallAnalysis(AfterFunctionCallAnalysisEvent $event): void
+          {
+              $graph = $event->getCodebase()->taint_flow_graph;
+              $args = $event->getExpr()->getArgs();
+              if (null === $graph || 'render_view' !== $event->getFunctionId() || !$args[0]->value instanceof String_) {
+                  return;
+              }
+
+              $template = $args[0]->value->value;
+              $types = $event->getStatementsSource()->getNodeTypeProvider();
+              foreach ([1 => Context::getForTemplateVariableObject($template, 'value'), 2 => Context::getForTemplateVariableString($template, 'value')] as $i => $variable) {
+                  $graph->addNode($variable);
+                  foreach ($types->getType($args[$i]->value)?->parent_nodes ?? [] as $parentNode) {
+                      $graph->addPath($parentNode, $variable, 'arg');
+                  }
+              }
+
+              // what the template outputs is rendered where render_view() is called
+              $location = new CodeLocation($event->getStatementsSource(), $event->getExpr());
+              $output = Context::getForTemplate($template);
+              $rendered = DataFlowNode::getForAssignment('rendered view', $location);
+              $sink = DataFlowNode::getForTaint('rendered view', $location, TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES);
+              $graph->addNode($output);
+              $graph->addNode($rendered);
+              $graph->addSink($sink);
+              $graph->addPath($output, $rendered, 'arg');
+              $graph->addPath($rendered, $sink, 'arg');
+          }
+      }
+      """
+    And I have the following code
+      """
+      function render_view(string $template, mixed $value, string $printed): void {}
+
+      $url = \is_string($_GET['url']) ? $_GET['url'] : '';
+      render_view('index.html.twig', ['url' => $url], htmlspecialchars($url, ENT_QUOTES));
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{% include 'part.html.twig' %}</h1>
+      """
+    And I have the following "part.html.twig" template
+      """
+      {{ value|raw }}
+      """
+    When I run Psalm with taint analysis
+    And I see no errors

@@ -6,6 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Twig\Environment;
 use Twig\Node\EmbedNode;
+use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ForNode;
@@ -52,11 +53,18 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         if ($node instanceof SetNode && !$node->getAttribute('capture')) {
             /** @var array<NameExpression> $names */
             $names = $node->getNode('names');
-            // several names are given one value each, a single name the whole value
-            $values = 1 < \count($names) ? iterator_to_array($node->getNode('values')) : [$node->getNode('values')];
+            // each name is given a value; Twig < 3.15 gives a single name the value itself rather than a list of it
+            $values = $node->getNode('values');
+            $values = $values instanceof AbstractExpression ? [$values] : iterator_to_array($values);
 
             foreach ($names as $i => $name) {
-                if (isset($values[$i])) {
+                if (!isset($values[$i])) {
+                    continue;
+                }
+
+                if ($values[$i] instanceof NameExpression) {
+                    $this->context->taintAssignmentFromVariable($name, $values[$i]);
+                } else {
                     $this->context->taintAssignmentFromSources($name, $this->expressionAnalyzer->getTaintSources($values[$i]));
                 }
             }
@@ -120,11 +128,13 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
     }
 
     /**
-     * The loop variables take the taints of the keys and of the values of what is looped over, in the loop only.
+     * The loop variables take the taints of the keys and of the values of what is looped over, in the loop only. The
+     * values of a variable looped over are read as objects and as strings the way it is.
      */
     private function analyzeForNode(ForNode $node): void
     {
-        $sources = $this->expressionAnalyzer->getTaintSources($node->getNode('seq'));
+        $sequence = $node->getNode('seq');
+        $sources = $this->expressionAnalyzer->getTaintSources($sequence);
 
         $targets = [];
         foreach (['key_target' => 'arraykey-fetch', 'value_target' => 'arrayvalue-fetch'] as $target => $pathType) {
@@ -136,7 +146,11 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
 
         $this->context->enterLoop(array_map(static fn (array $target): string => (string) $target[0]->getAttribute('name'), $targets));
         foreach ($targets as [$variable, $pathType]) {
-            $this->context->taintAssignmentFromSources($variable, $sources, $pathType, true);
+            if ('arrayvalue-fetch' === $pathType && $sequence instanceof NameExpression) {
+                $this->context->taintAssignmentFromVariable($variable, $sequence, $pathType, true);
+            } else {
+                $this->context->taintAssignmentFromSources($variable, $sources, $pathType, true);
+            }
         }
     }
 
