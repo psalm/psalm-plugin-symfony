@@ -16,7 +16,6 @@ use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
-use Twig\Template;
 
 final class PrintNodeAnalyzer
 {
@@ -118,7 +117,8 @@ final class PrintNodeAnalyzer
         $sources = $this->getTaintSources($expression->getNode('node'));
         $attribute = $expression->getNode('attribute');
 
-        if (Template::METHOD_CALL !== $expression->getAttribute('type') && $attribute instanceof ConstantExpression) {
+        // 'method' is the value of the internal Twig\Template::METHOD_CALL
+        if ('method' !== $expression->getAttribute('type') && $attribute instanceof ConstantExpression) {
             $key = (string) $attribute->getAttribute('value');
 
             return array_map(
