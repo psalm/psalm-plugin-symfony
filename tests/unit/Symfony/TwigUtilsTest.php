@@ -86,10 +86,7 @@ class TwigUtilsTest extends TestCase
         $config->eventDispatcher->registerClass(get_class($hook));
 
         $projectAnalyzer = new ProjectAnalyzer($config, new Providers(new FileProvider()));
-        // no file of the project reports issues
-        (function () {
-            $this->project_files = [];
-        })->bindTo($projectAnalyzer, $projectAnalyzer)();
+        $projectAnalyzer->initProjectFiles();
 
         $nullFileAnalyzer = new FileAnalyzer($projectAnalyzer, '', '');
         $nullFileAnalyzer->codebase->functions->addGlobalFunction('dummy', new FunctionStorage());
