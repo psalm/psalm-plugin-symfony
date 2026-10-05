@@ -6,6 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Node\Expression\AbstractExpression;
+use Twig\Node\Expression\ArrayExpression;
 use Twig\Node\Expression\ConditionalExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
@@ -17,6 +18,9 @@ use Twig\Node\Expression\ReturnNumberInterface;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
 
+/**
+ * @psalm-import-type IncludedVariables from Context
+ */
 final class PrintNodeAnalyzer
 {
     /** @var Context */
@@ -56,10 +60,21 @@ final class PrintNodeAnalyzer
                 return [];
             }
 
+            // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...)
+            $sources = $this->getTaintSources($expression->getNode('node'));
+            if ($expression->hasNode('arguments')) {
+                $sources = [...$sources, ...$this->getTaintSources($expression->getNode('arguments'))];
+            }
+
             return array_map(
                 fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
-                $this->getTaintSources($expression->getNode('node')),
+                $sources,
             );
+        }
+
+        if ($expression instanceof FunctionExpression && 'include' === $expression->getAttribute('name')
+            && null !== $includedOutput = $this->getIncludedOutput($expression)) {
+            return [$includedOutput];
         }
 
         if ($expression instanceof FunctionExpression) {
@@ -80,7 +95,7 @@ final class PrintNodeAnalyzer
         }
 
         if ($expression instanceof NameExpression) {
-            return [$this->context->taintVariable($expression)];
+            return $this->context->taintVariable($expression);
         }
 
         if ($expression instanceof ConditionalExpression) {
@@ -139,9 +154,62 @@ final class PrintNodeAnalyzer
         return $sources;
     }
 
+    /**
+     * The variables an include gives the included template from $variables, the expression of its `with`.
+     *
+     * @return IncludedVariables
+     */
+    public function getIncludedVariables(?Node $variables): array
+    {
+        $includedVariables = ['keyed' => [], 'unkeyed' => [], 'whole' => []];
+
+        if (null === $variables) {
+            return $includedVariables;
+        }
+
+        if (!$variables instanceof ArrayExpression) {
+            // an array the analysis can't tell the keys of: its own keyed paths tell what is in which key
+            $includedVariables['whole'] = $this->getTaintSources($variables);
+
+            return $includedVariables;
+        }
+
+        foreach ($variables->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
+            $sources = $this->getTaintSources($value);
+            if ($key instanceof ConstantExpression) {
+                $includedVariables['keyed'][(string) $key->getAttribute('value')] = $sources;
+            } else {
+                $includedVariables['unkeyed'] = [...$includedVariables['unkeyed'], ...$sources];
+            }
+        }
+
+        return $includedVariables;
+    }
+
+    /**
+     * `include('part.html.twig', variables, with_context)` displays what the included template outputs. Null if which
+     * template is included is only known when rendering.
+     */
+    private function getIncludedOutput(FunctionExpression $expression): ?DataFlowNode
+    {
+        $template = Context::getArgument($expression, 0, 'template');
+        if (!$template instanceof ConstantExpression || !\is_string($template->getAttribute('value'))) {
+            return null;
+        }
+
+        $withContext = Context::getArgument($expression, 2, 'with_context');
+
+        return $this->context->includeTemplate(
+            $expression,
+            $template->getAttribute('value'),
+            $this->getIncludedVariables(Context::getArgument($expression, 1, 'variables')),
+            !$withContext instanceof ConstantExpression || false !== $withContext->getAttribute('value'),
+        );
+    }
+
     private static function isEscapingFilter(FilterExpression $expression): bool
     {
-        $filterName = $expression->getNode('filter')->getAttribute('value');
+        $filterName = Context::getFilterName($expression);
 
         return 'escape' === $filterName || 'e' === $filterName;
     }

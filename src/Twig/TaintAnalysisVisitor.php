@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Twig\Environment;
-use Twig\Node\Expression\ArrayExpression;
+use Twig\Node\EmbedNode;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ForNode;
+use Twig\Node\IfNode;
 use Twig\Node\IncludeNode;
+use Twig\Node\ModuleNode;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
 use Twig\Node\SetNode;
+use Twig\NodeTraverser;
 use Twig\NodeVisitor\NodeVisitorInterface;
 
 final class TaintAnalysisVisitor implements NodeVisitorInterface
@@ -22,6 +25,9 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
 
     /** @var PrintNodeAnalyzer */
     private $expressionAnalyzer;
+
+    /** @var iterable<ModuleNode> the templates embedded in the template, which `embed` displays */
+    private $embeddedTemplates = [];
 
     /**
      * @psalm-capabilities read-props
@@ -35,6 +41,10 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
     #[\Override]
     public function enterNode(Node $node, Environment $env): Node
     {
+        if ($node instanceof ModuleNode) {
+            $this->analyzeModuleNode($node);
+        }
+
         if ($node instanceof PrintNode) {
             $this->expressionAnalyzer->analyzePrintNode($node);
         }
@@ -52,30 +62,32 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
             }
         }
 
+        if ($node instanceof IfNode) {
+            $this->context->enterConditional();
+        }
+
         if ($node instanceof ForNode) {
-            // the loop variables take the taints of the keys and of the values of what is looped over
-            $sources = $this->expressionAnalyzer->getTaintSources($node->getNode('seq'));
-            foreach (['key_target' => 'arraykey-fetch', 'value_target' => 'arrayvalue-fetch'] as $target => $pathType) {
-                $variable = $node->getNode($target);
-                if ($variable instanceof NameExpression) {
-                    $this->context->taintAssignmentFromSources($variable, $sources, $pathType);
-                }
-            }
+            $this->analyzeForNode($node);
         }
 
         if ($node instanceof IncludeNode) {
-            $this->analyzeIncludeNode($node);
+            $this->analyzeIncludeNode($node, $env);
         }
 
         return $node;
     }
 
-    /**
-     * @psalm-pure
-     */
     #[\Override]
     public function leaveNode(Node $node, Environment $env): ?Node
     {
+        if ($node instanceof IfNode) {
+            $this->context->leaveConditional();
+        }
+
+        if ($node instanceof ForNode) {
+            $this->context->leaveLoop();
+        }
+
         return $node;
     }
 
@@ -88,28 +100,76 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         return 0;
     }
 
-    private function analyzeIncludeNode(IncludeNode $node): void
+    /**
+     * A template extending another one displays what the other one outputs, given its context.
+     */
+    private function analyzeModuleNode(ModuleNode $node): void
     {
-        $template = $node->getNode('expr');
-        if (!$template instanceof ConstantExpression || !\is_string($template->getAttribute('value'))) {
-            // which template is included is only known when rendering
-            return;
+        /** @var iterable<ModuleNode> */
+        $this->embeddedTemplates = $node->getAttribute('embedded_templates') ?? [];
+
+        $parent = $node->hasNode('parent') ? $node->getNode('parent') : null;
+        if ($parent instanceof ConstantExpression && \is_string($parent->getAttribute('value'))) {
+            $this->context->addOutput($this->context->includeTemplate(
+                $node,
+                $parent->getAttribute('value'),
+                $this->expressionAnalyzer->getIncludedVariables(null),
+                true,
+            ));
+        }
+    }
+
+    /**
+     * The loop variables take the taints of the keys and of the values of what is looped over, in the loop only.
+     */
+    private function analyzeForNode(ForNode $node): void
+    {
+        $sources = $this->expressionAnalyzer->getTaintSources($node->getNode('seq'));
+
+        $targets = [];
+        foreach (['key_target' => 'arraykey-fetch', 'value_target' => 'arrayvalue-fetch'] as $target => $pathType) {
+            $variable = $node->getNode($target);
+            if ($variable instanceof NameExpression) {
+                $targets[] = [$variable, $pathType];
+            }
         }
 
-        $withVariables = [];
-        if ($node->hasNode('variables')) {
-            $variables = $node->getNode('variables');
-            if (!$variables instanceof ArrayExpression) {
-                return;
-            }
+        $this->context->enterLoop(array_map(static fn (array $target): string => (string) $target[0]->getAttribute('name'), $targets));
+        foreach ($targets as [$variable, $pathType]) {
+            $this->context->taintAssignmentFromSources($variable, $sources, $pathType, true);
+        }
+    }
 
-            foreach ($variables->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
-                if ($key instanceof ConstantExpression) {
-                    $withVariables[(string) $key->getAttribute('value')] = $this->expressionAnalyzer->getTaintSources($value);
+    /**
+     * `include` and `embed` display what the included template outputs, given the variables of `with` and unless
+     * `only` the context of this template. The blocks an `embed` overrides are displayed with this context.
+     */
+    private function analyzeIncludeNode(IncludeNode $node, Environment $env): void
+    {
+        $embeddedTemplate = null;
+        if ($node instanceof EmbedNode) {
+            // the template embedded, which extends the template displayed and overrides its blocks
+            foreach ($this->embeddedTemplates as $template) {
+                if ($template->getAttribute('index') === $node->getAttribute('index')) {
+                    $embeddedTemplate = $template;
                 }
             }
+            $template = $embeddedTemplate?->hasNode('parent') ? $embeddedTemplate->getNode('parent') : null;
+        } else {
+            $template = $node->getNode('expr');
         }
 
-        $this->context->taintInclude($node, $template->getAttribute('value'), $withVariables, (bool) $node->getAttribute('only'));
+        if ($template instanceof ConstantExpression && \is_string($template->getAttribute('value'))) {
+            $this->context->addOutput($this->context->includeTemplate(
+                $node,
+                $template->getAttribute('value'),
+                $this->expressionAnalyzer->getIncludedVariables($node->hasNode('variables') ? $node->getNode('variables') : null),
+                !$node->getAttribute('only'),
+            ));
+        }
+
+        if (null !== $embeddedTemplate) {
+            (new NodeTraverser($env, [$this]))->traverse($embeddedTemplate->getNode('blocks'));
+        }
     }
 }

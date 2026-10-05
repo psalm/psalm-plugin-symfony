@@ -12,20 +12,34 @@ use Psalm\Internal\MethodIdentifier;
 use Psalm\Storage\FunctionLikeStorage;
 use Twig\Environment;
 use Twig\Error\Error;
+use Twig\Node\EmbedNode;
 use Twig\Node\Expression\AssignNameExpression;
+use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\IncludeNode;
+use Twig\Node\ModuleNode;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
 use Twig\Source;
+use Twig\TwigFilter;
+use Twig\TwigFunction;
 
+/**
+ * @psalm-type IncludedVariables = array{
+ *     keyed: array<string, list<DataFlowNode>>,
+ *     unkeyed: list<DataFlowNode>,
+ *     whole: list<DataFlowNode>,
+ * } the variables an include gives: the values of the keys of `with` by name, those of its keys the analysis can't
+ *   tell, and the arrays it can't tell the keys of
+ */
 final class Context
 {
-    /** @var array<string, DataFlowNode> */
+    /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
-    /** @var array<string, DataFlowNode> */
+    /** @var array<string, non-empty-list<DataFlowNode>> the nodes of the values a variable set by the template can have */
     private $localVariables = [];
 
     /** @var Source */
@@ -43,6 +57,21 @@ final class Context
     /** @var Codebase|null */
     private $codebase;
 
+    /** @var int how many `if` and `for` the analysis is in, whose body may not run */
+    private $conditionalDepth = 0;
+
+    /** @var list<array<string, non-empty-list<DataFlowNode>|null>> the values the targets of the loops the analysis is in had before them */
+    private $loopTargets = [];
+
+    /** @var array<string, DataFlowNode> the nodes of the template, by Twig node and label */
+    private $nodes = [];
+
+    /** @var array<string, int> how many nodes of the template have a label, by line */
+    private $labelCounts = [];
+
+    /** @var list<int>|null the offset at which each line of the template starts */
+    private $lineOffsets;
+
     /** @var array<string, list<string>> template name => the variables it reads from its context */
     private static $contextVariables = [];
 
@@ -59,54 +88,46 @@ final class Context
 
     public function addSink(Node $node, DataFlowNode $source): void
     {
-        $codeLocation = $this->getNodeLocation($node);
-
         $sinkName = 'twig_unknown';
         if ($node instanceof PrintNode) {
             $sinkName = 'twig_print';
         }
 
-        $sink = DataFlowNode::getForAssignment($sinkName, $codeLocation);
+        $sink = $this->getNode($node, $sinkName);
 
-        $this->taint->addNode($sink);
         $this->taint->addPath($source, $sink, 'arg');
         $this->parentNodes[] = $sink;
     }
 
-    public function taintVariable(NameExpression $expression): DataFlowNode
+    /**
+     * Makes $output, a node whose taints are displayed, part of what the template outputs.
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    public function addOutput(DataFlowNode $output): void
+    {
+        $this->parentNodes[] = $output;
+    }
+
+    /**
+     * The nodes of the values the variable read by $expression can have.
+     *
+     * @return non-empty-list<DataFlowNode>
+     */
+    public function taintVariable(NameExpression $expression): array
     {
         /** @var string $variableName */
         $variableName = $expression->getAttribute('name');
 
-        $sinkNode = DataFlowNode::getForAssignment($variableName, $this->getNodeLocation($expression));
-
-        $this->taint->addNode($sinkNode);
-        $sinkNode = $this->addVariableTaintNode($expression);
-
-        return $this->addVariableUsage($variableName, $sinkNode);
+        return $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $expression)];
     }
 
     public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
     {
-        /** @var string $filterName */
-        $filterName = $expression->getNode('filter')->getAttribute('value');
+        $filter = $this->getTwigCallable($expression);
+        $taintDestination = $this->getNode($expression, 'filter_'.self::getFilterName($expression));
 
-        $removedTaints = 0;
-        $filter = null;
-        foreach ($this->twig->getExtensions() as $extension) {
-            foreach ($extension->getFilters() as $extensionFilter) {
-                // the last extension declaring a filter wins
-                $filter = $extensionFilter->getName() === $filterName ? $extensionFilter : $filter;
-            }
-        }
-        if (null !== $filter) {
-            $removedTaints = $this->getCallableRemovedTaints($filter->getCallable());
-        }
-
-        $taintDestination = DataFlowNode::getForAssignment('filter_'.$filterName, $this->getNodeLocation($expression));
-
-        $this->taint->addNode($taintDestination);
-        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $removedTaints);
+        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($filter?->getCallable()));
 
         return $taintDestination;
     }
@@ -119,23 +140,10 @@ final class Context
     {
         /** @var string $functionName */
         $functionName = $expression->getAttribute('name');
+        $function = $this->getTwigCallable($expression);
+        $taintDestination = $this->getNode($expression, 'function_'.$functionName);
 
-        $removedTaints = 0;
-        $function = null;
-        foreach ($this->twig->getExtensions() as $extension) {
-            foreach ($extension->getFunctions() as $extensionFunction) {
-                // the last extension declaring a function wins
-                $function = $extensionFunction->getName() === $functionName ? $extensionFunction : $function;
-            }
-        }
-        if (null !== $function) {
-            $removedTaints = $this->getCallableRemovedTaints($function->getCallable());
-        }
-
-        $taintDestination = DataFlowNode::getForAssignment('function_'.$functionName, $this->getNodeLocation($expression));
-
-        $this->taint->addNode($taintDestination);
-        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $removedTaints);
+        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($function?->getCallable()));
 
         return $taintDestination;
     }
@@ -145,12 +153,45 @@ final class Context
      */
     public function getFetchDestination(DataFlowNode $taintSource, Node $expression, string $label, string $pathType): DataFlowNode
     {
-        $taintDestination = DataFlowNode::getForAssignment('fetch_'.$label, $this->getNodeLocation($expression));
+        $taintDestination = $this->getNode($expression, 'fetch_'.$label);
 
-        $this->taint->addNode($taintDestination);
         $this->taint->addPath($taintSource, $taintDestination, $pathType);
 
         return $taintDestination;
+    }
+
+    /**
+     * The name of the filter $expression applies.
+     */
+    public static function getFilterName(FilterExpression $expression): string
+    {
+        $filter = $expression->getAttribute('twig_callable');
+        if ($filter instanceof TwigFilter) {
+            return $filter->getName();
+        }
+
+        // Twig < 3.12 doesn't give the filter
+        return (string) $expression->getNode('filter')->getAttribute('value');
+    }
+
+    /**
+     * The Twig filter or function $expression calls, as Twig resolves it: also when its name matches a pattern.
+     */
+    private function getTwigCallable(FilterExpression|FunctionExpression $expression): TwigFilter|TwigFunction|null
+    {
+        if ($expression->hasAttribute('twig_callable')) {
+            /** @var TwigFilter|TwigFunction */
+            return $expression->getAttribute('twig_callable');
+        }
+
+        // Twig < 3.12 leaves it to the compiler
+        if ($expression instanceof FilterExpression) {
+            /** @psalm-suppress InternalMethod */
+            return $this->twig->getFilter(self::getFilterName($expression));
+        }
+
+        /** @psalm-suppress InternalMethod */
+        return $this->twig->getFunction((string) $expression->getAttribute('name'));
     }
 
     /**
@@ -213,73 +254,129 @@ final class Context
     }
 
     /**
-     * Assigns $destinationVariable a value whose taints come from $sources, through a path of type $pathType.
+     * Assigns $destinationVariable a value whose taints come from $sources, through a path of type $pathType. In the
+     * body of an `if` or of a `for`, which may not run, the variable can also keep the value it had, unless $always.
      *
      * @param list<DataFlowNode> $sources
      */
-    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg'): void
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
-        $taintDestination = $this->addVariableTaintNode($destinationVariable);
+        $taintDestination = $this->getNode($destinationVariable, $destinationName);
 
         foreach ($sources as $source) {
             $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
-        $this->localVariables[$destinationName] = $taintDestination;
+        $this->localVariables[$destinationName] = 0 < $this->conditionalDepth && !$always
+            ? [...$this->taintVariable($destinationVariable), $taintDestination]
+            : [$taintDestination];
     }
 
     /**
-     * Makes the variables of an included template take the taints of what the include gives them: the variables
-     * of `with`, and unless it is `only` the variables of the including template.
+     * Enters the body of an `if`, which may not run.
      *
-     * @param array<string, list<DataFlowNode>> $withVariables
+     * @psalm-capabilities read-props|write-this-props|write-refs
      */
-    public function taintInclude(Node $includeNode, string $includedTemplateName, array $withVariables, bool $only): void
+    public function enterConditional(): void
     {
-        $location = $this->getNodeLocation($includeNode);
+        ++$this->conditionalDepth;
+    }
 
-        // what the included template outputs is part of what this one outputs
-        $includedOutput = self::getForTemplate($includedTemplateName);
-        $this->taint->addNode($includedOutput);
-        $this->parentNodes[] = $includedOutput;
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    public function leaveConditional(): void
+    {
+        --$this->conditionalDepth;
+    }
 
-        foreach ($withVariables as $variableName => $sources) {
-            $destination = self::getForTemplateVariable(strtolower($includedTemplateName).'#'.strtolower($variableName));
-            $this->taint->addNode($destination);
-            foreach ($sources as $source) {
-                $this->taint->addPath($source, $destination, 'arg');
-            }
+    /**
+     * Enters the body of a `for` whose targets are $targetNames: like Twig, the analysis gives them back their value
+     * when leaving it (see leaveLoop()).
+     *
+     * @param list<string> $targetNames
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    public function enterLoop(array $targetNames): void
+    {
+        $values = [];
+        foreach ($targetNames as $targetName) {
+            $values[$targetName] = $this->localVariables[$targetName] ?? null;
         }
 
-        if ($only) {
-            return;
-        }
+        $this->loopTargets[] = $values;
+        $this->enterConditional();
+    }
 
-        foreach ($this->getContextVariables($includedTemplateName) as $variableName) {
-            if (isset($withVariables[$variableName])) {
-                continue;
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    public function leaveLoop(): void
+    {
+        $this->leaveConditional();
+
+        foreach (array_pop($this->loopTargets) ?? [] as $targetName => $value) {
+            if (null === $value) {
+                unset($this->localVariables[$targetName]);
+            } else {
+                $this->localVariables[$targetName] = $value;
             }
-
-            $usage = DataFlowNode::getForAssignment($variableName, $location);
-            $this->taint->addNode($usage);
-            $source = $this->addVariableUsage($variableName, $usage);
-
-            $destination = self::getForTemplateVariable(strtolower($includedTemplateName).'#'.strtolower($variableName));
-            $this->taint->addNode($destination);
-            $this->taint->addPath($source, $destination, 'arg');
         }
     }
 
+    /**
+     * Includes the template $includedTemplateName, giving each variable it reads from its context (see
+     * getContextVariables()) what $variables gives it, and if $withContext the variable of its name of this template.
+     *
+     * @param IncludedVariables $variables
+     *
+     * @return DataFlowNode the node of what the included template outputs
+     */
+    public function includeTemplate(Node $includeNode, string $includedTemplateName, array $variables, bool $withContext): DataFlowNode
+    {
+        foreach ($this->getContextVariables($includedTemplateName) as $variableName) {
+            $destination = self::getForTemplateVariable($includedTemplateName, $variableName);
+            $this->taint->addNode($destination);
+
+            foreach ([...$variables['keyed'][$variableName] ?? [], ...$variables['unkeyed']] as $source) {
+                $this->taint->addPath($source, $destination, 'arg');
+            }
+
+            foreach ($variables['whole'] as $source) {
+                $this->taint->addPath($source, $destination, "arrayvalue-fetch-'".$variableName."'");
+            }
+
+            if ($withContext && !isset($variables['keyed'][$variableName])) {
+                $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
+                foreach ($values as $source) {
+                    $this->taint->addPath($source, $destination, 'arg');
+                }
+            }
+        }
+
+        $includedOutput = self::getForTemplate($includedTemplateName);
+        $this->taint->addNode($includedOutput);
+
+        return $includedOutput;
+    }
+
+    /**
+     * Makes the variables the template reads from its context take the taints of the variables of their name given to
+     * it, and of the keys of their name of the contexts the analysis can't tell the keys of.
+     */
     public function taintUnassignedVariables(string $templateName): void
     {
-        foreach ($this->unassignedVariables as $variableName => $taintable) {
-            $label = strtolower($templateName).'#'.strtolower($variableName);
-            $taintSource = self::getForTemplateVariable($label);
+        $context = self::getForTemplateContext($templateName);
+        $this->taint->addNode($context);
 
-            $this->taint->addNode($taintSource);
-            $this->taint->addPath($taintSource, $taintable, 'arg');
+        foreach ($this->unassignedVariables as $variableName => $taintable) {
+            $variable = self::getForTemplateVariable($templateName, $variableName);
+            $this->taint->addNode($variable);
+            $this->taint->addPath($context, $variable, "arrayvalue-fetch-'".$variableName."'");
+            $this->taint->addPath($variable, $taintable, 'arg');
         }
     }
 
@@ -303,42 +400,33 @@ final class Context
     }
 
     /**
-     * The node of a variable of the template (`<template name>#<variable name>`, lowercased), which taints
-     * flow into the template through.
+     * The node of a variable of the context of the template, which taints flow into the template through.
+     *
+     * Each variable has its own node, rather than taking the key of its name of a node of the whole context: Psalm
+     * follows a single flow of given taints through a node, so the flows of several keys would leave by one of them.
      *
      * @psalm-pure
      */
-    public static function getForTemplateVariable(string $label): DataFlowNode
+    public static function getForTemplateVariable(string $templateName, string $variableName): DataFlowNode
     {
-        return DataFlowNode::getForPropertyFetch($label);
-    }
-
-    private function addVariableTaintNode(NameExpression $variableNode): DataFlowNode
-    {
-        /** @var string $variableName */
-        $variableName = $variableNode->getAttribute('name');
-        $taintNode = DataFlowNode::getForAssignment($variableName, $this->getNodeLocation($variableNode));
-
-        $this->taint->addNode($taintNode);
-
-        return $taintNode;
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName);
     }
 
     /**
-     * @psalm-capabilities read-props|write-this-props|write-refs
+     * The node of a context the template is rendered with whose keys the analysis can't tell (Twig's `_context`),
+     * whose key of the name of each variable of the template is that variable.
+     *
+     * @psalm-pure
      */
-    private function addVariableUsage(string $variableName, DataFlowNode $variableTaint): DataFlowNode
+    public static function getForTemplateContext(string $templateName): DataFlowNode
     {
-        if (!isset($this->localVariables[$variableName])) {
-            // every use of a variable of the template goes through the node of its first use
-            return $this->unassignedVariables[$variableName] ??= $variableTaint;
-        }
-
-        return $this->localVariables[$variableName];
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#_context');
     }
 
     /**
-     * The variables a template reads from the context it is rendered with.
+     * The variables a template reads from the context it is rendered with: those it reads, and those the templates it
+     * gives its context to read (by `include`, `embed`, `extends` or `include()`). A variable it also sets is one of
+     * them, as it may read it before.
      *
      * @return list<string>
      */
@@ -348,20 +436,30 @@ final class Context
             return self::$contextVariables[$templateName];
         }
 
+        // a template including itself reads no other variables
+        self::$contextVariables[$templateName] = [];
+
         try {
             $tree = $this->twig->parse($this->twig->tokenize($this->twig->getLoader()->getSourceContext($templateName)));
         } catch (Error) {
             // a template the analysis cannot load or parse: its own analysis reports why
-            return self::$contextVariables[$templateName] = [];
+            return [];
         }
 
-        $assigned = [];
         $read = [];
-        $collect = static function (Node $node) use (&$collect, &$assigned, &$read): void {
-            if ($node instanceof AssignNameExpression) {
-                $assigned[(string) $node->getAttribute('name')] = true;
-            } elseif ($node instanceof NameExpression) {
+        $collect = function (Node $node) use (&$collect, &$read): void {
+            if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
+            }
+
+            foreach (self::getTemplatesGivenContext($node) as $includedTemplateName) {
+                $read += array_fill_keys($this->getContextVariables($includedTemplateName), true);
+            }
+
+            if ($node instanceof ModuleNode) {
+                foreach ($node->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
+                    $collect($embeddedTemplate);
+                }
             }
 
             foreach ($node as $child) {
@@ -370,35 +468,95 @@ final class Context
         };
         $collect($tree);
 
-        return self::$contextVariables[$templateName] = array_keys(array_diff_key($read, $assigned));
+        return self::$contextVariables[$templateName] = array_map('strval', array_keys($read));
     }
 
-    private function getNodeLocation(Node $node): CodeLocation
+    /**
+     * The templates $node gives the context of the template to. That of an `embed` is the parent of the template it
+     * embeds.
+     *
+     * @return list<string>
+     */
+    private static function getTemplatesGivenContext(Node $node): array
     {
-        /** @psalm-var string $fileName */
-        $fileName = $this->sourceContext->getName();
-        $filePath = $this->sourceContext->getPath();
-        $snippet = $this->sourceContext->getCode(); // warning : the getCode method returns the whole template, not only the statement
-        $fileCode = file_get_contents($filePath);
-        /** @psalm-var int $lineNumber */
-        $lineNumber = $node->getTemplateLine();
-        $lines = explode("\n", $fileCode);
-
-        $file_start = 0;
-
-        for ($i = 0; $i < $lineNumber - 1; ++$i) {
-            $file_start += strlen($lines[$i]) + 1;
+        if ($node instanceof FunctionExpression) {
+            $withContext = self::getArgument($node, 2, 'with_context');
+            $template = 'include' !== $node->getAttribute('name') || ($withContext instanceof ConstantExpression && false === $withContext->getAttribute('value'))
+                ? null
+                : self::getArgument($node, 0, 'template');
+        } elseif ($node instanceof ModuleNode) {
+            // also an embedded template, extending the template `embed` displays
+            $template = $node->hasNode('parent') ? $node->getNode('parent') : null;
+        } elseif ($node instanceof IncludeNode && !$node instanceof EmbedNode) {
+            $template = $node->getAttribute('only') ? null : $node->getNode('expr');
+        } else {
+            $template = null;
         }
 
-        $file_start += (int) strpos($lines[$lineNumber - 1], $snippet);
-        $file_end = $file_start + strlen($snippet);
+        return $template instanceof ConstantExpression && \is_string($template->getAttribute('value')) ? [$template->getAttribute('value')] : [];
+    }
 
-        return new CodeLocation\Raw(
-            $fileCode,
-            $filePath,
-            $fileName,
-            $file_start,
-            max($file_end, strlen($fileCode))
-        );
+    /**
+     * The argument of $expression at $position, or named $name.
+     */
+    public static function getArgument(FunctionExpression $expression, int $position, string $name): ?Node
+    {
+        $arguments = $expression->getNode('arguments');
+        foreach ([(string) $position, $name] as $key) {
+            if ($arguments->hasNode($key)) {
+                return $arguments->getNode($key);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The node of the variable $variableName of the context of the template: every read of it goes through the node
+     * of the first one, $expression.
+     */
+    private function getContextVariable(string $variableName, Node $expression): DataFlowNode
+    {
+        return $this->unassignedVariables[$variableName] ??= $this->getNode($expression, $variableName, 'read');
+    }
+
+    /**
+     * The node labelled $label of $twigNode, for what $kind tells apart. Twig only gives the line of a node, so the
+     * nodes of a line with the same label are told apart by a number.
+     */
+    private function getNode(Node $twigNode, string $label, string $kind = ''): DataFlowNode
+    {
+        $key = spl_object_id($twigNode).' '.$kind.' '.$label;
+        if (isset($this->nodes[$key])) {
+            return $this->nodes[$key];
+        }
+
+        $line = $twigNode->getTemplateLine();
+        $count = $this->labelCounts[$line.' '.$label] = ($this->labelCounts[$line.' '.$label] ?? 0) + 1;
+
+        $node = DataFlowNode::getForAssignment(1 === $count ? $label : $label.'#'.$count, $this->getLineLocation($line));
+        $this->taint->addNode($node);
+
+        return $this->nodes[$key] = $node;
+    }
+
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    private function getLineLocation(int $line): CodeLocation
+    {
+        $code = $this->sourceContext->getCode();
+        if (null === $this->lineOffsets) {
+            $this->lineOffsets = [0];
+            $offset = 0;
+            while (false !== $offset = strpos($code, "\n", $offset)) {
+                $this->lineOffsets[] = ++$offset;
+            }
+        }
+
+        $start = $this->lineOffsets[$line - 1] ?? 0;
+        $end = isset($this->lineOffsets[$line]) ? $this->lineOffsets[$line] - 1 : \strlen($code);
+
+        return new CodeLocation\Raw($code, $this->sourceContext->getPath(), $this->sourceContext->getName(), $start, $end);
     }
 }
