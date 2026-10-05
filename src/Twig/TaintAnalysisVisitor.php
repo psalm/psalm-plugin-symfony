@@ -11,6 +11,7 @@ use Twig\Node\Expression\NameExpression;
 use Twig\Node\ForNode;
 use Twig\Node\IfNode;
 use Twig\Node\IncludeNode;
+use Twig\Node\MacroNode;
 use Twig\Node\ModuleNode;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
@@ -74,6 +75,10 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
             $this->analyzeIncludeNode($node, $env);
         }
 
+        if ($node instanceof MacroNode) {
+            $this->context->enterMacro($node);
+        }
+
         return $node;
     }
 
@@ -86,6 +91,10 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
 
         if ($node instanceof ForNode) {
             $this->context->leaveLoop();
+        }
+
+        if ($node instanceof MacroNode) {
+            $this->context->leaveMacro($node);
         }
 
         return $node;
@@ -107,6 +116,10 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
     {
         /** @var iterable<ModuleNode> */
         $this->embeddedTemplates = $node->getAttribute('embedded_templates') ?? [];
+
+        /** @var iterable<MacroNode> $macros */
+        $macros = $node->getNode('macros');
+        $this->context->setMacros($macros);
 
         $parent = $node->hasNode('parent') ? $node->getNode('parent') : null;
         if ($parent instanceof ConstantExpression && \is_string($parent->getAttribute('value'))) {
