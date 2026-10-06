@@ -15,6 +15,7 @@ use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
+use Twig\Node\Expression\Unary\SpreadUnary;
 use Twig\Node\Expression\Variable\LocalVariable;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
@@ -191,8 +192,8 @@ final class PrintNodeAnalyzer
                 $key instanceof ConstantExpression => $key->getAttribute('value'),
                 default => null,
             };
-            if ($keyValue !== $position) {
-                // a named argument
+            if ($keyValue !== $position || $value instanceof SpreadUnary) {
+                // a named argument, or arguments spread from an array
                 return null;
             }
 

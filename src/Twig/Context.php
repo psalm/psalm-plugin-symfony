@@ -159,8 +159,8 @@ final class Context
      * arguments by position. Like a PHP call, the arguments flow into the parameters of every method Twig may call
      * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class, or the
      * `__call` of a class without one. The template doesn't tell the class of `item`, so these are the methods of
-     * every class. A method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources), or
-     * else what it is given. Null if no class has such a method: the call returns what it is given.
+     * every class. As for a PHP call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`,
+     * sources). Null if no class has such a method: the call returns what it is given.
      *
      * @param list<list<DataFlowNode>> $arguments
      */
@@ -184,7 +184,6 @@ final class Context
 
         foreach ($methods as [$methodId, $storage]) {
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
-            $isAnalyzed = null !== $storage->location && $this->codebase->config->isInProjectDirs($storage->location->file_path);
 
             foreach ($arguments as $offset => $sources) {
                 // __call is given the arguments as the items of its second parameter
@@ -226,17 +225,9 @@ final class Context
                 $this->taint->addPath($source, $taintDestination, 'arg');
             }
 
-            if ($isAnalyzed) {
-                $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage);
-                $this->taint->addNode($returnNode);
-                $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
-            } elseif ([] === $storage->return_source_params) {
-                foreach ($arguments as $sources) {
-                    foreach ($sources as $source) {
-                        $this->taint->addPath($source, $taintDestination, 'arg', 0, $removedTaints);
-                    }
-                }
-            }
+            $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage);
+            $this->taint->addNode($returnNode);
+            $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
         }
 
         return $taintDestination;
