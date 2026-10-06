@@ -9,7 +9,9 @@ use Psalm\CodeLocation;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Internal\MethodIdentifier;
+use Psalm\Internal\Provider\ClassLikeStorageProvider;
 use Psalm\Storage\FunctionLikeStorage;
+use Psalm\Storage\MethodStorage;
 use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\EmbedNode;
@@ -17,6 +19,7 @@ use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
+use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\IncludeNode;
 use Twig\Node\ModuleNode;
@@ -74,6 +77,9 @@ final class Context
 
     /** @var array<string, list<string>> template name => the variables it reads from its context */
     private static $contextVariables = [];
+
+    /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage}>>|null method name => the methods of that name of every class, with their method id */
+    private static $methodsByName;
 
     /**
      * @psalm-capabilities read-props
@@ -146,6 +152,136 @@ final class Context
         $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($function?->getCallable()));
 
         return $taintDestination;
+    }
+
+    /**
+     * The node of what the method call $expression, `item.name(...)`, returns, given the nodes of each of its
+     * arguments by position. Like a PHP call, the arguments flow into the parameters of every method Twig may call
+     * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class, or the
+     * `__call` of a class without one. The template doesn't tell the class of `item`, so these are the methods of
+     * every class. A method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources), or
+     * else what it is given. Null if no class has such a method: the call returns what it is given.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     */
+    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
+    {
+        if (null === $this->codebase) {
+            return null;
+        }
+
+        $methods = [];
+        $methodsByName = $this->getMethodsByName($this->codebase);
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name, '__call'] as $methodName) {
+            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
+        }
+
+        if ([] === $methods) {
+            return null;
+        }
+
+        $taintDestination = $this->getNode($expression, 'method_'.$name);
+
+        foreach ($methods as [$methodId, $storage]) {
+            $isMagic = '__call' === strtolower((string) $storage->cased_name);
+            $isAnalyzed = null !== $storage->location && $this->codebase->config->isInProjectDirs($storage->location->file_path);
+
+            foreach ($arguments as $offset => $sources) {
+                // __call is given the arguments as the items of its second parameter
+                $parameter = $isMagic ? 1 : $offset;
+                if (!isset($storage->params[$parameter]) && (end($storage->params) ?: null)?->is_variadic) {
+                    // one of the arguments a variadic parameter takes
+                    $parameter = \count($storage->params) - 1;
+                }
+
+                $parameterStorage = $storage->params[$parameter] ?? null;
+                if (null === $parameterStorage) {
+                    // an argument no parameter takes
+                    continue;
+                }
+
+                $parameterNode = DataFlowNode::getForMethodArgument($methodId, $parameter, $storage);
+                $this->taint->addNode($parameterNode);
+                if (0 !== $parameterStorage->sinks) {
+                    $this->taint->addSink($parameterNode);
+                }
+
+                foreach ($sources as $source) {
+                    $this->taint->addPath($source, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
+                }
+            }
+
+            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+
+            foreach ($storage->return_source_params as $offset => $pathType) {
+                foreach ($isMagic ? [] : self::getArgumentsOfParameter($storage, $arguments, $offset) as $source) {
+                    $this->taint->addPath($source, $taintDestination, $pathType, $storage->added_taints, $removedTaints);
+                }
+            }
+
+            $sourceTaints = (0 !== $storage->taint_source_types ? $storage->taint_source_types : $storage->added_taints) & ~$storage->removed_taints;
+            if (0 !== $sourceTaints) {
+                $source = $this->getNode($expression, 'method_'.$name, 'source '.$methodId)->setTaints($sourceTaints);
+                $this->taint->addSource($source);
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+
+            if ($isAnalyzed) {
+                $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage);
+                $this->taint->addNode($returnNode);
+                $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
+            } elseif ([] === $storage->return_source_params) {
+                foreach ($arguments as $sources) {
+                    foreach ($sources as $source) {
+                        $this->taint->addPath($source, $taintDestination, 'arg', 0, $removedTaints);
+                    }
+                }
+            }
+        }
+
+        return $taintDestination;
+    }
+
+    /**
+     * The nodes of the arguments a parameter of $storage takes: those at its position, and after it if it is variadic.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     *
+     * @return list<DataFlowNode>
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getArgumentsOfParameter(FunctionLikeStorage $storage, array $arguments, int $offset): array
+    {
+        $sources = [];
+        foreach ($arguments as $argumentOffset => $argumentSources) {
+            if ($argumentOffset === $offset || ($argumentOffset > $offset && ($storage->params[$offset] ?? null)?->is_variadic)) {
+                $sources = [...$sources, ...$argumentSources];
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * The methods of every class, by lowercase name, with the method id their body uses.
+     *
+     * @return array<lowercase-string, non-empty-list<array{string, MethodStorage}>>
+     */
+    private function getMethodsByName(Codebase $codebase): array
+    {
+        if (null !== self::$methodsByName) {
+            return self::$methodsByName;
+        }
+
+        $methodsByName = [];
+        foreach ($codebase->classlike_storage_provider::getAll() as $classStorage) {
+            foreach ($classStorage->methods as $methodName => $methodStorage) {
+                $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage];
+            }
+        }
+
+        return self::$methodsByName = $methodsByName;
     }
 
     /**
