@@ -525,6 +525,130 @@ Feature: Twig tainting with analyzer
     When I run Psalm with taint analysis
     And I see no errors
 
+  Scenario: A tainted parameter given to a method that many classes have is displayed with only the raw filter
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price1
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price2
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price3
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price4
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price5
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price6
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price7
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price8
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price9
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '' === $currency ? '1' : '2';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['price' => new Price1(), 'untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ price.formatPrice(untrusted)|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: A tainted parameter given to a method no class has is displayed with only the raw filter
     Given I have the following code
       """
@@ -541,22 +665,9 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
-  Scenario: A tainted parameter given to a method that an object calls __call for is displayed with only the raw filter
+  Scenario: A tainted parameter given to a method that no class has but __call returns is displayed with only the raw filter
     Given I have the following code
       """
-      /**
-       * @psalm-api
-       * @psalm-pure
-       */
-      final class Price
-      {
-          /** @psalm-pure */
-          public function formatPrice(string $currency): string
-          {
-              return '' === $currency ? '1' : '2';
-          }
-      }
-
       /**
        * @psalm-api
        * @psalm-pure
@@ -582,6 +693,31 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: A tainted parameter given to a method that no class has and __call doesn't return is displayed with only the raw filter
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class PriceProxy
+      {
+          /** @param list<mixed> $arguments */
+          public function __call(string $name, array $arguments): string
+          {
+              return [] === $arguments ? $name : '1';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['price' => new PriceProxy(), 'untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ price.formatPrice(untrusted)|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
 
   Scenario: A variable set from an expression using a tainted parameter is displayed with only the raw filter
     Given I have the following code

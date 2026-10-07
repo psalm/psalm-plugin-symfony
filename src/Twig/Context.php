@@ -39,6 +39,9 @@ use Twig\TwigFunction;
  */
 final class Context
 {
+    /** the most methods a method call of a template is linked to (see getMethodCallTaintDestination()) */
+    private const MAX_CALLED_METHODS = 8;
+
     /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
@@ -157,10 +160,12 @@ final class Context
     /**
      * The node of what the method call $expression, `item.name(...)`, returns, given the nodes of each of its
      * arguments by position. Like a PHP call, the arguments flow into the parameters of every method Twig may call
-     * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class, or the
-     * `__call` of a class without one. The template doesn't tell the class of `item`, so these are the methods of
-     * every class. As for a PHP call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`,
-     * sources). Null if no class has such a method: the call returns what it is given.
+     * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class. The template
+     * doesn't tell the class of `item`, so these are the methods of every class. Like Psalm resolving a PHP call, the
+     * call goes to `__call` only if no class has such a method: then to the `__call` of every class. As for a PHP
+     * call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources). Null if there
+     * is no such method, or more than MAX_CALLED_METHODS (linking a call to the bodies of many classes makes the
+     * resolution of the taint graph explode): the call returns what it is given.
      *
      * @param list<list<DataFlowNode>> $arguments
      */
@@ -172,11 +177,15 @@ final class Context
 
         $methods = [];
         $methodsByName = $this->getMethodsByName($this->codebase);
-        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name, '__call'] as $methodName) {
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
             $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
         }
 
         if ([] === $methods) {
+            $methods = $methodsByName['__call'] ?? [];
+        }
+
+        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods)) {
             return null;
         }
 
@@ -268,6 +277,11 @@ final class Context
         $methodsByName = [];
         foreach ($codebase->classlike_storage_provider::getAll() as $classStorage) {
             foreach ($classStorage->methods as $methodName => $methodStorage) {
+                if ($methodStorage->abstract) {
+                    // its implementations are methods of other classes
+                    continue;
+                }
+
                 $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage];
             }
         }
