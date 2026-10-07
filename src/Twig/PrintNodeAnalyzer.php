@@ -15,6 +15,8 @@ use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
+use Twig\Node\Expression\Unary\SpreadUnary;
+use Twig\Node\Expression\Variable\LocalVariable;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
 
@@ -122,8 +124,9 @@ final class PrintNodeAnalyzer
 
     /**
      * `item.name` and `item['name']` give the value of the key `name` of `item`, whose other keys can hold other taints:
-     * like an array fetch in PHP. An attribute that is a method call, or that the analysis can't tell, gives the
-     * taints of the whole of `item`, and of the arguments of the call.
+     * like an array fetch in PHP. A method call gives the taints of `item` and of what the methods it may call return
+     * (see Context::getMethodCallTaintDestination()). An attribute the analysis can't tell gives the taints of the
+     * whole of `item`, and of its arguments.
      *
      * `item.name` and `item.name(...)` of an object give its property or what its method returns: those of the
      * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()).
@@ -159,11 +162,57 @@ final class PrintNodeAnalyzer
             ];
         }
 
-        if ($expression->hasNode('arguments')) {
-            $sources = [...$sources, ...$this->getTaintSources($expression->getNode('arguments'))];
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $argumentSources = 'method' === $type && $attribute instanceof ConstantExpression
+            ? $this->getArgumentTaintSources($arguments)
+            : null;
+        if (null !== $argumentSources) {
+            // what the receiver holds stays, as a method of an object specialized by instance returns what it holds
+            $call = $this->context->getMethodCallTaintDestination($expression, (string) $attribute->getAttribute('value'), $argumentSources);
+            if (null !== $call) {
+                return [...$sources, ...$objectSources, $call];
+            }
+        }
+
+        if (null !== $arguments) {
+            $sources = [...$sources, ...$this->getTaintSources($arguments)];
         }
 
         return [...$sources, ...$objectSources];
+    }
+
+    /**
+     * The nodes of each argument of a method call, by position. Null if the analysis can't tell their positions.
+     *
+     * @return list<list<DataFlowNode>>|null
+     */
+    private function getArgumentTaintSources(?Node $arguments): ?array
+    {
+        if (null === $arguments) {
+            return [];
+        }
+
+        if (!$arguments instanceof ArrayExpression) {
+            return null;
+        }
+
+        $argumentSources = [];
+        foreach ($arguments->getKeyValuePairs() as $position => ['key' => $key, 'value' => $value]) {
+            // Twig >= 3.15 gives positions as local variables
+            $keyValue = match (true) {
+                $key instanceof LocalVariable => $key->getAttribute('name'),
+                $key instanceof ConstantExpression => $key->getAttribute('value'),
+                default => null,
+            };
+            if ($keyValue !== $position || $value instanceof SpreadUnary) {
+                // a named argument, or arguments spread from an array
+                return null;
+            }
+
+            $argumentSources[] = $this->getTaintSources($value);
+        }
+
+        return $argumentSources;
     }
 
     /**

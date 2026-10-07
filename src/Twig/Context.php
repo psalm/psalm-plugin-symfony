@@ -47,7 +47,7 @@ use Twig\TwigFunction;
  */
 final class Context
 {
-    /** the most methods, a method and its overrides, an attribute of an object is linked to (see getMethodReturns()) */
+    /** the most methods, a method and its overrides, a method call or an attribute of an object is linked to (see getMethodCallTaintDestination() and getMethodReturns()) */
     private const MAX_CALLED_METHODS = 8;
 
     /** the filters returning an item of the array they are given */
@@ -100,6 +100,9 @@ final class Context
 
     /** @var array<lowercase-string, list<ClassLikeStorage>>|null class or interface => the classes extending or implementing it */
     private static $descendants;
+
+    /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>|null method name => the methods of that name of every class, with their method id and class */
+    private static $methodsByName;
 
     /**
      * @psalm-capabilities read-props
@@ -212,6 +215,166 @@ final class Context
     }
 
     /**
+     * The node of what the method call $expression, `item.name(...)`, returns, given the nodes of each of its
+     * arguments by position. Like a PHP call, the arguments flow into the parameters of every method Twig may call
+     * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class. The template
+     * doesn't tell the class of `item`, so these are the methods of every class. Like Psalm resolving a PHP call, the
+     * call goes to `__call` only if no class has such a method: then to the `__call` of every class. As for a PHP
+     * call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources). Null if there
+     * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
+     * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
+     * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
+     * returns what it is given.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     */
+    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
+    {
+        if (null === $this->codebase) {
+            return null;
+        }
+
+        $methods = [];
+        $methodsByName = $this->getMethodsByName($this->codebase);
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
+            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
+        }
+
+        if ([] === $methods) {
+            $methods = $methodsByName['__call'] ?? [];
+        }
+
+        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($this->codebase, $methods)) {
+            return null;
+        }
+
+        $taintDestination = $this->getNode($expression, 'method_'.$name);
+
+        foreach ($methods as [$methodId, $storage, $_]) {
+            // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
+            // arguments give the body: what the object holds comes with the receiver
+            $specialization = $storage->specialize_call ? $this->getLineLocation($expression->getTemplateLine()) : null;
+            $isMagic = '__call' === strtolower((string) $storage->cased_name);
+
+            foreach ($arguments as $offset => $sources) {
+                // __call is given the arguments as the items of its second parameter
+                $parameter = $isMagic ? 1 : $offset;
+                if (!isset($storage->params[$parameter]) && (end($storage->params) ?: null)?->is_variadic) {
+                    // one of the arguments a variadic parameter takes
+                    $parameter = \count($storage->params) - 1;
+                }
+
+                $parameterStorage = $storage->params[$parameter] ?? null;
+                if (null === $parameterStorage) {
+                    // an argument no parameter takes
+                    continue;
+                }
+
+                $parameterNode = DataFlowNode::getForMethodArgument($methodId, $parameter, $storage, $specialization);
+                $this->taint->addNode($parameterNode);
+                if (0 !== $parameterStorage->sinks) {
+                    $this->taint->addSink($parameterNode);
+                }
+
+                foreach ($sources as $source) {
+                    $this->taint->addPath($source, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
+                }
+            }
+
+            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+
+            foreach ($storage->return_source_params as $offset => $pathType) {
+                foreach ($isMagic ? [] : self::getArgumentsOfParameter($storage, $arguments, $offset) as $source) {
+                    $this->taint->addPath($source, $taintDestination, $pathType, $storage->added_taints, $removedTaints);
+                }
+            }
+
+            $sourceTaints = (0 !== $storage->taint_source_types ? $storage->taint_source_types : $storage->added_taints) & ~$storage->removed_taints;
+            if (0 !== $sourceTaints) {
+                $source = $this->getNode($expression, 'method_'.$name, 'source '.$methodId)->setTaints($sourceTaints);
+                $this->taint->addSource($source);
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+
+            $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage, $specialization);
+            $this->taint->addNode($returnNode);
+            $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
+        }
+
+        return $taintDestination;
+    }
+
+    /**
+     * Whether the classes of $methods are one class and classes extending or implementing it: the methods are then a
+     * method and its overrides, which an object of the class or of one of its descendants calls.
+     *
+     * @param non-empty-list<array{string, MethodStorage, string}> $methods
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function isOneHierarchy(Codebase $codebase, array $methods): bool
+    {
+        foreach ($methods as [, , $root]) {
+            foreach ($methods as [, , $class]) {
+                if ($class !== $root && !$codebase->classExtendsOrImplements($class, $root)) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * The nodes of the arguments a parameter of $storage takes: those at its position, and after it if it is variadic.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     *
+     * @return list<DataFlowNode>
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getArgumentsOfParameter(FunctionLikeStorage $storage, array $arguments, int $offset): array
+    {
+        $sources = [];
+        foreach ($arguments as $argumentOffset => $argumentSources) {
+            if ($argumentOffset === $offset || ($argumentOffset > $offset && ($storage->params[$offset] ?? null)?->is_variadic)) {
+                $sources = [...$sources, ...$argumentSources];
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * The methods of every class, by lowercase name, with the method id their body uses.
+     *
+     * @return array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>
+     */
+    private function getMethodsByName(Codebase $codebase): array
+    {
+        if (null !== self::$methodsByName) {
+            return self::$methodsByName;
+        }
+
+        $methodsByName = [];
+        foreach ($codebase->classlike_storage_provider::getAll() as $classStorage) {
+            foreach ($classStorage->methods as $methodName => $methodStorage) {
+                if ($methodStorage->abstract) {
+                    // its implementations are methods of other classes
+                    continue;
+                }
+
+                $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage, $classStorage->name];
+            }
+        }
+
+        return self::$methodsByName = $methodsByName;
+    }
+
+    /**
      * The node of what is fetched from $taintSource: a key of it, or what looping over it gives.
      */
     public function getFetchDestination(DataFlowNode $taintSource, Node $expression, string $label, string $pathType): DataFlowNode
@@ -259,7 +422,7 @@ final class Context
 
     /**
      * The taints the PHP callable of a filter removes from what it is given: those its storage says
-     * it escapes (`@psalm-taint-escape`), and those its native return type cannot hold.
+     * it escapes (`@psalm-taint-escape`), and those its return type cannot hold (native for a project callable).
      *
      * @param callable|array{0: class-string|object, 1: string}|string|null $callable
      */
@@ -270,7 +433,13 @@ final class Context
             return 0;
         }
 
-        return $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+        // the docblock of a project callable isn't checked against what it returns, unlike that of a library, which
+        // Psalm types the calls of the library with
+        $returnType = null !== $storage->location && $this->codebase?->config->isInProjectDirs($storage->location->file_path)
+            ? $storage->signature_return_type
+            : $storage->return_type;
+
+        return $storage->removed_taints | ($returnType?->getTaintsToRemove() ?? 0);
     }
 
     /**
