@@ -6,10 +6,20 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Psalm\Codebase;
 use Psalm\CodeLocation;
+use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Internal\MethodIdentifier;
+use Psalm\Internal\Provider\ClassLikeStorageProvider;
+use Psalm\Internal\Type\TypeVariableTracker;
+use Psalm\Storage\ClassLikeStorage;
 use Psalm\Storage\FunctionLikeStorage;
+use Psalm\Storage\MethodStorage;
+use Psalm\Type\Atomic\TArray;
+use Psalm\Type\Atomic\TGenericObject;
+use Psalm\Type\Atomic\TKeyedArray;
+use Psalm\Type\Atomic\TNamedObject;
+use Psalm\Type\Union;
 use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\EmbedNode;
@@ -19,6 +29,7 @@ use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\MacroReferenceExpression;
+use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\IncludeNode;
 use Twig\Node\MacroNode;
@@ -41,12 +52,20 @@ final class Context
 {
     /** The prefix Twig gives the names it reserves (Twig\Node\Expression\TempNameExpression::RESERVED_NAME_PREFIX) */
     private const RESERVED_NAME_PREFIX = "\u{035C}";
+    /** the most methods, a method and its overrides, a method call or an attribute of an object is linked to (see getMethodCallTaintDestination() and getMethodReturns()) */
+    private const MAX_CALLED_METHODS = 8;
+
+    /** the filters returning an item of the array they are given */
+    private const ITEM_FILTERS = ['first', 'last'];
 
     /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
     /** @var array<string, non-empty-list<DataFlowNode>> the nodes of the values a variable set by the template can have */
     private $localVariables = [];
+
+    /** @var array<string, list<string>> the attributes of the objects a variable set by the template can have (see getAttributeBases()) */
+    private $localAttributes = [];
 
     /** @var Source */
     private $sourceContext;
@@ -66,7 +85,7 @@ final class Context
     /** @var int how many `if` and `for` the analysis is in, whose body may not run */
     private $conditionalDepth = 0;
 
-    /** @var list<array<string, non-empty-list<DataFlowNode>|null>> the values the targets of the loops the analysis is in had before them */
+    /** @var list<array<string, array{non-empty-list<DataFlowNode>|null, list<string>}>> the values, and the attributes of their objects, the targets of the loops the analysis is in had before them */
     private $loopTargets = [];
 
     /** @var array<string, DataFlowNode> the nodes of the template, by Twig node and label */
@@ -88,8 +107,17 @@ final class Context
      */
     private $templateScope;
 
-    /** @var array<string, list<string>> template name => the variables it reads from its context */
-    private static $contextVariables = [];
+    /** @var array<string, array{variables: list<string>, attributes: list<string>}> template name => the variables it reads from its context, and the attributes it reads (see getTemplateReads()) */
+    private static $templateReads = [];
+
+    /** @var array<string, DataFlowNode|null> class and attribute => what Twig gives for the attribute of an object of the class (see getObjectAttribute()) */
+    private static $objectAttributes = [];
+
+    /** @var array<lowercase-string, list<ClassLikeStorage>>|null class or interface => the classes extending or implementing it */
+    private static $descendants;
+
+    /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>|null method name => the methods of that name of every class, with their method id and class */
+    private static $methodsByName;
 
     /**
      * @psalm-capabilities read-props
@@ -138,12 +166,49 @@ final class Context
         return $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $expression)];
     }
 
+    /**
+     * The nodes of what `variable.name`, or `variable.name(...)` if $isMethodCall, gives from the properties and the
+     * methods of the objects $variable holds: those of the classes of the values the variable is given (see
+     * taintTemplateVariableAttributes()).
+     *
+     * @return list<DataFlowNode>
+     */
+    public function getObjectAttributeSources(NameExpression $variable, string $name, bool $isMethodCall): array
+    {
+        $nodes = [];
+        foreach ($this->getAttributeBases((string) $variable->getAttribute('name')) as $base) {
+            $nodes[] = $node = self::getAttributeNode($base, $isMethodCall ? $name.'()' : $name);
+            $this->taint->addNode($node);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * The bases (see getAttributeBase()) of the attributes of the objects the variable $variableName can hold: its own
+     * as a variable of the context of the template, or those of the variable it is set to, or of the items of the
+     * variable it loops over.
+     *
+     * @return list<string>
+     *
+     * @psalm-capabilities read-props
+     */
+    private function getAttributeBases(string $variableName): array
+    {
+        return isset($this->localVariables[$variableName])
+            ? $this->localAttributes[$variableName] ?? []
+            : [self::getAttributeBase($this->sourceContext->getName(), $variableName)];
+    }
+
     public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
     {
         $filter = $this->getTwigCallable($expression);
-        $taintDestination = $this->getNode($expression, 'filter_'.self::getFilterName($expression));
+        $filterName = self::getFilterName($expression);
+        $taintDestination = $this->getNode($expression, 'filter_'.$filterName);
+        // first and last return an item of the array they are given, not the array
+        $pathType = \in_array($filterName, self::ITEM_FILTERS, true) ? 'arrayvalue-fetch' : 'arg';
 
-        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($filter?->getCallable()));
+        $this->taint->addPath($taintSource, $taintDestination, $pathType, 0, $this->getCallableRemovedTaints($filter?->getCallable()));
 
         return $taintDestination;
     }
@@ -162,6 +227,166 @@ final class Context
         $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($function?->getCallable()));
 
         return $taintDestination;
+    }
+
+    /**
+     * The node of what the method call $expression, `item.name(...)`, returns, given the nodes of each of its
+     * arguments by position. Like a PHP call, the arguments flow into the parameters of every method Twig may call
+     * and their returns into the call: the method `name`, `getName`, `isName` or `hasName` of any class. The template
+     * doesn't tell the class of `item`, so these are the methods of every class. Like Psalm resolving a PHP call, the
+     * call goes to `__call` only if no class has such a method: then to the `__call` of every class. As for a PHP
+     * call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources). Null if there
+     * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
+     * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
+     * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
+     * returns what it is given.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     */
+    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
+    {
+        if (null === $this->codebase) {
+            return null;
+        }
+
+        $methods = [];
+        $methodsByName = $this->getMethodsByName($this->codebase);
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
+            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
+        }
+
+        if ([] === $methods) {
+            $methods = $methodsByName['__call'] ?? [];
+        }
+
+        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($this->codebase, $methods)) {
+            return null;
+        }
+
+        $taintDestination = $this->getNode($expression, 'method_'.$name);
+
+        foreach ($methods as [$methodId, $storage, $_]) {
+            // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
+            // arguments give the body: what the object holds comes with the receiver
+            $specialization = $storage->specialize_call ? $this->getLineLocation($expression->getTemplateLine()) : null;
+            $isMagic = '__call' === strtolower((string) $storage->cased_name);
+
+            foreach ($arguments as $offset => $sources) {
+                // __call is given the arguments as the items of its second parameter
+                $parameter = $isMagic ? 1 : $offset;
+                if (!isset($storage->params[$parameter]) && (end($storage->params) ?: null)?->is_variadic) {
+                    // one of the arguments a variadic parameter takes
+                    $parameter = \count($storage->params) - 1;
+                }
+
+                $parameterStorage = $storage->params[$parameter] ?? null;
+                if (null === $parameterStorage) {
+                    // an argument no parameter takes
+                    continue;
+                }
+
+                $parameterNode = DataFlowNode::getForMethodArgument($methodId, $parameter, $storage, $specialization);
+                $this->taint->addNode($parameterNode);
+                if (0 !== $parameterStorage->sinks) {
+                    $this->taint->addSink($parameterNode);
+                }
+
+                foreach ($sources as $source) {
+                    $this->taint->addPath($source, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
+                }
+            }
+
+            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+
+            foreach ($storage->return_source_params as $offset => $pathType) {
+                foreach ($isMagic ? [] : self::getArgumentsOfParameter($storage, $arguments, $offset) as $source) {
+                    $this->taint->addPath($source, $taintDestination, $pathType, $storage->added_taints, $removedTaints);
+                }
+            }
+
+            $sourceTaints = (0 !== $storage->taint_source_types ? $storage->taint_source_types : $storage->added_taints) & ~$storage->removed_taints;
+            if (0 !== $sourceTaints) {
+                $source = $this->getNode($expression, 'method_'.$name, 'source '.$methodId)->setTaints($sourceTaints);
+                $this->taint->addSource($source);
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+
+            $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage, $specialization);
+            $this->taint->addNode($returnNode);
+            $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
+        }
+
+        return $taintDestination;
+    }
+
+    /**
+     * Whether the classes of $methods are one class and classes extending or implementing it: the methods are then a
+     * method and its overrides, which an object of the class or of one of its descendants calls.
+     *
+     * @param non-empty-list<array{string, MethodStorage, string}> $methods
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function isOneHierarchy(Codebase $codebase, array $methods): bool
+    {
+        foreach ($methods as [, , $root]) {
+            foreach ($methods as [, , $class]) {
+                if ($class !== $root && !$codebase->classExtendsOrImplements($class, $root)) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * The nodes of the arguments a parameter of $storage takes: those at its position, and after it if it is variadic.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     *
+     * @return list<DataFlowNode>
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getArgumentsOfParameter(FunctionLikeStorage $storage, array $arguments, int $offset): array
+    {
+        $sources = [];
+        foreach ($arguments as $argumentOffset => $argumentSources) {
+            if ($argumentOffset === $offset || ($argumentOffset > $offset && ($storage->params[$offset] ?? null)?->is_variadic)) {
+                $sources = [...$sources, ...$argumentSources];
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * The methods of every class, by lowercase name, with the method id their body uses.
+     *
+     * @return array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>
+     */
+    private function getMethodsByName(Codebase $codebase): array
+    {
+        if (null !== self::$methodsByName) {
+            return self::$methodsByName;
+        }
+
+        $methodsByName = [];
+        foreach ($codebase->classlike_storage_provider::getAll() as $classStorage) {
+            foreach ($classStorage->methods as $methodName => $methodStorage) {
+                if ($methodStorage->abstract) {
+                    // its implementations are methods of other classes
+                    continue;
+                }
+
+                $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage, $classStorage->name];
+            }
+        }
+
+        return self::$methodsByName = $methodsByName;
     }
 
     /**
@@ -212,7 +437,7 @@ final class Context
 
     /**
      * The taints the PHP callable of a filter removes from what it is given: those its storage says
-     * it escapes (`@psalm-taint-escape`), and those its native return type cannot hold.
+     * it escapes (`@psalm-taint-escape`), and those its return type cannot hold (native for a project callable).
      *
      * @param callable|array{0: class-string|object, 1: string}|string|null $callable
      */
@@ -223,7 +448,13 @@ final class Context
             return 0;
         }
 
-        return $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+        // the docblock of a project callable isn't checked against what it returns, unlike that of a library, which
+        // Psalm types the calls of the library with
+        $returnType = null !== $storage->location && $this->codebase?->config->isInProjectDirs($storage->location->file_path)
+            ? $storage->signature_return_type
+            : $storage->return_type;
+
+        return $storage->removed_taints | ($returnType?->getTaintsToRemove() ?? 0);
     }
 
     /**
@@ -273,9 +504,12 @@ final class Context
      * Assigns $destinationVariable a value whose taints come from $sources, through a path of type $pathType. In the
      * body of an `if` or of a `for`, which may not run, the variable can also keep the value it had, unless $always.
      *
+     * The objects of the value are those of the variable $objectsOf, or of its items if $isItem: the variable it is
+     * set to, or loops over.
+     *
      * @param list<DataFlowNode> $sources
      */
-    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false): void
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false, ?NameExpression $objectsOf = null, bool $isItem = false): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
@@ -285,9 +519,20 @@ final class Context
             $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
-        $this->localVariables[$destinationName] = 0 < $this->conditionalDepth && !$always
+        $attributes = null === $objectsOf ? [] : array_map(
+            static fn (string $base): string => $isItem ? $base.'[]' : $base,
+            $this->getAttributeBases((string) $objectsOf->getAttribute('name')),
+        );
+
+        $isConditional = 0 < $this->conditionalDepth && !$always;
+        if ($isConditional) {
+            $attributes = array_values(array_unique([...$this->getAttributeBases($destinationName), ...$attributes]));
+        }
+
+        $this->localVariables[$destinationName] = $isConditional
             ? [...$this->taintVariable($destinationVariable), $taintDestination]
             : [$taintDestination];
+        $this->localAttributes[$destinationName] = $attributes;
     }
 
     /**
@@ -320,7 +565,7 @@ final class Context
     {
         $values = [];
         foreach ($targetNames as $targetName) {
-            $values[$targetName] = $this->localVariables[$targetName] ?? null;
+            $values[$targetName] = [$this->localVariables[$targetName] ?? null, $this->localAttributes[$targetName] ?? []];
         }
 
         $this->loopTargets[] = $values;
@@ -334,11 +579,12 @@ final class Context
     {
         $this->leaveConditional();
 
-        foreach (array_pop($this->loopTargets) ?? [] as $targetName => $value) {
+        foreach (array_pop($this->loopTargets) ?? [] as $targetName => [$value, $attributes]) {
             if (null === $value) {
-                unset($this->localVariables[$targetName]);
+                unset($this->localVariables[$targetName], $this->localAttributes[$targetName]);
             } else {
                 $this->localVariables[$targetName] = $value;
+                $this->localAttributes[$targetName] = $attributes;
             }
         }
     }
@@ -474,7 +720,7 @@ final class Context
 
     /**
      * Includes the template $includedTemplateName, giving each variable it reads from its context (see
-     * getContextVariables()) what $variables gives it, and if $withContext the variable of its name of this template.
+     * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template.
      *
      * @param IncludedVariables $variables
      *
@@ -482,7 +728,8 @@ final class Context
      */
     public function includeTemplate(Node $includeNode, string $includedTemplateName, array $variables, bool $withContext): DataFlowNode
     {
-        foreach ($this->getContextVariables($includedTemplateName) as $variableName) {
+        $includedReads = self::getTemplateReads($this->twig, $includedTemplateName);
+        foreach ($includedReads['variables'] as $variableName) {
             $destination = self::getForTemplateVariable($includedTemplateName, $variableName);
             $this->taint->addNode($destination);
 
@@ -498,6 +745,20 @@ final class Context
                 $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
                 foreach ($values as $source) {
                     $this->taint->addPath($source, $destination, 'arg');
+                }
+
+                // the objects of the variable have the attributes the included template reads
+                $includedBase = self::getAttributeBase($includedTemplateName, $variableName);
+                foreach ($this->getAttributeBases($variableName) as $base) {
+                    foreach ([$base, $base.'[]'] as $i => $objects) {
+                        foreach ($includedReads['attributes'] as $attribute) {
+                            $source = self::getAttributeNode($objects, $attribute);
+                            $attributeDestination = self::getAttributeNode(0 === $i ? $includedBase : $includedBase.'[]', $attribute);
+                            $this->taint->addNode($source);
+                            $this->taint->addNode($attributeDestination);
+                            $this->taint->addPath($source, $attributeDestination, 'arg');
+                        }
+                    }
                 }
             }
         }
@@ -558,6 +819,209 @@ final class Context
     }
 
     /**
+     * Gives the attributes of the objects of the variable $variableName of the template what Twig gives for them from
+     * the objects of $type, the type of a value of the variable, and from the objects of its items (of an array or of
+     * a traversable object), which a loop over it gives. For an integration giving a variable to a template: the
+     * template doesn't tell the classes of its variables.
+     */
+    public static function taintTemplateVariableAttributes(Codebase $codebase, string $templateName, string $variableName, Union $type): void
+    {
+        $graph = $codebase->taint_flow_graph;
+        $attributes = null === $graph ? [] : self::getTemplateReads(TemplateFileAnalyzer::getEnvironment($codebase), $templateName)['attributes'];
+        if (null === $graph || [] === $attributes) {
+            return;
+        }
+
+        $base = self::getAttributeBase($templateName, $variableName);
+        // the types the type variables of what Psalm infers stand for
+        $resolve = static fn (Union $type): array => array_values(TypeVariableTracker::resolveTypeVariables($type, $codebase)->getAtomicTypes());
+        $objects = [];
+        foreach ($resolve($type) as $atomic) {
+            if ($atomic instanceof TArray || $atomic instanceof TKeyedArray) {
+                $items = $atomic instanceof TArray ? $atomic->type_params[1] : $atomic->getGenericValueType();
+                $objects = [...$objects, ...array_map(static fn ($item): array => [$item, $base.'[]'], $resolve($items))];
+            } else {
+                $objects[] = [$atomic, $base];
+            }
+
+            if ($atomic instanceof TGenericObject && $codebase->classOrInterfaceExists($atomic->value)
+                && ($codebase->classExtendsOrImplements($atomic->value, \Traversable::class) || $codebase->interfaceExtends($atomic->value, \Traversable::class))) {
+                // the items of a traversable object: the last of its type parameters, as for an Iterator<TKey, TValue>
+                foreach ($resolve(end($atomic->type_params)) as $item) {
+                    $objects[] = [$item, $base.'[]'];
+                }
+            }
+        }
+
+        foreach ($objects as [$object, $objectsBase]) {
+            if (!$object instanceof TNamedObject) {
+                continue;
+            }
+
+            foreach ($attributes as $attribute) {
+                $source = self::getObjectAttribute($codebase, $graph, $object->value, $attribute);
+                if (null !== $source) {
+                    $destination = self::getAttributeNode($objectsBase, $attribute);
+                    $graph->addNode($destination);
+                    $graph->addPath($source, $destination, 'arg');
+                }
+            }
+        }
+    }
+
+    /**
+     * Where the attributes of the objects of the variable $variableName of the context of the template come from: a
+     * prefix of the nodes of its attributes (see getAttributeNode()), followed by `[]` for those of its items.
+     *
+     * @psalm-pure
+     */
+    private static function getAttributeBase(string $templateName, string $variableName): string
+    {
+        return strtolower($templateName).'#'.$variableName;
+    }
+
+    /**
+     * The node of the attribute $attribute (`name`, or `name()` for a method call) of the objects of $base (see
+     * getAttributeBase()). Each attribute has its own node: Psalm follows a single flow of given taints through a node,
+     * so the flows of several keys of a node of all of them would leave by one of them.
+     *
+     * @psalm-pure
+     */
+    private static function getAttributeNode(string $base, string $attribute): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch($base.'.'.$attribute);
+    }
+
+    /**
+     * The node of what Twig gives for the attribute $attribute (`name`, or `name()` for a method call) of an object of
+     * $class (see Twig's CoreExtension::getAttribute()): a public property `name`, or else what its public method
+     * `name`, or else `getName`, `isName` and `hasName`, return, as for a PHP call (see getMethodReturns()). A magic
+     * property may be missing, so the methods are also called for it. Null if Twig gives none of them, or if the class
+     * is specialized by instance and has the property: what an object of it holds is in the object, which the
+     * variable holds.
+     */
+    private static function getObjectAttribute(Codebase $codebase, TaintFlowGraph $graph, string $class, string $attribute): ?DataFlowNode
+    {
+        $key = strtolower($class).' '.$attribute;
+        if (\array_key_exists($key, self::$objectAttributes)) {
+            return self::$objectAttributes[$key];
+        }
+
+        try {
+            $storage = $codebase->classlike_storage_provider->get($class);
+        } catch (\InvalidArgumentException) {
+            return self::$objectAttributes[$key] = null;
+        }
+
+        $isMethodCall = str_ends_with($attribute, '()');
+        $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
+
+        $sources = [];
+        if (!$isMethodCall) {
+            $declaringClass = $storage->declaring_property_ids[$name] ?? null;
+            $property = null === $declaringClass ? null : $codebase->classlike_storage_provider->get($declaringClass)->properties[$name] ?? null;
+            $isProperty = null !== $property && ClassLikeAnalyzer::VISIBILITY_PUBLIC === $property->visibility && !$property->is_static;
+            if (($isProperty || isset($storage->pseudo_property_get_types['$'.$name])) && $storage->specialize_instance) {
+                return self::$objectAttributes[$key] = null;
+            }
+
+            if ($isProperty || isset($storage->pseudo_property_get_types['$'.$name])) {
+                // the node of the property a PHP fetch on an object of the class reads
+                $propertyNode = DataFlowNode::getForPropertyFetch($storage->name.'::$'.$name);
+                $graph->addNode($propertyNode);
+                if ($isProperty) {
+                    return self::$objectAttributes[$key] = $propertyNode;
+                }
+
+                $sources[] = $propertyNode;
+            }
+        }
+
+        $methodName = strtolower($name);
+        $methodNames = isset($storage->declaring_method_ids[$methodName]) ? [$methodName] : ['get'.$methodName, 'is'.$methodName, 'has'.$methodName];
+        foreach ($methodNames as $methodName) {
+            $declaringMethodId = $storage->declaring_method_ids[$methodName] ?? null;
+            if (null === $declaringMethodId) {
+                continue;
+            }
+
+            $method = $codebase->methods->getStorage($declaringMethodId);
+            if (ClassLikeAnalyzer::VISIBILITY_PUBLIC === $method->visibility) {
+                $sources = [...$sources, ...self::getMethodReturns($codebase, $graph, $storage, $methodName, $declaringMethodId, $method)];
+            }
+        }
+
+        if ([] === $sources) {
+            return self::$objectAttributes[$key] = null;
+        }
+
+        $node = DataFlowNode::getForPropertyFetch($storage->name.'.'.$attribute);
+        $graph->addNode($node);
+        foreach ($sources as $source) {
+            $graph->addPath($source, $node, 'arg');
+        }
+
+        return self::$objectAttributes[$key] = $node;
+    }
+
+    /**
+     * The nodes of what a PHP call of the method $methodName on an object of the class of $storage returns: those of
+     * the method and, if it has few of them (at most MAX_CALLED_METHODS methods in all), of its overrides. Linking a
+     * call to the bodies of many classes makes the resolution of the taint graph explode.
+     *
+     * @return non-empty-list<DataFlowNode>
+     */
+    private static function getMethodReturns(Codebase $codebase, TaintFlowGraph $graph, ClassLikeStorage $storage, string $methodName, MethodIdentifier $declaringMethodId, MethodStorage $method): array
+    {
+        $casedName = $method->cased_name ?? $methodName;
+        $return = DataFlowNode::getForMethodReturn($storage->name.'::'.$casedName, $method);
+        $graph->addNode($return);
+        if (strtolower($storage->name) !== strtolower($declaringMethodId->fq_class_name)) {
+            // an inherited method, linked like Psalm links it for a PHP call
+            $declaringReturn = DataFlowNode::getForMethodReturn($codebase->methods->getCasedMethodId($declaringMethodId), $method);
+            $graph->addNode($declaringReturn);
+            $graph->addPath($declaringReturn, $return, 'parent');
+        }
+
+        $returns = [$return];
+        foreach ($storage->final ? [] : self::getDescendants($storage->name) as $descendant) {
+            $override = $descendant->methods[$methodName] ?? null;
+            if (null !== $override && !$override->abstract) {
+                $returns[] = DataFlowNode::getForMethodReturn($descendant->name.'::'.($override->cased_name ?? $methodName), $override);
+            }
+        }
+
+        if (self::MAX_CALLED_METHODS < \count($returns)) {
+            return [$return];
+        }
+
+        foreach ($returns as $override) {
+            $graph->addNode($override);
+        }
+
+        return $returns;
+    }
+
+    /**
+     * The classes extending or implementing $class.
+     *
+     * @return list<ClassLikeStorage>
+     */
+    private static function getDescendants(string $class): array
+    {
+        if (null === self::$descendants) {
+            self::$descendants = [];
+            foreach (ClassLikeStorageProvider::getAll() as $storage) {
+                foreach ([...$storage->parent_classes, ...$storage->class_implements] as $ancestor => $_) {
+                    self::$descendants[$ancestor][] = $storage;
+                }
+            }
+        }
+
+        return self::$descendants[strtolower($class)] ?? [];
+    }
+
+    /**
      * The node of a context the template is rendered with whose keys the analysis can't tell (Twig's `_context`),
      * whose key of the name of each variable of the template is that variable.
      *
@@ -571,34 +1035,44 @@ final class Context
     /**
      * The variables a template reads from the context it is rendered with: those it reads, and those the templates it
      * gives its context to read (by `include`, `embed`, `extends` or `include()`). A variable it also sets is one of
-     * them, as it may read it before.
+     * them, as it may read it before. Also the attributes of variables these templates read: `name` for
+     * `variable.name`, `name()` for `variable.name(...)`.
      *
-     * @return list<string>
+     * @return array{variables: list<string>, attributes: list<string>}
      */
-    private function getContextVariables(string $templateName): array
+    private static function getTemplateReads(Environment $twig, string $templateName): array
     {
-        if (isset(self::$contextVariables[$templateName])) {
-            return self::$contextVariables[$templateName];
+        if (isset(self::$templateReads[$templateName])) {
+            return self::$templateReads[$templateName];
         }
 
-        // a template including itself reads no other variables
-        self::$contextVariables[$templateName] = [];
+        // a template including itself reads nothing else
+        self::$templateReads[$templateName] = ['variables' => [], 'attributes' => []];
 
         try {
-            $tree = $this->twig->parse($this->twig->tokenize($this->twig->getLoader()->getSourceContext($templateName)));
+            $tree = $twig->parse($twig->tokenize($twig->getLoader()->getSourceContext($templateName)));
         } catch (Error) {
             // a template the analysis cannot load or parse: its own analysis reports why
-            return [];
+            return self::$templateReads[$templateName];
         }
 
         $read = [];
-        $collect = function (Node $node) use (&$collect, &$read): void {
+        $attributes = [];
+        $collect = static function (Node $node) use (&$collect, &$read, &$attributes, $twig): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
 
+            if ($node instanceof GetAttrExpression && 'array' !== $node->getAttribute('type')
+                && $node->getNode('node') instanceof NameExpression
+                && ($attribute = $node->getNode('attribute')) instanceof ConstantExpression) {
+                $attributes[$attribute->getAttribute('value').('method' === $node->getAttribute('type') ? '()' : '')] = true;
+            }
+
             foreach (self::getTemplatesGivenContext($node) as $includedTemplateName) {
-                $read += array_fill_keys($this->getContextVariables($includedTemplateName), true);
+                $includedReads = self::getTemplateReads($twig, $includedTemplateName);
+                $read += array_fill_keys($includedReads['variables'], true);
+                $attributes += array_fill_keys($includedReads['attributes'], true);
             }
 
             if ($node instanceof ModuleNode) {
@@ -613,7 +1087,10 @@ final class Context
         };
         $collect($tree);
 
-        return self::$contextVariables[$templateName] = array_map('strval', array_keys($read));
+        return self::$templateReads[$templateName] = [
+            'variables' => array_map('strval', array_keys($read)),
+            'attributes' => array_map('strval', array_keys($attributes)),
+        ];
     }
 
     /**
