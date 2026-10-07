@@ -128,37 +128,49 @@ final class PrintNodeAnalyzer
      * (see Context::getMethodCallTaintDestination()). An attribute the analysis can't tell gives the taints of the
      * whole of `item`, and of its arguments.
      *
+     * `item.name` and `item.name(...)` of an object give its property or what its method returns: those of the
+     * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()).
+     *
      * @return list<DataFlowNode>
      */
     private function getAttributeTaintSources(GetAttrExpression $expression): array
     {
-        $sources = $this->getTaintSources($expression->getNode('node'));
+        $node = $expression->getNode('node');
+        $sources = $this->getTaintSources($node);
         $attribute = $expression->getNode('attribute');
+        // the values of the internal Twig\Template::ANY_CALL, ARRAY_CALL and METHOD_CALL
+        $type = $expression->getAttribute('type');
 
-        // 'method' is the value of the internal Twig\Template::METHOD_CALL
-        if ('method' !== $expression->getAttribute('type') && $attribute instanceof ConstantExpression) {
+        $objectSources = $node instanceof NameExpression && 'array' !== $type && $attribute instanceof ConstantExpression
+            ? $this->context->getObjectAttributeSources($node, (string) $attribute->getAttribute('value'), 'method' === $type)
+            : [];
+
+        if ('method' !== $type && $attribute instanceof ConstantExpression) {
             $key = (string) $attribute->getAttribute('value');
 
-            return array_map(
-                fn (DataFlowNode $source): DataFlowNode => $this->context->getFetchDestination(
-                    $source,
-                    $expression,
-                    $key,
-                    "arrayvalue-fetch-'".$key."'",
+            return [
+                ...array_map(
+                    fn (DataFlowNode $source): DataFlowNode => $this->context->getFetchDestination(
+                        $source,
+                        $expression,
+                        $key,
+                        "arrayvalue-fetch-'".$key."'",
+                    ),
+                    $sources,
                 ),
-                $sources,
-            );
+                ...$objectSources,
+            ];
         }
 
         $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
-        $argumentSources = 'method' === $expression->getAttribute('type') && $attribute instanceof ConstantExpression
+        $argumentSources = 'method' === $type && $attribute instanceof ConstantExpression
             ? $this->getArgumentTaintSources($arguments)
             : null;
         if (null !== $argumentSources) {
             // what the receiver holds stays, as a method of an object specialized by instance returns what it holds
             $call = $this->context->getMethodCallTaintDestination($expression, (string) $attribute->getAttribute('value'), $argumentSources);
             if (null !== $call) {
-                return [...$sources, $call];
+                return [...$sources, ...$objectSources, $call];
             }
         }
 
@@ -166,7 +178,7 @@ final class PrintNodeAnalyzer
             $sources = [...$sources, ...$this->getTaintSources($arguments)];
         }
 
-        return $sources;
+        return [...$sources, ...$objectSources];
     }
 
     /**

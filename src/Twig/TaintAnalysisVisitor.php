@@ -6,6 +6,8 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Twig\Environment;
 use Twig\Node\EmbedNode;
+use Twig\Node\Expression\AbstractExpression;
+use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ForNode;
@@ -57,7 +59,11 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
 
             foreach ($names as $i => $name) {
                 if (isset($values[$i])) {
-                    $this->context->taintAssignmentFromSources($name, $this->expressionAnalyzer->getTaintSources($values[$i]));
+                    $this->context->taintAssignmentFromSources(
+                        $name,
+                        $this->expressionAnalyzer->getTaintSources($values[$i]),
+                        objectsOf: self::getVariable($values[$i]),
+                    );
                 }
             }
         }
@@ -124,7 +130,8 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
      */
     private function analyzeForNode(ForNode $node): void
     {
-        $sources = $this->expressionAnalyzer->getTaintSources($node->getNode('seq'));
+        $sequence = $node->getNode('seq');
+        $sources = $this->expressionAnalyzer->getTaintSources($sequence);
 
         $targets = [];
         foreach (['key_target' => 'arraykey-fetch', 'value_target' => 'arrayvalue-fetch'] as $target => $pathType) {
@@ -136,8 +143,22 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
 
         $this->context->enterLoop(array_map(static fn (array $target): string => (string) $target[0]->getAttribute('name'), $targets));
         foreach ($targets as [$variable, $pathType]) {
-            $this->context->taintAssignmentFromSources($variable, $sources, $pathType, true);
+            // the value target holds the objects of the items of a variable looped over
+            $objectsOf = 'arrayvalue-fetch' === $pathType ? self::getVariable($sequence) : null;
+            $this->context->taintAssignmentFromSources($variable, $sources, $pathType, true, $objectsOf, true);
         }
+    }
+
+    /**
+     * The variable $value reads, if it is only that. Twig >= 3.15 gives the value of a single `set` as a list of it.
+     */
+    private static function getVariable(Node $value): ?NameExpression
+    {
+        if (!$value instanceof AbstractExpression && 1 === \count($value)) {
+            $value = $value->getNode('0');
+        }
+
+        return $value instanceof NameExpression && !$value instanceof AssignNameExpression ? $value : null;
     }
 
     /**
