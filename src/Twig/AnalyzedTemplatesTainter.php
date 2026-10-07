@@ -59,6 +59,9 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             if ($atomic instanceof TKeyedArray) {
                 $parameterNames = [...$parameterNames, ...array_map('strval', array_keys($atomic->properties))];
                 $hasUnknownParameters = $hasUnknownParameters || null !== $atomic->fallback_params;
+                foreach ($atomic->properties as $parameterName => $parameterType) {
+                    Context::taintTemplateVariableAttributes($codebase, $templateName, (string) $parameterName, $parameterType);
+                }
             } else {
                 $hasUnknownParameters = true;
             }
