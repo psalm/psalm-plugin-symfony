@@ -50,6 +50,9 @@ final class Context
     /** the most methods, a method and its overrides, an attribute of an object is linked to (see getMethodReturns()) */
     private const MAX_CALLED_METHODS = 8;
 
+    /** the filters returning an item of the array they are given */
+    private const ITEM_FILTERS = ['first', 'last'];
+
     /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
@@ -182,9 +185,12 @@ final class Context
     public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
     {
         $filter = $this->getTwigCallable($expression);
-        $taintDestination = $this->getNode($expression, 'filter_'.self::getFilterName($expression));
+        $filterName = self::getFilterName($expression);
+        $taintDestination = $this->getNode($expression, 'filter_'.$filterName);
+        // first and last return an item of the array they are given, not the array
+        $pathType = \in_array($filterName, self::ITEM_FILTERS, true) ? 'arrayvalue-fetch' : 'arg';
 
-        $this->taint->addPath($taintSource, $taintDestination, 'arg', 0, $this->getCallableRemovedTaints($filter?->getCallable()));
+        $this->taint->addPath($taintSource, $taintDestination, $pathType, 0, $this->getCallableRemovedTaints($filter?->getCallable()));
 
         return $taintDestination;
     }
