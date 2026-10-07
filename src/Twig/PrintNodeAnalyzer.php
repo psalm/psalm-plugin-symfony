@@ -12,6 +12,7 @@ use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\GetAttrExpression;
+use Twig\Node\Expression\MacroReferenceExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
@@ -77,6 +78,10 @@ final class PrintNodeAnalyzer
         if ($expression instanceof FunctionExpression && 'include' === $expression->getAttribute('name')
             && null !== $includedOutput = $this->getIncludedOutput($expression)) {
             return [$includedOutput];
+        }
+
+        if ($expression instanceof MacroReferenceExpression && null !== $macroOutput = $this->getMacroOutput($expression)) {
+            return [$macroOutput];
         }
 
         if ($expression instanceof FunctionExpression) {
@@ -266,6 +271,33 @@ final class PrintNodeAnalyzer
             $this->getIncludedVariables(Context::getArgument($expression, 1, 'variables')),
             !$withContext instanceof ConstantExpression || false !== $withContext->getAttribute('value'),
         );
+    }
+
+    /**
+     * A call of a macro outputs what the macro prints, given the arguments of the call: what it prints escaped has no
+     * taints. Null if the analysis can't tell which macro is called.
+     */
+    private function getMacroOutput(MacroReferenceExpression $expression): ?DataFlowNode
+    {
+        $callArguments = $expression->getNode('arguments');
+        if (!$callArguments instanceof ArrayExpression) {
+            return null;
+        }
+
+        $arguments = [];
+        foreach ($callArguments->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
+            if ($value instanceof SpreadUnary) {
+                // an unpacked argument can give any parameter
+                $arguments[] = [null, $this->getTaintSources($value->getNode('node'))];
+                continue;
+            }
+
+            // a position, or a name
+            $position = $key instanceof ConstantExpression ? $key->getAttribute('value') : $key->getAttribute('name');
+            $arguments[] = [\is_int($position) || ctype_digit((string) $position) ? (int) $position : (string) $position, $this->getTaintSources($value)];
+        }
+
+        return $this->context->callMacro($expression, $arguments);
     }
 
     private static function isEscapingFilter(FilterExpression $expression): bool

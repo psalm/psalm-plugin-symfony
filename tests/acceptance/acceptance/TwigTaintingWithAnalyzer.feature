@@ -1579,3 +1579,93 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     And I see no errors
+
+  Scenario: A tainted parameter given to a macro is displayed escaped by the macro
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro bold(value) %}<b>{{ value }}</b>{% endmacro %}
+      <h1>{{ _self.bold(untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter given to a macro is displayed with only the raw filter by the macro
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro bold(value) %}<b>{{ value|raw }}</b>{% endmacro %}
+      <h1>{{ _self.bold(untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter given by name to the macro parameter displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro link(label, url) %}<a href="{{ url }}">{{ label|raw }}</a>{% endmacro %}
+      <h1>{{ _self.link(url: '/', label: untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter given to the macro parameter displayed escaped, another one being displayed with only the raw filter
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro link(label, url) %}<a href="{{ url }}">{{ label|raw }}</a>{% endmacro %}
+      <h1>{{ _self.link('<i>home</i>', untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A macro parameter with the name of a tainted parameter is displayed with only the raw filter, given something else
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro bold(untrusted) %}<b>{{ untrusted|raw }}</b>{% endmacro %}
+      <h1>{{ _self.bold('safe') }} {{ untrusted }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter given to a macro beyond its parameters is displayed with only the raw filter by the macro
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro all() %}{{ varargs|join(', ')|raw }}{% endmacro %}
+      <h1>{{ _self.all('safe', untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
