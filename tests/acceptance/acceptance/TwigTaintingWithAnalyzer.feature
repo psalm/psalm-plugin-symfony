@@ -914,6 +914,97 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario: What a specialized method of an object parameter returns of a tainted argument of a PHP call is not displayed by a call of the template with only the raw filter
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class Organization
+      {
+          public string $id = '';
+
+          /** @psalm-taint-specialize */
+          public function getUrl(string $section): string
+          {
+              return '/organization/'.$this->id.'/'.$section;
+          }
+      }
+
+      $organization = new Organization();
+      echo twig()->render('index.html.twig', [
+          'organization' => $organization,
+          'url' => $organization->getUrl(is_string($_GET['untrusted']) ? $_GET['untrusted'] : ''),
+      ]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ organization.getUrl('literal')|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter given to a specialized method of an object parameter returning it is displayed with only the raw filter
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class Organization
+      {
+          public string $id = '';
+
+          /** @psalm-taint-specialize */
+          public function getUrl(string $section): string
+          {
+              return '/organization/'.$this->id.'/'.$section;
+          }
+      }
+
+      $organization = new Organization();
+      echo twig()->render('index.html.twig', [
+          'organization' => $organization,
+          'url' => $organization->getUrl('literal'),
+          'untrusted' => $_GET['untrusted'],
+      ]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ organization.getUrl(untrusted)|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: What a specialized method of an object parameter returns of a tainted argument of a PHP call is displayed by that call
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class Organization
+      {
+          public string $id = '';
+
+          /** @psalm-taint-specialize */
+          public function getUrl(string $section): string
+          {
+              return '/organization/'.$this->id.'/'.$section;
+          }
+      }
+
+      $organization = new Organization();
+      echo $organization->getUrl(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '');
+      echo twig()->render('index.html.twig', ['organization' => $organization]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ organization.getUrl('literal') }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: A tainted parameter given to a method not returning it is displayed with only the raw filter
     Given I have the following code
       """
