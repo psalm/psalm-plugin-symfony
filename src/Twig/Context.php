@@ -81,7 +81,7 @@ final class Context
     /** @var array<string, list<string>> template name => the variables it reads from its context */
     private static $contextVariables = [];
 
-    /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage}>>|null method name => the methods of that name of every class, with their method id */
+    /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>|null method name => the methods of that name of every class, with their method id and class */
     private static $methodsByName;
 
     /**
@@ -164,8 +164,10 @@ final class Context
      * doesn't tell the class of `item`, so these are the methods of every class. Like Psalm resolving a PHP call, the
      * call goes to `__call` only if no class has such a method: then to the `__call` of every class. As for a PHP
      * call, a method whose body isn't analyzed returns what its storage says (`@psalm-flow`, sources). Null if there
-     * is no such method, or more than MAX_CALLED_METHODS (linking a call to the bodies of many classes makes the
-     * resolution of the taint graph explode): the call returns what it is given.
+     * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
+     * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
+     * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
+     * returns what it is given.
      *
      * @param list<list<DataFlowNode>> $arguments
      */
@@ -185,13 +187,13 @@ final class Context
             $methods = $methodsByName['__call'] ?? [];
         }
 
-        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods)) {
+        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($this->codebase, $methods)) {
             return null;
         }
 
         $taintDestination = $this->getNode($expression, 'method_'.$name);
 
-        foreach ($methods as [$methodId, $storage]) {
+        foreach ($methods as [$methodId, $storage, $_]) {
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = $storage->specialize_call ? $this->getLineLocation($expression->getTemplateLine()) : null;
@@ -246,6 +248,29 @@ final class Context
     }
 
     /**
+     * Whether the classes of $methods are one class and classes extending or implementing it: the methods are then a
+     * method and its overrides, which an object of the class or of one of its descendants calls.
+     *
+     * @param non-empty-list<array{string, MethodStorage, string}> $methods
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function isOneHierarchy(Codebase $codebase, array $methods): bool
+    {
+        foreach ($methods as [, , $root]) {
+            foreach ($methods as [, , $class]) {
+                if ($class !== $root && !$codebase->classExtendsOrImplements($class, $root)) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * The nodes of the arguments a parameter of $storage takes: those at its position, and after it if it is variadic.
      *
      * @param list<list<DataFlowNode>> $arguments
@@ -269,7 +294,7 @@ final class Context
     /**
      * The methods of every class, by lowercase name, with the method id their body uses.
      *
-     * @return array<lowercase-string, non-empty-list<array{string, MethodStorage}>>
+     * @return array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>
      */
     private function getMethodsByName(Codebase $codebase): array
     {
@@ -285,7 +310,7 @@ final class Context
                     continue;
                 }
 
-                $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage];
+                $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage, $classStorage->name];
             }
         }
 
