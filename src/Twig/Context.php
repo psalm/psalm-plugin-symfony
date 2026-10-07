@@ -192,6 +192,9 @@ final class Context
         $taintDestination = $this->getNode($expression, 'method_'.$name);
 
         foreach ($methods as [$methodId, $storage]) {
+            // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
+            // arguments give the body: what the object holds comes with the receiver
+            $specialization = $storage->specialize_call ? $this->getLineLocation($expression->getTemplateLine()) : null;
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
 
             foreach ($arguments as $offset => $sources) {
@@ -208,7 +211,7 @@ final class Context
                     continue;
                 }
 
-                $parameterNode = DataFlowNode::getForMethodArgument($methodId, $parameter, $storage);
+                $parameterNode = DataFlowNode::getForMethodArgument($methodId, $parameter, $storage, $specialization);
                 $this->taint->addNode($parameterNode);
                 if (0 !== $parameterStorage->sinks) {
                     $this->taint->addSink($parameterNode);
@@ -234,7 +237,7 @@ final class Context
                 $this->taint->addPath($source, $taintDestination, 'arg');
             }
 
-            $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage);
+            $returnNode = DataFlowNode::getForMethodReturn($methodId, $storage, $specialization);
             $this->taint->addNode($returnNode);
             $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
         }
@@ -337,7 +340,7 @@ final class Context
 
     /**
      * The taints the PHP callable of a filter removes from what it is given: those its storage says
-     * it escapes (`@psalm-taint-escape`), and those its native return type cannot hold.
+     * it escapes (`@psalm-taint-escape`), and those its return type cannot hold (native for a project callable).
      *
      * @param callable|array{0: class-string|object, 1: string}|string|null $callable
      */
@@ -348,7 +351,13 @@ final class Context
             return 0;
         }
 
-        return $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+        // the docblock of a project callable isn't checked against what it returns, unlike that of a library, which
+        // Psalm types the calls of the library with
+        $returnType = null !== $storage->location && $this->codebase?->config->isInProjectDirs($storage->location->file_path)
+            ? $storage->signature_return_type
+            : $storage->return_type;
+
+        return $storage->removed_taints | ($returnType?->getTaintsToRemove() ?? 0);
     }
 
     /**

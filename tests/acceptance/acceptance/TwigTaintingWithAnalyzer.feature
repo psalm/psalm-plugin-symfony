@@ -649,6 +649,30 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario: A number made by a Twig function of what a method returns is displayed with only the raw filter
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Price
+      {
+          public function formatPrice(string $currency): string
+          {
+              return '1 '.$currency;
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['price' => new Price(), 'untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ round(price.formatPrice(untrusted))|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
   Scenario: A tainted parameter given to a method no class has is displayed with only the raw filter
     Given I have the following code
       """
