@@ -15,24 +15,31 @@ use Psalm\Internal\Type\TypeVariableTracker;
 use Psalm\Storage\ClassLikeStorage;
 use Psalm\Storage\FunctionLikeStorage;
 use Psalm\Storage\MethodStorage;
+use Psalm\Storage\PropertyStorage;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TGenericObject;
+use Psalm\Type\Atomic\TIterable;
 use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Atomic\TNamedObject;
+use Psalm\Type\Atomic\TTemplateParam;
 use Psalm\Type\Union;
 use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\EmbedNode;
+use Twig\Node\Expression\AbstractExpression;
+use Twig\Node\Expression\ArrayExpression;
 use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\ForNode;
 use Twig\Node\IncludeNode;
 use Twig\Node\ModuleNode;
 use Twig\Node\Node;
 use Twig\Node\PrintNode;
+use Twig\Node\SetNode;
 use Twig\Source;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
@@ -42,13 +49,18 @@ use Twig\TwigFunction;
  *     keyed: array<string, list<DataFlowNode>>,
  *     unkeyed: list<DataFlowNode>,
  *     whole: list<DataFlowNode>,
+ *     objects: array<string, list<string>>,
  * } the variables an include gives: the values of the keys of `with` by name, those of its keys the analysis can't
- *   tell, and the arrays it can't tell the keys of
+ *   tell, and the arrays it can't tell the keys of; and by name the bases of the attributes of the objects of the
+ *   values of the keys of `with` (see getObjectsAttributeBases())
  */
 final class Context
 {
     /** the most methods, a method and its overrides, a method call or an attribute of an object is linked to (see getMethodCallTaintDestination() and getMethodReturns()) */
     private const MAX_CALLED_METHODS = 8;
+
+    /** the most attributes of a chain, `variable.a.b.c`, whose objects the analysis resolves (see getAttributePath()), also through the variables set to a chain or looping over one (see getTemplateReads()) */
+    private const MAX_ATTRIBUTE_DEPTH = 3;
 
     /** the filters returning an item of the array they are given */
     private const ITEM_FILTERS = ['first', 'last'];
@@ -92,11 +104,14 @@ final class Context
     /** @var list<int>|null the offset at which each line of the template starts */
     private $lineOffsets;
 
-    /** @var array<string, array{variables: list<string>, attributes: list<string>}> template name => the variables it reads from its context, and the attributes it reads (see getTemplateReads()) */
+    /** @var array<string, array{variables: list<string>, attributes: list<non-empty-list<string>>}> template name => the variables it reads from its context, and the chains of attributes it reads (see getTemplateReads()) */
     private static $templateReads = [];
 
-    /** @var array<string, DataFlowNode|null> class and attribute => what Twig gives for the attribute of an object of the class (see getObjectAttribute()) */
+    /** @var array<string, DataFlowNode|null> class and chain of attributes => what Twig gives for the chain from an object of the class (see getObjectAttribute()) */
     private static $objectAttributes = [];
+
+    /** @var array<string, list<string>> class and attribute => the classes of the objects Twig gives for the attribute of an object of the class (see getAttributeClasses()) */
+    private static $attributeClasses = [];
 
     /** @var array<lowercase-string, list<ClassLikeStorage>>|null class or interface => the classes extending or implementing it */
     private static $descendants;
@@ -152,17 +167,19 @@ final class Context
     }
 
     /**
-     * The nodes of what `variable.name`, or `variable.name(...)` if $isMethodCall, gives from the properties and the
-     * methods of the objects $variable holds: those of the classes of the values the variable is given (see
-     * taintTemplateVariableAttributes()).
+     * The nodes of what the chain of attributes $path (see getAttributePath()) gives from the properties and the
+     * methods of the objects $variable holds: those of the classes of the values the variable is given, and of the
+     * objects their attributes give (see taintTemplateVariableAttributes()).
+     *
+     * @param non-empty-list<string> $path
      *
      * @return list<DataFlowNode>
      */
-    public function getObjectAttributeSources(NameExpression $variable, string $name, bool $isMethodCall): array
+    public function getObjectAttributeSources(NameExpression $variable, array $path): array
     {
         $nodes = [];
         foreach ($this->getAttributeBases((string) $variable->getAttribute('name')) as $base) {
-            $nodes[] = $node = self::getAttributeNode($base, $isMethodCall ? $name.'()' : $name);
+            $nodes[] = $node = self::getAttributeNode($base, implode('.', $path));
             $this->taint->addNode($node);
         }
 
@@ -170,9 +187,39 @@ final class Context
     }
 
     /**
+     * The variable whose objects $expression, `variable.a.b(...)`, reads a chain of attributes of, and that chain:
+     * `a`, then `b()` of what `a` gives (`()` for a method call). Null for an attribute of something else than a
+     * variable, for a key read like `variable['a']`, which an object doesn't have, for an attribute whose name is only
+     * known when rendering, or for a chain of more than MAX_ATTRIBUTE_DEPTH attributes.
+     *
+     * @return array{NameExpression, non-empty-list<string>}|null
+     */
+    public static function getAttributePath(GetAttrExpression $expression): ?array
+    {
+        $path = [];
+        $node = $expression;
+        while ($node instanceof GetAttrExpression) {
+            $attribute = $node->getNode('attribute');
+            if ('array' === $node->getAttribute('type') || !$attribute instanceof ConstantExpression) {
+                return null;
+            }
+
+            // from the last attribute to the first
+            $path[] = ((string) $attribute->getAttribute('value')).('method' === $node->getAttribute('type') ? '()' : '');
+            $node = $node->getNode('node');
+        }
+
+        $path = array_reverse($path);
+
+        return [] !== $path && \count($path) <= self::MAX_ATTRIBUTE_DEPTH && $node instanceof NameExpression && !$node instanceof AssignNameExpression
+            ? [$node, $path]
+            : null;
+    }
+
+    /**
      * The bases (see getAttributeBase()) of the attributes of the objects the variable $variableName can hold: its own
-     * as a variable of the context of the template, or those of the variable it is set to, or of the items of the
-     * variable it loops over.
+     * as a variable of the context of the template, or those of the variable or of the chain of attributes of a
+     * variable it is set to, or of the items of the one it loops over (see taintAssignmentFromSources()).
      *
      * @return list<string>
      *
@@ -489,12 +536,12 @@ final class Context
      * Assigns $destinationVariable a value whose taints come from $sources, through a path of type $pathType. In the
      * body of an `if` or of a `for`, which may not run, the variable can also keep the value it had, unless $always.
      *
-     * The objects of the value are those of the variable $objectsOf, or of its items if $isItem: the variable it is
-     * set to, or loops over.
+     * The objects of the value are those $objectsOf, the value it is set to or loops over, holds, or its items if
+     * $isItem (see getObjectsAttributeBases()).
      *
      * @param list<DataFlowNode> $sources
      */
-    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false, ?NameExpression $objectsOf = null, bool $isItem = false): void
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false, ?Node $objectsOf = null, bool $isItem = false): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
@@ -504,10 +551,7 @@ final class Context
             $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
-        $attributes = null === $objectsOf ? [] : array_map(
-            static fn (string $base): string => $isItem ? $base.'[]' : $base,
-            $this->getAttributeBases((string) $objectsOf->getAttribute('name')),
-        );
+        $attributes = null === $objectsOf ? [] : $this->getObjectsAttributeBases($objectsOf, $isItem);
 
         $isConditional = 0 < $this->conditionalDepth && !$always;
         if ($isConditional) {
@@ -518,6 +562,24 @@ final class Context
             ? [...$this->taintVariable($destinationVariable), $taintDestination]
             : [$taintDestination];
         $this->localAttributes[$destinationName] = $attributes;
+    }
+
+    /**
+     * The bases of the attributes of the objects $value holds, or of its items if $isItem: if it is a variable or a
+     * chain of attributes of one (see getObjectsPath()), those of the chain from the bases of the variable,
+     * `tpl#variable.a`, or `tpl#variable.a[]` for its items. Those of a chain longer than MAX_ATTRIBUTE_DEPTH have no
+     * sources (see getTemplateReads()).
+     *
+     * @return list<string>
+     */
+    public function getObjectsAttributeBases(Node $value, bool $isItem = false): array
+    {
+        $objects = self::getObjectsPath($value);
+
+        return null === $objects ? [] : array_map(
+            static fn (string $base): string => implode('.', [$base, ...$objects[1]]).($isItem ? '[]' : ''),
+            $this->getAttributeBases((string) $objects[0]->getAttribute('name')),
+        );
     }
 
     /**
@@ -576,7 +638,9 @@ final class Context
 
     /**
      * Includes the template $includedTemplateName, giving each variable it reads from its context (see
-     * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template.
+     * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template. The
+     * objects of the variable have the attributes the included template reads: those of the objects of the value of
+     * the key of `with` it is given, or of the variable of this template, whose chains getTemplateReads() reads.
      *
      * @param IncludedVariables $variables
      *
@@ -597,23 +661,26 @@ final class Context
                 $this->taint->addPath($source, $destination, "arrayvalue-fetch-'".$variableName."'");
             }
 
+            $bases = $variables['objects'][$variableName] ?? [];
             if ($withContext && !isset($variables['keyed'][$variableName])) {
                 $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
                 foreach ($values as $source) {
                     $this->taint->addPath($source, $destination, 'arg');
                 }
 
-                // the objects of the variable have the attributes the included template reads
-                $includedBase = self::getAttributeBase($includedTemplateName, $variableName);
-                foreach ($this->getAttributeBases($variableName) as $base) {
-                    foreach ([$base, $base.'[]'] as $i => $objects) {
-                        foreach ($includedReads['attributes'] as $attribute) {
-                            $source = self::getAttributeNode($objects, $attribute);
-                            $attributeDestination = self::getAttributeNode(0 === $i ? $includedBase : $includedBase.'[]', $attribute);
-                            $this->taint->addNode($source);
-                            $this->taint->addNode($attributeDestination);
-                            $this->taint->addPath($source, $attributeDestination, 'arg');
-                        }
+                $bases = $this->getAttributeBases($variableName);
+            }
+
+            $includedBase = self::getAttributeBase($includedTemplateName, $variableName);
+            foreach ($bases as $base) {
+                foreach ([$base, $base.'[]'] as $i => $objects) {
+                    foreach ($includedReads['attributes'] as $path) {
+                        $attribute = implode('.', $path);
+                        $source = self::getAttributeNode($objects, $attribute);
+                        $attributeDestination = self::getAttributeNode(0 === $i ? $includedBase : $includedBase.'[]', $attribute);
+                        $this->taint->addNode($source);
+                        $this->taint->addNode($attributeDestination);
+                        $this->taint->addPath($source, $attributeDestination, 'arg');
                     }
                 }
             }
@@ -677,8 +744,9 @@ final class Context
     /**
      * Gives the attributes of the objects of the variable $variableName of the template what Twig gives for them from
      * the objects of $type, the type of a value of the variable, and from the objects of its items (of an array or of
-     * a traversable object), which a loop over it gives. For an integration giving a variable to a template: the
-     * template doesn't tell the classes of its variables.
+     * a traversable object), which a loop over it gives. Also the chains of attributes, `a.b`, which give what Twig
+     * gives for `b` from the objects of the type `a` is declared with (see getObjectAttribute()). For an integration
+     * giving a variable to a template: the template doesn't tell the classes of its variables.
      */
     public static function taintTemplateVariableAttributes(Codebase $codebase, string $templateName, string $variableName, Union $type): void
     {
@@ -690,22 +758,18 @@ final class Context
 
         $base = self::getAttributeBase($templateName, $variableName);
         // the types the type variables of what Psalm infers stand for
-        $resolve = static fn (Union $type): array => array_values(TypeVariableTracker::resolveTypeVariables($type, $codebase)->getAtomicTypes());
+        $resolve = static fn (Union $type): Union => TypeVariableTracker::resolveTypeVariables($type, $codebase);
+        $type = $resolve($type);
         $objects = [];
-        foreach ($resolve($type) as $atomic) {
-            if ($atomic instanceof TArray || $atomic instanceof TKeyedArray) {
-                $items = $atomic instanceof TArray ? $atomic->type_params[1] : $atomic->getGenericValueType();
-                $objects = [...$objects, ...array_map(static fn ($item): array => [$item, $base.'[]'], $resolve($items))];
-            } else {
+        foreach ($type->getAtomicTypes() as $atomic) {
+            if (!$atomic instanceof TArray && !$atomic instanceof TKeyedArray) {
                 $objects[] = [$atomic, $base];
             }
+        }
 
-            if ($atomic instanceof TGenericObject && $codebase->classOrInterfaceExists($atomic->value)
-                && ($codebase->classExtendsOrImplements($atomic->value, \Traversable::class) || $codebase->interfaceExtends($atomic->value, \Traversable::class))) {
-                // the items of a traversable object: the last of its type parameters, as for an Iterator<TKey, TValue>
-                foreach ($resolve(end($atomic->type_params)) as $item) {
-                    $objects[] = [$item, $base.'[]'];
-                }
+        foreach (self::getItemTypes($codebase, $type) as $items) {
+            foreach ($resolve($items)->getAtomicTypes() as $item) {
+                $objects[] = [$item, $base.'[]'];
             }
         }
 
@@ -714,10 +778,10 @@ final class Context
                 continue;
             }
 
-            foreach ($attributes as $attribute) {
-                $source = self::getObjectAttribute($codebase, $graph, $object->value, $attribute);
+            foreach ($attributes as $path) {
+                $source = self::getObjectAttribute($codebase, $graph, $object->value, $path);
                 if (null !== $source) {
-                    $destination = self::getAttributeNode($objectsBase, $attribute);
+                    $destination = self::getAttributeNode($objectsBase, implode('.', $path));
                     $graph->addNode($destination);
                     $graph->addPath($source, $destination, 'arg');
                 }
@@ -737,9 +801,10 @@ final class Context
     }
 
     /**
-     * The node of the attribute $attribute (`name`, or `name()` for a method call) of the objects of $base (see
-     * getAttributeBase()). Each attribute has its own node: Psalm follows a single flow of given taints through a node,
-     * so the flows of several keys of a node of all of them would leave by one of them.
+     * The node of the attribute $attribute (`name`, or `name()` for a method call, or a chain of them like
+     * `name().next`) of the objects of $base (see getAttributeBase()). Each attribute has its own node: Psalm follows
+     * a single flow of given taints through a node, so the flows of several keys of a node of all of them would leave
+     * by one of them.
      *
      * @psalm-pure
      */
@@ -749,15 +814,25 @@ final class Context
     }
 
     /**
-     * The node of what Twig gives for the attribute $attribute (`name`, or `name()` for a method call) of an object of
-     * $class (see Twig's CoreExtension::getAttribute()): a public property `name`, or else what its public method
-     * `name`, or else `getName`, `isName` and `hasName`, return, as for a PHP call (see getMethodReturns()). A magic
-     * property may be missing, so the methods are also called for it. Null if Twig gives none of them, or if the class
-     * is specialized by instance and has the property: what an object of it holds is in the object, which the
-     * variable holds.
+     * The node of what Twig gives for the chain of attributes $path (see getAttributePath()) from an object of $class.
+     *
+     * For an attribute (`name`, or `name()` for a method call), see Twig's CoreExtension::getAttribute(): a public
+     * property `name`, or else what its public method `name`, or else `getName`, `isName` and `hasName`, return, as
+     * for a PHP call (see getMethodReturns()). A magic property may be missing, so the methods are also called for it.
+     *
+     * For a chain, `name.next`, what Twig gives for `next` from the objects of the classes `name` is declared to give
+     * (see getAttributeClasses()), as for a PHP fetch on what a property or a call gives. In a chain, `name[]` stands
+     * for the items of what `name` gives, which a loop over it gives (see getTemplateReads()). An attribute of an
+     * unknown type gives none: the template then only fetches `next` from what `name` gives (see PrintNodeAnalyzer).
+     *
+     * Null if Twig gives none of them, or if the class is specialized by instance and has the property: what an
+     * object of it holds is in the object, which the variable holds.
+     *
+     * @param non-empty-list<string> $path
      */
-    private static function getObjectAttribute(Codebase $codebase, TaintFlowGraph $graph, string $class, string $attribute): ?DataFlowNode
+    private static function getObjectAttribute(Codebase $codebase, TaintFlowGraph $graph, string $class, array $path): ?DataFlowNode
     {
+        $attribute = implode('.', $path);
         $key = strtolower($class).' '.$attribute;
         if (\array_key_exists($key, self::$objectAttributes)) {
             return self::$objectAttributes[$key];
@@ -769,19 +844,25 @@ final class Context
             return self::$objectAttributes[$key] = null;
         }
 
-        $isMethodCall = str_ends_with($attribute, '()');
-        $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
-
         $sources = [];
-        if (!$isMethodCall) {
-            $declaringClass = $storage->declaring_property_ids[$name] ?? null;
-            $property = null === $declaringClass ? null : $codebase->classlike_storage_provider->get($declaringClass)->properties[$name] ?? null;
-            $isProperty = null !== $property && ClassLikeAnalyzer::VISIBILITY_PUBLIC === $property->visibility && !$property->is_static;
-            if (($isProperty || isset($storage->pseudo_property_get_types['$'.$name])) && $storage->specialize_instance) {
-                return self::$objectAttributes[$key] = null;
+        $rest = \array_slice($path, 1);
+        if ([] !== $rest) {
+            foreach (self::getAttributeClasses($codebase, $storage, $path[0]) as $attributeClass) {
+                $source = self::getObjectAttribute($codebase, $graph, $attributeClass, $rest);
+                if (null !== $source) {
+                    $sources[] = $source;
+                }
             }
+        } else {
+            $isMethodCall = str_ends_with($attribute, '()');
+            $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
 
-            if ($isProperty || isset($storage->pseudo_property_get_types['$'.$name])) {
+            $isProperty = !$isMethodCall && null !== self::getPublicProperty($codebase, $storage, $name);
+            if (!$isMethodCall && ($isProperty || isset($storage->pseudo_property_get_types['$'.$name]))) {
+                if ($storage->specialize_instance) {
+                    return self::$objectAttributes[$key] = null;
+                }
+
                 // the node of the property a PHP fetch on an object of the class reads
                 $propertyNode = DataFlowNode::getForPropertyFetch($storage->name.'::$'.$name);
                 $graph->addNode($propertyNode);
@@ -791,18 +872,8 @@ final class Context
 
                 $sources[] = $propertyNode;
             }
-        }
 
-        $methodName = strtolower($name);
-        $methodNames = isset($storage->declaring_method_ids[$methodName]) ? [$methodName] : ['get'.$methodName, 'is'.$methodName, 'has'.$methodName];
-        foreach ($methodNames as $methodName) {
-            $declaringMethodId = $storage->declaring_method_ids[$methodName] ?? null;
-            if (null === $declaringMethodId) {
-                continue;
-            }
-
-            $method = $codebase->methods->getStorage($declaringMethodId);
-            if (ClassLikeAnalyzer::VISIBILITY_PUBLIC === $method->visibility) {
+            foreach (self::getAttributeMethods($codebase, $storage, $name) as [$methodName, $declaringMethodId, $method]) {
                 $sources = [...$sources, ...self::getMethodReturns($codebase, $graph, $storage, $methodName, $declaringMethodId, $method)];
             }
         }
@@ -818,6 +889,135 @@ final class Context
         }
 
         return self::$objectAttributes[$key] = $node;
+    }
+
+    /**
+     * The public, non-static property $name of the class of $storage, which Twig reads for the attribute `name`.
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getPublicProperty(Codebase $codebase, ClassLikeStorage $storage, string $name): ?PropertyStorage
+    {
+        $declaringClass = $storage->declaring_property_ids[$name] ?? null;
+        $property = null === $declaringClass ? null : $codebase->classlike_storage_provider->get($declaringClass)->properties[$name] ?? null;
+
+        return null !== $property && ClassLikeAnalyzer::VISIBILITY_PUBLIC === $property->visibility && !$property->is_static ? $property : null;
+    }
+
+    /**
+     * The public methods Twig may call for the attribute `name` of an object of the class of $storage: `name`, or
+     * else `getName`, `isName` and `hasName`. With their lowercase name and the id of the method declaring them.
+     *
+     * @return list<array{lowercase-string, MethodIdentifier, MethodStorage}>
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getAttributeMethods(Codebase $codebase, ClassLikeStorage $storage, string $name): array
+    {
+        $methodName = strtolower($name);
+        $methodNames = isset($storage->declaring_method_ids[$methodName]) ? [$methodName] : ['get'.$methodName, 'is'.$methodName, 'has'.$methodName];
+
+        $methods = [];
+        foreach ($methodNames as $methodName) {
+            $declaringMethodId = $storage->declaring_method_ids[$methodName] ?? null;
+            if (null === $declaringMethodId) {
+                continue;
+            }
+
+            $method = $codebase->methods->getStorage($declaringMethodId);
+            if (ClassLikeAnalyzer::VISIBILITY_PUBLIC === $method->visibility) {
+                $methods[] = [$methodName, $declaringMethodId, $method];
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * The classes of the objects Twig gives for the attribute $attribute (`name`, or `name()` for a method call) of an
+     * object of the class of $storage (see getObjectAttribute()): those of the declared type of the public property,
+     * or else of the magic property and of the declared return types of the methods. A template parameter stands for
+     * the classes of its bound. For `name[]`, the classes of the items of these types (see getItemTypes()). None if
+     * there are more than MAX_CALLED_METHODS of them: the attributes of what the attribute gives are then only what is
+     * fetched from it.
+     *
+     * @return list<string>
+     */
+    private static function getAttributeClasses(Codebase $codebase, ClassLikeStorage $storage, string $attribute): array
+    {
+        $key = strtolower($storage->name).' '.$attribute;
+        if (isset(self::$attributeClasses[$key])) {
+            return self::$attributeClasses[$key];
+        }
+
+        $isItem = str_ends_with($attribute, '[]');
+        $attribute = $isItem ? substr($attribute, 0, -2) : $attribute;
+        $isMethodCall = str_ends_with($attribute, '()');
+        $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
+
+        $property = $isMethodCall ? null : self::getPublicProperty($codebase, $storage, $name);
+        if (null !== $property) {
+            $types = [$property->type];
+        } else {
+            $types = [$isMethodCall ? null : ($storage->pseudo_property_get_types['$'.$name] ?? null)];
+            foreach (self::getAttributeMethods($codebase, $storage, $name) as [, , $method]) {
+                $types[] = $method->return_type;
+            }
+        }
+
+        $classes = [];
+        foreach ($types as $type) {
+            foreach (null === $type ? [] : ($isItem ? self::getItemTypes($codebase, $type) : [$type]) as $objectsType) {
+                $classes = [...$classes, ...self::getObjectClasses($objectsType)];
+            }
+        }
+        $classes = array_values(array_unique($classes));
+
+        return self::$attributeClasses[$key] = self::MAX_CALLED_METHODS < \count($classes) ? [] : $classes;
+    }
+
+    /**
+     * The types of the items of the arrays, the iterables and the traversable objects of $type, which a loop over it
+     * gives: for a traversable object, the last of its type parameters, as for an Iterator<TKey, TValue>.
+     *
+     * @return list<Union>
+     */
+    private static function getItemTypes(Codebase $codebase, Union $type): array
+    {
+        $items = [];
+        foreach ($type->getAtomicTypes() as $atomic) {
+            if ($atomic instanceof TArray || $atomic instanceof TIterable) {
+                $items[] = $atomic->type_params[1];
+            } elseif ($atomic instanceof TKeyedArray) {
+                $items[] = $atomic->getGenericValueType();
+            } elseif ($atomic instanceof TGenericObject && $codebase->classOrInterfaceExists($atomic->value)
+                && ($codebase->classExtendsOrImplements($atomic->value, \Traversable::class) || $codebase->interfaceExtends($atomic->value, \Traversable::class))) {
+                $items[] = end($atomic->type_params);
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * The classes of the objects of $type, and of the bounds of its template parameters.
+     *
+     * @return list<string>
+     *
+     * @psalm-mutation-free
+     */
+    private static function getObjectClasses(Union $type): array
+    {
+        $classes = [];
+        foreach ($type->getAtomicTypes() as $atomic) {
+            if ($atomic instanceof TTemplateParam) {
+                $classes = [...$classes, ...self::getObjectClasses($atomic->as)];
+            } elseif ($atomic instanceof TNamedObject) {
+                $classes[] = $atomic->value;
+            }
+        }
+
+        return $classes;
     }
 
     /**
@@ -891,10 +1091,17 @@ final class Context
     /**
      * The variables a template reads from the context it is rendered with: those it reads, and those the templates it
      * gives its context to read (by `include`, `embed`, `extends` or `include()`). A variable it also sets is one of
-     * them, as it may read it before. Also the attributes of variables these templates read: `name` for
-     * `variable.name`, `name()` for `variable.name(...)`.
+     * them, as it may read it before. Also the chains of attributes of variables these templates read (see
+     * getAttributePath()): `[name]` for `variable.name`, `[name()]` for `variable.name(...)`, `[name(), next]` for
+     * `variable.name(...).next`. Through a variable set to a chain, or looping over one, they are chains of the
+     * variable of the chain: `[manager, name]` for `{% set m = variable.manager %}{{ m.name }}`, and `[items[], name]`
+     * for `{% for i in variable.items %}{{ i.name }}{% endfor %}`, `items[]` standing for the items of what `items`
+     * gives (see taintAssignmentFromSources()). So are the chains a template it gives such a variable to reads, by its
+     * context or by a key of `with`: `[items[], name]` for `{% for i in variable.items %}{% include 'part' %}{% endfor %}`
+     * if `part` reads `i.name`. The template is read as a whole: a variable stands for any chain it is set to, wherever
+     * it is read.
      *
-     * @return array{variables: list<string>, attributes: list<string>}
+     * @return array{variables: list<string>, attributes: list<non-empty-list<string>>}
      */
     private static function getTemplateReads(Environment $twig, string $templateName): array
     {
@@ -914,26 +1121,119 @@ final class Context
 
         $read = [];
         $attributes = [];
-        $collect = static function (Node $node) use (&$collect, &$read, &$attributes, $twig): void {
+        /** @var array<string, array<string, non-empty-list<string>>> $chains variable set by the template => the chains of attributes of other variables it is set to or loops over */
+        $chains = [];
+        // the templates embedded in the templates read, by index: each one is read where its `embed` displays it
+        $embeddedTemplates = [];
+        /**
+         * The chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
+         * attributes of one: those giving the objects of the variable, followed by the chain.
+         *
+         * @return list<list<string>>
+         */
+        $getChains = static function (Node $value) use (&$chains): array {
+            $objects = self::getObjectsPath($value);
+
+            return null === $objects ? [] : array_map(
+                static fn (array $prefix): array => [...$prefix, ...$objects[1]],
+                [[], ...array_values($chains[(string) $objects[0]->getAttribute('name')] ?? [])],
+            );
+        };
+        /**
+         * Reads the chains $paths of the objects the chains $prefixes give.
+         *
+         * @param iterable<list<string>>       $prefixes
+         * @param list<non-empty-list<string>> $paths
+         */
+        $addAttributes = static function (iterable $prefixes, array $paths) use (&$attributes): void {
+            foreach ($prefixes as $prefix) {
+                foreach ($paths as $path) {
+                    $chain = [...$prefix, ...$path];
+                    if (\count($chain) <= self::MAX_ATTRIBUTE_DEPTH) {
+                        $attributes[implode('.', $chain)] = $chain;
+                    }
+                }
+            }
+        };
+        $assign = static function (Node $variable, Node $value, bool $isItem) use (&$chains, $getChains): void {
+            if (!$variable instanceof NameExpression) {
+                return;
+            }
+
+            foreach ($getChains($value) as $chain) {
+                // a variable set to a variable, or looping over one, has its attributes: only a chain is a prefix, if
+                // it leaves room for one more attribute
+                if ([] === $chain || self::MAX_ATTRIBUTE_DEPTH <= \count($chain)) {
+                    continue;
+                }
+
+                if ($isItem) {
+                    $chain[] = array_pop($chain).'[]';
+                }
+
+                $chains[(string) $variable->getAttribute('name')][implode('.', $chain)] = $chain;
+            }
+        };
+        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, $getChains, $addAttributes, $assign, $twig): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
 
-            if ($node instanceof GetAttrExpression && 'array' !== $node->getAttribute('type')
-                && $node->getNode('node') instanceof NameExpression
-                && ($attribute = $node->getNode('attribute')) instanceof ConstantExpression) {
-                $attributes[$attribute->getAttribute('value').('method' === $node->getAttribute('type') ? '()' : '')] = true;
+            if ($node instanceof SetNode && !$node->getAttribute('capture')) {
+                // like TaintAnalysisVisitor, several names are given one value each, a single name the whole value
+                $names = $node->getNode('names');
+                $values = 1 < \count($names) ? iterator_to_array($node->getNode('values')) : [$node->getNode('values')];
+                foreach ($names as $i => $name) {
+                    if (isset($values[$i])) {
+                        $assign($name, $values[$i], false);
+                    }
+                }
             }
 
-            foreach (self::getTemplatesGivenContext($node) as $includedTemplateName) {
-                $includedReads = self::getTemplateReads($twig, $includedTemplateName);
-                $read += array_fill_keys($includedReads['variables'], true);
-                $attributes += array_fill_keys($includedReads['attributes'], true);
+            if ($node instanceof ForNode) {
+                $assign($node->getNode('value_target'), $node->getNode('seq'), true);
+            }
+
+            $path = $node instanceof GetAttrExpression ? self::getAttributePath($node) : null;
+            if (null !== $path) {
+                $addAttributes($getChains($path[0]), [$path[1]]);
             }
 
             if ($node instanceof ModuleNode) {
                 foreach ($node->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
-                    $collect($embeddedTemplate);
+                    $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                }
+            }
+
+            $embeddedTemplate = $node instanceof EmbedNode ? $embeddedTemplates[$node->getAttribute('index')] ?? null : null;
+            if (null !== $embeddedTemplate) {
+                // the blocks it overrides are displayed here, with the variables of the template
+                $collect($embeddedTemplate);
+            }
+
+            $include = self::getInclude($node, $embeddedTemplate);
+            if (null !== $include) {
+                [$includedTemplateName, $variables, $withContext] = $include;
+                $includedReads = self::getTemplateReads($twig, $includedTemplateName);
+
+                // a variable given by a key of `with` holds the objects of its value
+                $keyed = [];
+                foreach ($variables instanceof ArrayExpression ? $variables->getKeyValuePairs() : [] as ['key' => $key, 'value' => $value]) {
+                    if ($key instanceof ConstantExpression) {
+                        $keyed[(string) $key->getAttribute('value')] = true;
+                        $addAttributes($getChains($value), $includedReads['attributes']);
+                    }
+                }
+
+                if ($withContext) {
+                    $read += array_fill_keys($includedReads['variables'], true);
+                    $addAttributes([[]], $includedReads['attributes']);
+                    // a variable of this template set to a chain, or looping over one, holds the objects of the chain
+                    foreach ($includedReads['variables'] as $variableName) {
+                        if (!isset($keyed[$variableName])) {
+                            $addAttributes($chains[$variableName] ?? [], $includedReads['attributes']);
+                        }
+                    }
                 }
             }
 
@@ -945,33 +1245,63 @@ final class Context
 
         return self::$templateReads[$templateName] = [
             'variables' => array_map('strval', array_keys($read)),
-            'attributes' => array_map('strval', array_keys($attributes)),
+            'attributes' => array_values($attributes),
         ];
     }
 
     /**
-     * The templates $node gives the context of the template to. That of an `embed` is the parent of the template it
-     * embeds.
+     * The variable whose objects $value holds, and the chain of attributes of it (see getAttributePath()) giving them:
+     * none for the variable itself. Null if $value is something else. Twig >= 3.15 gives the value of a single `set`
+     * as a list of it.
      *
-     * @return list<string>
+     * @return array{NameExpression, list<string>}|null
      */
-    private static function getTemplatesGivenContext(Node $node): array
+    private static function getObjectsPath(Node $value): ?array
     {
+        if (!$value instanceof AbstractExpression && 1 === \count($value)) {
+            $value = $value->getNode('0');
+        }
+
+        if ($value instanceof GetAttrExpression) {
+            return self::getAttributePath($value);
+        }
+
+        return $value instanceof NameExpression && !$value instanceof AssignNameExpression ? [$value, []] : null;
+    }
+
+    /**
+     * The template $node displays, the expression of the variables of `with` it gives it, and whether it gives it the
+     * context of the template: one `include`, `include()` or `embed` include, or that the template extends. That of an
+     * `embed` is the parent of $embeddedTemplate, the template it embeds. Null if $node displays none, or one only
+     * known when rendering.
+     *
+     * @return array{string, Node|null, bool}|null
+     */
+    private static function getInclude(Node $node, ?ModuleNode $embeddedTemplate): ?array
+    {
+        $variables = null;
+        $withContext = true;
         if ($node instanceof FunctionExpression) {
-            $withContext = self::getArgument($node, 2, 'with_context');
-            $template = 'include' !== $node->getAttribute('name') || ($withContext instanceof ConstantExpression && false === $withContext->getAttribute('value'))
-                ? null
-                : self::getArgument($node, 0, 'template');
+            $withContextArgument = self::getArgument($node, 2, 'with_context');
+            $template = 'include' === $node->getAttribute('name') ? self::getArgument($node, 0, 'template') : null;
+            $variables = self::getArgument($node, 1, 'variables');
+            $withContext = !$withContextArgument instanceof ConstantExpression || false !== $withContextArgument->getAttribute('value');
         } elseif ($node instanceof ModuleNode) {
-            // also an embedded template, extending the template `embed` displays
-            $template = $node->hasNode('parent') ? $node->getNode('parent') : null;
-        } elseif ($node instanceof IncludeNode && !$node instanceof EmbedNode) {
-            $template = $node->getAttribute('only') ? null : $node->getNode('expr');
+            // an embedded template displays its parent where its `embed` is
+            $template = null === $node->getAttribute('index') && $node->hasNode('parent') ? $node->getNode('parent') : null;
+        } elseif ($node instanceof IncludeNode) {
+            $template = $node instanceof EmbedNode
+                ? ($embeddedTemplate?->hasNode('parent') ? $embeddedTemplate->getNode('parent') : null)
+                : $node->getNode('expr');
+            $variables = $node->hasNode('variables') ? $node->getNode('variables') : null;
+            $withContext = !$node->getAttribute('only');
         } else {
             $template = null;
         }
 
-        return $template instanceof ConstantExpression && \is_string($template->getAttribute('value')) ? [$template->getAttribute('value')] : [];
+        return $template instanceof ConstantExpression && \is_string($template->getAttribute('value'))
+            ? [$template->getAttribute('value'), $variables, $withContext]
+            : null;
     }
 
     /**
