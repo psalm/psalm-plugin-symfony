@@ -193,15 +193,20 @@ final class Context
         $node = $expression;
         while ($node instanceof GetAttrExpression) {
             $attribute = $node->getNode('attribute');
-            if ('array' === $node->getAttribute('type') || !$attribute instanceof ConstantExpression || self::MAX_ATTRIBUTE_DEPTH === \count($path)) {
+            if ('array' === $node->getAttribute('type') || !$attribute instanceof ConstantExpression) {
                 return null;
             }
 
-            array_unshift($path, ((string) $attribute->getAttribute('value')).('method' === $node->getAttribute('type') ? '()' : ''));
+            // from the last attribute to the first
+            $path[] = ((string) $attribute->getAttribute('value')).('method' === $node->getAttribute('type') ? '()' : '');
             $node = $node->getNode('node');
         }
 
-        return [] !== $path && $node instanceof NameExpression && !$node instanceof AssignNameExpression ? [$node, $path] : null;
+        $path = array_reverse($path);
+
+        return [] !== $path && \count($path) <= self::MAX_ATTRIBUTE_DEPTH && $node instanceof NameExpression && !$node instanceof AssignNameExpression
+            ? [$node, $path]
+            : null;
     }
 
     /**
@@ -817,8 +822,8 @@ final class Context
         }
 
         $sources = [];
-        if (1 < \count($path)) {
-            $rest = \array_slice($path, 1);
+        $rest = \array_slice($path, 1);
+        if ([] !== $rest) {
             foreach (self::getAttributeClasses($codebase, $storage, $path[0]) as $attributeClass) {
                 $source = self::getObjectAttribute($codebase, $graph, $attributeClass, $rest);
                 if (null !== $source) {
@@ -865,6 +870,8 @@ final class Context
 
     /**
      * The public, non-static property $name of the class of $storage, which Twig reads for the attribute `name`.
+     *
+     * @psalm-capabilities read-props
      */
     private static function getPublicProperty(Codebase $codebase, ClassLikeStorage $storage, string $name): ?PropertyStorage
     {
@@ -879,6 +886,8 @@ final class Context
      * else `getName`, `isName` and `hasName`. With their lowercase name and the id of the method declaring them.
      *
      * @return list<array{lowercase-string, MethodIdentifier, MethodStorage}>
+     *
+     * @psalm-capabilities read-props
      */
     private static function getAttributeMethods(Codebase $codebase, ClassLikeStorage $storage, string $name): array
     {
