@@ -129,7 +129,8 @@ final class PrintNodeAnalyzer
      * whole of `item`, and of its arguments.
      *
      * `item.name` and `item.name(...)` of an object give its property or what its method returns: those of the
-     * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()).
+     * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()). So do the
+     * chains of them, `item.name.next`, from the classes `item.name` is declared to give.
      *
      * @return list<DataFlowNode>
      */
@@ -141,9 +142,8 @@ final class PrintNodeAnalyzer
         // the values of the internal Twig\Template::ANY_CALL, ARRAY_CALL and METHOD_CALL
         $type = $expression->getAttribute('type');
 
-        $objectSources = $node instanceof NameExpression && 'array' !== $type && $attribute instanceof ConstantExpression
-            ? $this->context->getObjectAttributeSources($node, (string) $attribute->getAttribute('value'), 'method' === $type)
-            : [];
+        $path = Context::getAttributePath($expression);
+        $objectSources = null === $path ? [] : $this->context->getObjectAttributeSources($path[0], $path[1]);
 
         if ('method' !== $type && $attribute instanceof ConstantExpression) {
             $key = (string) $attribute->getAttribute('value');
