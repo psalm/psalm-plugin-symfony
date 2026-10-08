@@ -1121,13 +1121,13 @@ final class Context
 
         $read = [];
         $attributes = [];
-        // variable set by the template => the chains of attributes of other variables it is set to or loops over
+        /** @var array<string, array<string, non-empty-list<string>>> $chains variable set by the template => the chains of attributes of other variables it is set to or loops over */
         $chains = [];
         // the templates embedded in the templates read, by index: each one is read where its `embed` displays it
         $embeddedTemplates = [];
         /**
-         * the chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
-         * attributes of one: those giving the objects of the variable, followed by the chain
+         * The chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
+         * attributes of one: those giving the objects of the variable, followed by the chain.
          *
          * @return list<list<string>>
          */
@@ -1140,9 +1140,9 @@ final class Context
             );
         };
         /**
-         * reads the chains $paths of the objects the chains $prefixes give
+         * Reads the chains $paths of the objects the chains $prefixes give.
          *
-         * @param iterable<list<string>> $prefixes
+         * @param iterable<list<string>>       $prefixes
          * @param list<non-empty-list<string>> $paths
          */
         $addAttributes = static function (iterable $prefixes, array $paths) use (&$attributes): void {
