@@ -222,7 +222,7 @@ final class PrintNodeAnalyzer
      */
     public function getIncludedVariables(?Node $variables): array
     {
-        $includedVariables = ['keyed' => [], 'unkeyed' => [], 'whole' => []];
+        $includedVariables = ['keyed' => [], 'unkeyed' => [], 'whole' => [], 'objects' => []];
 
         if (null === $variables) {
             return $includedVariables;
@@ -239,6 +239,7 @@ final class PrintNodeAnalyzer
             $sources = $this->getTaintSources($value);
             if ($key instanceof ConstantExpression) {
                 $includedVariables['keyed'][(string) $key->getAttribute('value')] = $sources;
+                $includedVariables['objects'][(string) $key->getAttribute('value')] = $this->context->getObjectsAttributeBases($value);
             } else {
                 $includedVariables['unkeyed'] = [...$includedVariables['unkeyed'], ...$sources];
             }

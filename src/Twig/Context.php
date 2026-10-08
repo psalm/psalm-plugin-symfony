@@ -27,6 +27,7 @@ use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Node\EmbedNode;
 use Twig\Node\Expression\AbstractExpression;
+use Twig\Node\Expression\ArrayExpression;
 use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
@@ -48,8 +49,10 @@ use Twig\TwigFunction;
  *     keyed: array<string, list<DataFlowNode>>,
  *     unkeyed: list<DataFlowNode>,
  *     whole: list<DataFlowNode>,
+ *     objects: array<string, list<string>>,
  * } the variables an include gives: the values of the keys of `with` by name, those of its keys the analysis can't
- *   tell, and the arrays it can't tell the keys of
+ *   tell, and the arrays it can't tell the keys of; and by name the bases of the attributes of the objects of the
+ *   values of the keys of `with` (see getObjectsAttributeBases())
  */
 final class Context
 {
@@ -534,9 +537,7 @@ final class Context
      * body of an `if` or of a `for`, which may not run, the variable can also keep the value it had, unless $always.
      *
      * The objects of the value are those $objectsOf, the value it is set to or loops over, holds, or its items if
-     * $isItem: if it is a variable or a chain of attributes of one (see getObjectsPath()), its attributes are those of
-     * the chain from the bases of the variable, `tpl#variable.a`, or `tpl#variable.a[]` for its items. Those of a chain
-     * longer than MAX_ATTRIBUTE_DEPTH have no sources (see getTemplateReads()).
+     * $isItem (see getObjectsAttributeBases()).
      *
      * @param list<DataFlowNode> $sources
      */
@@ -550,11 +551,7 @@ final class Context
             $this->taint->addPath($source, $taintDestination, $pathType);
         }
 
-        $objects = null === $objectsOf ? null : self::getObjectsPath($objectsOf);
-        $attributes = null === $objects ? [] : array_map(
-            static fn (string $base): string => implode('.', [$base, ...$objects[1]]).($isItem ? '[]' : ''),
-            $this->getAttributeBases((string) $objects[0]->getAttribute('name')),
-        );
+        $attributes = null === $objectsOf ? [] : $this->getObjectsAttributeBases($objectsOf, $isItem);
 
         $isConditional = 0 < $this->conditionalDepth && !$always;
         if ($isConditional) {
@@ -565,6 +562,24 @@ final class Context
             ? [...$this->taintVariable($destinationVariable), $taintDestination]
             : [$taintDestination];
         $this->localAttributes[$destinationName] = $attributes;
+    }
+
+    /**
+     * The bases of the attributes of the objects $value holds, or of its items if $isItem: if it is a variable or a
+     * chain of attributes of one (see getObjectsPath()), those of the chain from the bases of the variable,
+     * `tpl#variable.a`, or `tpl#variable.a[]` for its items. Those of a chain longer than MAX_ATTRIBUTE_DEPTH have no
+     * sources (see getTemplateReads()).
+     *
+     * @return list<string>
+     */
+    public function getObjectsAttributeBases(Node $value, bool $isItem = false): array
+    {
+        $objects = self::getObjectsPath($value);
+
+        return null === $objects ? [] : array_map(
+            static fn (string $base): string => implode('.', [$base, ...$objects[1]]).($isItem ? '[]' : ''),
+            $this->getAttributeBases((string) $objects[0]->getAttribute('name')),
+        );
     }
 
     /**
@@ -623,7 +638,9 @@ final class Context
 
     /**
      * Includes the template $includedTemplateName, giving each variable it reads from its context (see
-     * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template.
+     * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template. The
+     * objects of the variable have the attributes the included template reads: those of the objects of the value of
+     * the key of `with` it is given, or of the variable of this template, whose chains getTemplateReads() reads.
      *
      * @param IncludedVariables $variables
      *
@@ -644,24 +661,26 @@ final class Context
                 $this->taint->addPath($source, $destination, "arrayvalue-fetch-'".$variableName."'");
             }
 
+            $bases = $variables['objects'][$variableName] ?? [];
             if ($withContext && !isset($variables['keyed'][$variableName])) {
                 $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
                 foreach ($values as $source) {
                     $this->taint->addPath($source, $destination, 'arg');
                 }
 
-                // the objects of the variable have the attributes the included template reads
-                $includedBase = self::getAttributeBase($includedTemplateName, $variableName);
-                foreach ($this->getAttributeBases($variableName) as $base) {
-                    foreach ([$base, $base.'[]'] as $i => $objects) {
-                        foreach ($includedReads['attributes'] as $path) {
-                            $attribute = implode('.', $path);
-                            $source = self::getAttributeNode($objects, $attribute);
-                            $attributeDestination = self::getAttributeNode(0 === $i ? $includedBase : $includedBase.'[]', $attribute);
-                            $this->taint->addNode($source);
-                            $this->taint->addNode($attributeDestination);
-                            $this->taint->addPath($source, $attributeDestination, 'arg');
-                        }
+                $bases = $this->getAttributeBases($variableName);
+            }
+
+            $includedBase = self::getAttributeBase($includedTemplateName, $variableName);
+            foreach ($bases as $base) {
+                foreach ([$base, $base.'[]'] as $i => $objects) {
+                    foreach ($includedReads['attributes'] as $path) {
+                        $attribute = implode('.', $path);
+                        $source = self::getAttributeNode($objects, $attribute);
+                        $attributeDestination = self::getAttributeNode(0 === $i ? $includedBase : $includedBase.'[]', $attribute);
+                        $this->taint->addNode($source);
+                        $this->taint->addNode($attributeDestination);
+                        $this->taint->addPath($source, $attributeDestination, 'arg');
                     }
                 }
             }
@@ -1077,8 +1096,10 @@ final class Context
      * `variable.name(...).next`. Through a variable set to a chain, or looping over one, they are chains of the
      * variable of the chain: `[manager, name]` for `{% set m = variable.manager %}{{ m.name }}`, and `[items[], name]`
      * for `{% for i in variable.items %}{{ i.name }}{% endfor %}`, `items[]` standing for the items of what `items`
-     * gives (see taintAssignmentFromSources()). The template is read as a whole: a variable stands for any chain it is
-     * set to, wherever it is read.
+     * gives (see taintAssignmentFromSources()). So are the chains a template it gives such a variable to reads, by its
+     * context or by a key of `with`: `[items[], name]` for `{% for i in variable.items %}{% include 'part' %}{% endfor %}`
+     * if `part` reads `i.name`. The template is read as a whole: a variable stands for any chain it is set to, wherever
+     * it is read.
      *
      * @return array{variables: list<string>, attributes: list<non-empty-list<string>>}
      */
@@ -1102,14 +1123,44 @@ final class Context
         $attributes = [];
         // variable set by the template => the chains of attributes of other variables it is set to or loops over
         $chains = [];
-        $assign = static function (Node $variable, Node $value, bool $isItem) use (&$chains): void {
+        // the templates embedded in the templates read, by index: each one is read where its `embed` displays it
+        $embeddedTemplates = [];
+        /**
+         * the chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
+         * attributes of one: those giving the objects of the variable, followed by the chain
+         *
+         * @return list<list<string>>
+         */
+        $getChains = static function (Node $value) use (&$chains): array {
             $objects = self::getObjectsPath($value);
-            if (!$variable instanceof NameExpression || null === $objects) {
+
+            return null === $objects ? [] : array_map(
+                static fn (array $prefix): array => [...$prefix, ...$objects[1]],
+                [[], ...array_values($chains[(string) $objects[0]->getAttribute('name')] ?? [])],
+            );
+        };
+        /**
+         * reads the chains $paths of the objects the chains $prefixes give
+         *
+         * @param iterable<list<string>> $prefixes
+         * @param list<non-empty-list<string>> $paths
+         */
+        $addAttributes = static function (iterable $prefixes, array $paths) use (&$attributes): void {
+            foreach ($prefixes as $prefix) {
+                foreach ($paths as $path) {
+                    $chain = [...$prefix, ...$path];
+                    if (\count($chain) <= self::MAX_ATTRIBUTE_DEPTH) {
+                        $attributes[implode('.', $chain)] = $chain;
+                    }
+                }
+            }
+        };
+        $assign = static function (Node $variable, Node $value, bool $isItem) use (&$chains, $getChains): void {
+            if (!$variable instanceof NameExpression) {
                 return;
             }
 
-            foreach ([[], ...$chains[(string) $objects[0]->getAttribute('name')] ?? []] as $prefix) {
-                $chain = [...$prefix, ...$objects[1]];
+            foreach ($getChains($value) as $chain) {
                 // a variable set to a variable, or looping over one, has its attributes: only a chain is a prefix, if
                 // it leaves room for one more attribute
                 if ([] === $chain || self::MAX_ATTRIBUTE_DEPTH <= \count($chain)) {
@@ -1123,7 +1174,7 @@ final class Context
                 $chains[(string) $variable->getAttribute('name')][implode('.', $chain)] = $chain;
             }
         };
-        $collect = static function (Node $node) use (&$collect, &$read, &$attributes, &$chains, $assign, $twig): void {
+        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, $getChains, $addAttributes, $assign, $twig): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
@@ -1145,26 +1196,44 @@ final class Context
 
             $path = $node instanceof GetAttrExpression ? self::getAttributePath($node) : null;
             if (null !== $path) {
-                $attributes[implode('.', $path[1])] = $path[1];
-                foreach ($chains[(string) $path[0]->getAttribute('name')] ?? [] as $prefix) {
-                    $chain = [...$prefix, ...$path[1]];
-                    if (\count($chain) <= self::MAX_ATTRIBUTE_DEPTH) {
-                        $attributes[implode('.', $chain)] = $chain;
-                    }
-                }
-            }
-
-            foreach (self::getTemplatesGivenContext($node) as $includedTemplateName) {
-                $includedReads = self::getTemplateReads($twig, $includedTemplateName);
-                $read += array_fill_keys($includedReads['variables'], true);
-                foreach ($includedReads['attributes'] as $includedPath) {
-                    $attributes[implode('.', $includedPath)] = $includedPath;
-                }
+                $addAttributes($getChains($path[0]), [$path[1]]);
             }
 
             if ($node instanceof ModuleNode) {
                 foreach ($node->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
-                    $collect($embeddedTemplate);
+                    $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                }
+            }
+
+            $embeddedTemplate = $node instanceof EmbedNode ? $embeddedTemplates[$node->getAttribute('index')] ?? null : null;
+            if (null !== $embeddedTemplate) {
+                // the blocks it overrides are displayed here, with the variables of the template
+                $collect($embeddedTemplate);
+            }
+
+            $include = self::getInclude($node, $embeddedTemplate);
+            if (null !== $include) {
+                [$includedTemplateName, $variables, $withContext] = $include;
+                $includedReads = self::getTemplateReads($twig, $includedTemplateName);
+
+                // a variable given by a key of `with` holds the objects of its value
+                $keyed = [];
+                foreach ($variables instanceof ArrayExpression ? $variables->getKeyValuePairs() : [] as ['key' => $key, 'value' => $value]) {
+                    if ($key instanceof ConstantExpression) {
+                        $keyed[(string) $key->getAttribute('value')] = true;
+                        $addAttributes($getChains($value), $includedReads['attributes']);
+                    }
+                }
+
+                if ($withContext) {
+                    $read += array_fill_keys($includedReads['variables'], true);
+                    $addAttributes([[]], $includedReads['attributes']);
+                    // a variable of this template set to a chain, or looping over one, holds the objects of the chain
+                    foreach ($includedReads['variables'] as $variableName) {
+                        if (!isset($keyed[$variableName])) {
+                            $addAttributes($chains[$variableName] ?? [], $includedReads['attributes']);
+                        }
+                    }
                 }
             }
 
@@ -1201,28 +1270,38 @@ final class Context
     }
 
     /**
-     * The templates $node gives the context of the template to. That of an `embed` is the parent of the template it
-     * embeds.
+     * The template $node displays, the expression of the variables of `with` it gives it, and whether it gives it the
+     * context of the template: one `include`, `include()` or `embed` include, or that the template extends. That of an
+     * `embed` is the parent of $embeddedTemplate, the template it embeds. Null if $node displays none, or one only
+     * known when rendering.
      *
-     * @return list<string>
+     * @return array{string, Node|null, bool}|null
      */
-    private static function getTemplatesGivenContext(Node $node): array
+    private static function getInclude(Node $node, ?ModuleNode $embeddedTemplate): ?array
     {
+        $variables = null;
+        $withContext = true;
         if ($node instanceof FunctionExpression) {
-            $withContext = self::getArgument($node, 2, 'with_context');
-            $template = 'include' !== $node->getAttribute('name') || ($withContext instanceof ConstantExpression && false === $withContext->getAttribute('value'))
-                ? null
-                : self::getArgument($node, 0, 'template');
+            $withContextArgument = self::getArgument($node, 2, 'with_context');
+            $template = 'include' === $node->getAttribute('name') ? self::getArgument($node, 0, 'template') : null;
+            $variables = self::getArgument($node, 1, 'variables');
+            $withContext = !$withContextArgument instanceof ConstantExpression || false !== $withContextArgument->getAttribute('value');
         } elseif ($node instanceof ModuleNode) {
-            // also an embedded template, extending the template `embed` displays
-            $template = $node->hasNode('parent') ? $node->getNode('parent') : null;
-        } elseif ($node instanceof IncludeNode && !$node instanceof EmbedNode) {
-            $template = $node->getAttribute('only') ? null : $node->getNode('expr');
+            // an embedded template displays its parent where its `embed` is
+            $template = null === $node->getAttribute('index') && $node->hasNode('parent') ? $node->getNode('parent') : null;
+        } elseif ($node instanceof IncludeNode) {
+            $template = $node instanceof EmbedNode
+                ? ($embeddedTemplate?->hasNode('parent') ? $embeddedTemplate->getNode('parent') : null)
+                : $node->getNode('expr');
+            $variables = $node->hasNode('variables') ? $node->getNode('variables') : null;
+            $withContext = !$node->getAttribute('only');
         } else {
             $template = null;
         }
 
-        return $template instanceof ConstantExpression && \is_string($template->getAttribute('value')) ? [$template->getAttribute('value')] : [];
+        return $template instanceof ConstantExpression && \is_string($template->getAttribute('value'))
+            ? [$template->getAttribute('value'), $variables, $withContext]
+            : null;
     }
 
     /**
