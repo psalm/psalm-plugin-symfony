@@ -1,0 +1,18 @@
+<?php
+
+namespace Twig\Loader;
+
+final class ArrayLoader implements LoaderInterface
+{
+    /**
+     * @param array<string, string> $templates The template sources, by name
+     *
+     * @psalm-taint-sink eval $templates[*]
+     */
+    public function __construct(array $templates = []) {}
+
+    /**
+     * @psalm-taint-sink eval $template
+     */
+    public function setTemplate(string $name, string $template): void {}
+}
