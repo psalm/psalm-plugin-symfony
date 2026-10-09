@@ -1,0 +1,20 @@
+<?php
+
+namespace Symfony\Component\Mime;
+
+class Email extends Message
+{
+    /**
+     * @return $this
+     *
+     * @psalm-taint-sink file $path
+     */
+    public function attachFromPath(string $path, ?string $name = null, ?string $contentType = null): static {}
+
+    /**
+     * @return $this
+     *
+     * @psalm-taint-sink file $path
+     */
+    public function embedFromPath(string $path, ?string $name = null, ?string $contentType = null): static {}
+}
