@@ -11,7 +11,7 @@ namespace Symfony\Component\Form;
 class FormErrorIterator implements \RecursiveIterator, \SeekableIterator, \ArrayAccess, \Countable
 {
     /**
-     * @param T[]
+     * @param T[] $errors
      */
     public function __construct(FormInterface $form, array $errors);
 
