@@ -224,7 +224,7 @@ final class Context
      * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
-     * returns what it is given. What the receiver holds, $receiver, comes into the call only for the methods of a
+     * returns what it is given (its receiver only if mayReturnTheReceiver()). What the receiver holds, $receiver, comes into the call only for the methods of a
      * class specialized by instance, as their PHP calls return what the object they are called on holds; any other
      * method returns what its object holds through its body.
      *
@@ -238,16 +238,7 @@ final class Context
             return null;
         }
 
-        $methods = [];
-        $methodsByName = $this->getMethodsByName($codebase);
-        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
-            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
-        }
-
-        if ([] === $methods) {
-            $methods = $methodsByName['__call'] ?? [];
-        }
-
+        $methods = $this->getCalledMethods($codebase, $name);
         if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($codebase, $methods)) {
             return null;
         }
@@ -256,7 +247,7 @@ final class Context
         $location = $this->getLineLocation($expression->getTemplateLine());
 
         foreach ($methods as [$methodId, $storage, $className]) {
-            if ($this->codebase->classlike_storage_provider->get($className)->specialize_instance) {
+            if ($codebase->classlike_storage_provider->get($className)->specialize_instance) {
                 foreach ($receiver as $source) {
                     $this->taint->addPath($source, $taintDestination, 'arg');
                 }
@@ -371,6 +362,52 @@ final class Context
         }
 
         return $sources;
+    }
+
+    /**
+     * Whether the method call `item.name(...)` may return what its receiver holds, where the analysis can't tell the
+     * methods it calls (see getMethodCallTaintDestination()): if one of them is a method of a class specialized by
+     * instance, or of a class extended by one, as their PHP calls return what the object they are called on holds,
+     * or if no class has such a method. Any other method returns what its object holds through its body, which the
+     * attributes of the objects of a variable of the template give (see getObjectAttributeSources()).
+     */
+    public function mayReturnTheReceiver(string $name): bool
+    {
+        if (null === $this->codebase) {
+            return true;
+        }
+
+        $methods = $this->getCalledMethods($this->codebase, $name);
+        if ([] === $methods) {
+            return true;
+        }
+
+        foreach ($methods as [, , $className]) {
+            foreach ([$this->codebase->classlike_storage_provider->get($className), ...self::getDescendants($className)] as $storage) {
+                if ($storage->specialize_instance) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The methods the method call `item.name(...)` may call: the method `name`, `getName`, `isName` or `hasName` of
+     * any class, or else the `__call` of any class (see getMethodCallTaintDestination()).
+     *
+     * @return list<array{string, MethodStorage, string}>
+     */
+    private function getCalledMethods(Codebase $codebase, string $name): array
+    {
+        $methods = [];
+        $methodsByName = $this->getMethodsByName($codebase);
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
+            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
+        }
+
+        return [] === $methods ? $methodsByName['__call'] ?? [] : $methods;
     }
 
     /**
