@@ -224,11 +224,14 @@ final class Context
      * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
-     * returns what it is given.
+     * returns what it is given. What the receiver holds, $receiver, comes into the call only for the methods of a
+     * class specialized by instance, as their PHP calls return what the object they are called on holds; any other
+     * method returns what its object holds through its body.
      *
      * @param list<list<DataFlowNode>> $arguments
+     * @param list<DataFlowNode>       $receiver
      */
-    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
+    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments, array $receiver = []): ?DataFlowNode
     {
         $codebase = $this->codebase;
         if (null === $codebase) {
@@ -252,7 +255,14 @@ final class Context
         $taintDestination = $this->getNode($expression, 'method_'.$name);
         $location = $this->getLineLocation($expression->getTemplateLine());
 
-        foreach ($methods as [$methodId, $storage, $_]) {
+        foreach ($methods as [$methodId, $storage, $className]) {
+            if ($this->codebase->classlike_storage_provider->get($className)->specialize_instance) {
+                foreach ($receiver as $source) {
+                    $this->taint->addPath($source, $taintDestination, 'arg');
+                }
+                $receiver = [];
+            }
+
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);

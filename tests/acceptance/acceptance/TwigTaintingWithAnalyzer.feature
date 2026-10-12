@@ -1039,6 +1039,40 @@ Feature: Twig tainting with analyzer
     When I run Psalm with taint analysis
     And I see no errors
 
+  Scenario: What a variable holds besides an object is not displayed through a method of the object returning something else
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Comment
+      {
+          private int $views = 0;
+
+          /** @psalm-capabilities read-props|write-this-props|write-refs */
+          public function view(): void
+          {
+              ++$this->views;
+          }
+
+          /** @psalm-pure */
+          public function getIdStr(): string
+          {
+              return 'literal';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => $_GET['untrusted']]);
+      echo twig()->render('index.html.twig', ['item' => new Comment()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.getIdStr()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
   Scenario: A tainted parameter given to a method that unrelated classes have is displayed with only the raw filter
     Given I have the following code
       """

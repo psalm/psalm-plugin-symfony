@@ -167,10 +167,9 @@ final class PrintNodeAnalyzer
             ? $this->getArgumentTaintSources($arguments)
             : null;
         if (null !== $argumentSources) {
-            // what the receiver holds stays, as a method of an object specialized by instance returns what it holds
-            $call = $this->context->getMethodCallTaintDestination($expression, (string) $attribute->getAttribute('value'), $argumentSources);
+            $call = $this->context->getMethodCallTaintDestination($expression, (string) $attribute->getAttribute('value'), $argumentSources, $sources);
             if (null !== $call) {
-                return [...$sources, ...$objectSources, $call];
+                return [...$objectSources, $call];
             }
         }
 
