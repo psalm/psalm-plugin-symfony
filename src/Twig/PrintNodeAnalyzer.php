@@ -45,9 +45,31 @@ final class PrintNodeAnalyzer
             throw new \RuntimeException('The expr node has an expected type.');
         }
 
-        foreach ($this->getTaintSources($expression) as $source) {
+        foreach ($this->getPrintedTaintSources($expression) as $source) {
             $this->context->addSink($node, $source);
         }
+    }
+
+    /**
+     * The nodes the taints of what printing $expression outputs come from: a variable printed as is, or with `raw`,
+     * outputs what converting it to a string gives (see Context::taintPrintedVariable()).
+     *
+     * @return list<DataFlowNode>
+     */
+    private function getPrintedTaintSources(Node $expression): array
+    {
+        if ($expression instanceof NameExpression) {
+            return $this->context->taintPrintedVariable($expression);
+        }
+
+        if ($expression instanceof FilterExpression && 'raw' === Context::getFilterName($expression)) {
+            return array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
+                $this->getPrintedTaintSources($expression->getNode('node')),
+            );
+        }
+
+        return $this->getTaintSources($expression);
     }
 
     /**
@@ -144,7 +166,8 @@ final class PrintNodeAnalyzer
     private function getAttributeTaintSources(GetAttrExpression $expression): array
     {
         $node = $expression->getNode('node');
-        $sources = $this->getTaintSources($node);
+        // the attributes of a variable are those of what it holds, not of what it gives as a string
+        $sources = $node instanceof NameExpression ? $this->context->taintObjectVariable($node) : $this->getTaintSources($node);
         $attribute = $expression->getNode('attribute');
         // the values of the internal Twig\Template::ANY_CALL, ARRAY_CALL and METHOD_CALL
         $type = $expression->getAttribute('type');
@@ -235,7 +258,7 @@ final class PrintNodeAnalyzer
      */
     public function getIncludedVariables(?Node $variables): array
     {
-        $includedVariables = ['keyed' => [], 'unkeyed' => [], 'whole' => [], 'objects' => []];
+        $includedVariables = ['keyed' => [], 'unkeyed' => [], 'whole' => [], 'objects' => [], 'printed' => []];
 
         if (null === $variables) {
             return $includedVariables;
@@ -251,8 +274,15 @@ final class PrintNodeAnalyzer
         foreach ($variables->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
             $sources = $this->getTaintSources($value);
             if ($key instanceof ConstantExpression) {
-                $includedVariables['keyed'][(string) $key->getAttribute('value')] = $sources;
-                $includedVariables['objects'][(string) $key->getAttribute('value')] = $this->context->getObjectsAttributeBases($value);
+                $name = (string) $key->getAttribute('value');
+                $includedVariables['objects'][$name] = $this->context->getObjectsAttributeBases($value);
+                if ($value instanceof NameExpression) {
+                    // what the variable holds, apart from what it prints
+                    $sources = $this->context->taintObjectVariable($value);
+                    $includedVariables['printed'][$name] = $this->context->taintPrintedVariable($value);
+                }
+
+                $includedVariables['keyed'][$name] = $sources;
             } else {
                 $includedVariables['unkeyed'] = [...$includedVariables['unkeyed'], ...$sources];
             }
@@ -303,20 +333,24 @@ final class PrintNodeAnalyzer
                     $bases = [...$bases, ...$this->context->getObjectsAttributeBases($item)];
                 }
 
+                $sources = $this->getTaintSources($unpacked);
                 $arguments[] = [
                     null,
-                    $this->getTaintSources($unpacked),
+                    $sources,
                     $unpacked instanceof ArrayExpression ? $bases : $this->context->getObjectsAttributeBases($unpacked, true),
+                    $sources,
                 ];
                 continue;
             }
 
-            // a position, or a name
+            // a position, or a name; a variable gives apart what it holds and what it prints
             $position = $key instanceof ConstantExpression ? $key->getAttribute('value') : $key->getAttribute('name');
+            $sources = $value instanceof NameExpression ? $this->context->taintObjectVariable($value) : $this->getTaintSources($value);
             $arguments[] = [
                 \is_int($position) || ctype_digit((string) $position) ? (int) $position : (string) $position,
-                $this->getTaintSources($value),
+                $sources,
                 $this->context->getObjectsAttributeBases($value),
+                $value instanceof NameExpression ? $this->context->taintPrintedVariable($value) : $sources,
             ];
         }
 
