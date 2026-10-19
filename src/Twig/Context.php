@@ -224,9 +224,10 @@ final class Context
      * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
-     * returns what it is given (its receiver only if mayReturnTheReceiver()). What the receiver holds, $receiver, comes into the call only for the methods of a
-     * class specialized by instance, as their PHP calls return what the object they are called on holds; any other
-     * method returns what its object holds through its body.
+     * returns what it is given (its receiver only if mayReturnTheReceiver()). What the receiver holds, $receiver,
+     * comes into the call only for the methods of a class specialized by instance or of a builtin class, as their PHP
+     * calls return what the object they are called on holds (see mayReturnWhatTheObjectHolds()); any other method
+     * returns what its object holds through its body.
      *
      * @param list<list<DataFlowNode>> $arguments
      * @param list<DataFlowNode>       $receiver
@@ -247,7 +248,7 @@ final class Context
         $location = $this->getLineLocation($expression->getTemplateLine());
 
         foreach ($methods as [$methodId, $storage, $className]) {
-            if ($codebase->classlike_storage_provider->get($className)->specialize_instance) {
+            if (self::mayReturnWhatTheObjectHolds($codebase->classlike_storage_provider->get($className))) {
                 foreach ($receiver as $source) {
                     $this->taint->addPath($source, $taintDestination, 'arg');
                 }
@@ -367,9 +368,10 @@ final class Context
     /**
      * Whether the method call `item.name(...)` may return what its receiver holds, where the analysis can't tell the
      * methods it calls (see getMethodCallTaintDestination()): if one of them is a method of a class specialized by
-     * instance, or of a class extended by one, as their PHP calls return what the object they are called on holds,
-     * or if no class has such a method. Any other method returns what its object holds through its body, which the
-     * attributes of the objects of a variable of the template give (see getObjectAttributeSources()).
+     * instance or of a builtin class, or of a class extended by one, as their PHP calls return what the object they
+     * are called on holds (see mayReturnWhatTheObjectHolds()), or if no class has such a method. Any other method
+     * returns what its object holds through its body, which the attributes of the objects of a variable of the
+     * template give (see getObjectAttributeSources()).
      */
     public function mayReturnTheReceiver(string $name): bool
     {
@@ -384,13 +386,26 @@ final class Context
 
         foreach ($methods as [, , $className]) {
             foreach ([$this->codebase->classlike_storage_provider->get($className), ...self::getDescendants($className)] as $storage) {
-                if ($storage->specialize_instance) {
+                if (self::mayReturnWhatTheObjectHolds($storage)) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether the PHP calls of the methods of the class of $storage may return what the object they are called on
+     * holds, besides what their bodies return of it: those of a class specialized by instance, and those of a builtin
+     * class, whose objects keep what is given to their methods and give it back (as Psalm's object flows of the
+     * builtin containers, like ArrayObject, do).
+     *
+     * @psalm-mutation-free
+     */
+    private static function mayReturnWhatTheObjectHolds(ClassLikeStorage $storage): bool
+    {
+        return $storage->specialize_instance || !$storage->user_defined;
     }
 
     /**
