@@ -16,7 +16,7 @@ Feature: Twig eval tainting
       """
       function run(Environment $twig, ArrayLoader $loader): void
       {
-          $source = (string) $_GET['source'];
+          $source = is_string($_GET['source']) ? $_GET['source'] : '';
           <code>;
       }
       """
@@ -35,7 +35,8 @@ Feature: Twig eval tainting
       """
       function run(ArrayLoader $loader): void
       {
-          $loader->setTemplate((string) $_GET['name'], 'Hello');
+          $name = is_string($_GET['name']) ? $_GET['name'] : '';
+          $loader->setTemplate($name, 'Hello');
       }
       """
     When I run Psalm with taint analysis
