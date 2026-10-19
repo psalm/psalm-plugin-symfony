@@ -64,6 +64,7 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
                         $name,
                         $this->expressionAnalyzer->getTaintSources($values[$i]),
                         objectsOf: $values[$i],
+                        markupSources: $this->expressionAnalyzer->getMarkupSources($values[$i]),
                     );
                 }
             }

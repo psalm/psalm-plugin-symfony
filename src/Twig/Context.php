@@ -262,8 +262,8 @@ final class Context
     }
 
     /**
-     * Whether $node is what a call of a macro gives, or a variable set to it: markup, which Twig's autoescaping
-     * outputs as is.
+     * Whether $node is what a call of a macro gives, or the markup a variable is set to (see
+     * taintAssignmentFromSources()): markup, which Twig's autoescaping outputs as is.
      *
      * @psalm-capabilities read-props
      */
@@ -798,9 +798,13 @@ final class Context
      * it prints (see taintObjectVariable() and taintPrintedVariable()), rather than $sources; one looping over a
      * variable takes the items of what that one holds.
      *
+     * The markup the value gives, $markupSources (see isMarkup()), also flows into a node of its own, which holds
+     * markup: autoescaping outputs it as is, and escapes the rest of the value.
+     *
      * @param list<DataFlowNode> $sources
+     * @param list<DataFlowNode> $markupSources
      */
-    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false, ?Node $objectsOf = null, bool $isItem = false): void
+    public function taintAssignmentFromSources(NameExpression $destinationVariable, array $sources, string $pathType = 'arg', bool $always = false, ?Node $objectsOf = null, bool $isItem = false, array $markupSources = []): void
     {
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
@@ -835,18 +839,19 @@ final class Context
             unset($this->localStrings[$destinationName]);
         }
 
-        $this->localVariables[$destinationName] = $isConditional
-            ? [...$this->taintObjectVariable($destinationVariable), $taintDestination]
-            : [$taintDestination];
-        $this->localAttributes[$destinationName] = $attributes;
-
-        $value = null !== $objectsOf && !$objectsOf instanceof AbstractExpression && 1 === \count($objectsOf) ? $objectsOf->getNode('0') : $objectsOf;
-        $isMarkup = $value instanceof MacroReferenceExpression
-            || ($value instanceof NameExpression && [] !== $sources && [] === array_filter($sources, fn (DataFlowNode $source): bool => !$this->isMarkup($source)));
-        if (!$isItem && $isMarkup) {
-            // a variable set to what a macro gives, or to a variable holding only that, holds its markup
-            $this->markups[$taintDestination->id] = true;
+        $markup = [];
+        if ([] !== $markupSources) {
+            $markup = [$this->getNode($destinationVariable, $destinationName, 'markup')];
+            $this->markups[$markup[0]->id] = true;
+            foreach ($markupSources as $source) {
+                $this->taint->addPath($source, $markup[0], $pathType);
+            }
         }
+
+        $this->localVariables[$destinationName] = $isConditional
+            ? [...$this->taintObjectVariable($destinationVariable), $taintDestination, ...$markup]
+            : [$taintDestination, ...$markup];
+        $this->localAttributes[$destinationName] = $attributes;
     }
 
     /**
