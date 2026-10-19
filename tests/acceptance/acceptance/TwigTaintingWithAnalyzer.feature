@@ -1097,7 +1097,10 @@ Feature: Twig tainting with analyzer
           }
       }
 
-      /** @psalm-api */
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
       final class Photo
       {
           /** @psalm-pure */
@@ -1137,7 +1140,10 @@ Feature: Twig tainting with analyzer
           }
       }
 
-      /** @psalm-api */
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
       final class Photo
       {
           /** @psalm-pure */
@@ -1147,7 +1153,7 @@ Feature: Twig tainting with analyzer
           }
       }
 
-      echo twig()->render('index.html.twig', ['item' => new Box((string) $_GET['untrusted'])]);
+      echo twig()->render('index.html.twig', ['item' => new Box(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
       """
     And I have the following "index.html.twig" template
       """
@@ -1155,8 +1161,24 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type                  | Message               |
-      | TaintedHtml           | Detected tainted HTML |
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: What a builtin object holds is displayed with only the raw filter through a method of its class giving it back
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['bag' => new ArrayObject([$_GET['untrusted']])]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <ul>{% for value in bag.getArrayCopy() %}<li>{{ value|raw }}</li>{% endfor %}</ul>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
