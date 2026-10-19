@@ -131,8 +131,8 @@ final class PrintNodeAnalyzer
      * `item.name` and `item['name']` give the value of the key `name` of `item`, whose other keys can hold other taints:
      * like an array fetch in PHP. A method call gives what the methods it may call return (see
      * Context::getMethodCallTaintDestination()). An attribute the analysis can't tell gives the taints of the whole of
-     * `item` (for a method call on a variable, only if the methods may return their receiver, see
-     * Context::mayReturnTheReceiver()), and of its arguments.
+     * `item` (for a method call on a variable, only what the methods return of their receiver, see
+     * Context::getReceiverTaintSources()), and of its arguments.
      *
      * `item.name` and `item.name(...)` of an object give its property or what its method returns: those of the
      * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()). So do the
@@ -179,9 +179,10 @@ final class PrintNodeAnalyzer
                 return [...$objectSources, $call];
             }
 
-            if ($node instanceof NameExpression && !$this->context->mayReturnTheReceiver($name)) {
-                // what the methods return of what their objects hold comes with the attributes of the objects
-                $sources = [];
+            if ($node instanceof NameExpression) {
+                // what the methods return of what their objects hold comes with the attributes of the objects, but for
+                // the methods returning it by what their PHP calls do
+                $sources = $this->context->getReceiverTaintSources($expression, $name, $sources);
             }
         }
 
