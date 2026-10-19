@@ -60,7 +60,10 @@ final class PrintNodeAnalyzer
     {
         if ($expression instanceof FilterExpression) {
             if (self::isEscapingFilter($expression)) {
-                return [];
+                // autoescaping outputs the markup of a macro as is
+                return self::isAutoescaping($expression)
+                    ? array_values(array_filter($this->getTaintSources($expression->getNode('node')), $this->context->isMarkup(...)))
+                    : [];
             }
 
             // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...)
@@ -294,8 +297,18 @@ final class PrintNodeAnalyzer
         $arguments = [];
         foreach ($callArguments->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
             if ($value instanceof SpreadUnary) {
-                // an unpacked argument can give any parameter
-                $arguments[] = [null, $this->getTaintSources($value->getNode('node')), []];
+                // the items of an unpacked array can give any parameter, and hold the objects of the array's items
+                $unpacked = $value->getNode('node');
+                $bases = [];
+                foreach ($unpacked instanceof ArrayExpression ? $unpacked->getKeyValuePairs() : [] as ['value' => $item]) {
+                    $bases = [...$bases, ...$this->context->getObjectsAttributeBases($item)];
+                }
+
+                $arguments[] = [
+                    null,
+                    $this->getTaintSources($unpacked),
+                    $unpacked instanceof ArrayExpression ? $bases : $this->context->getObjectsAttributeBases($unpacked, true),
+                ];
                 continue;
             }
 
@@ -316,5 +329,17 @@ final class PrintNodeAnalyzer
         $filterName = Context::getFilterName($expression);
 
         return 'escape' === $filterName || 'e' === $filterName;
+    }
+
+    /**
+     * Whether $expression is the escaping Twig's autoescaping adds, whose third argument is true: it outputs markup,
+     * like what a macro gives, as is.
+     */
+    private static function isAutoescaping(FilterExpression $expression): bool
+    {
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $autoescape = null !== $arguments && $arguments->hasNode('2') ? $arguments->getNode('2') : null;
+
+        return $autoescape instanceof ConstantExpression && true === $autoescape->getAttribute('value');
     }
 }

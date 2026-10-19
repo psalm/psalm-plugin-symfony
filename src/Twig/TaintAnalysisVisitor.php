@@ -121,9 +121,7 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         /** @var iterable<ModuleNode> */
         $this->embeddedTemplates = $node->getAttribute('embedded_templates') ?? [];
 
-        /** @var iterable<MacroNode> $macros */
-        $macros = $node->getNode('macros');
-        $this->context->setMacros($macros);
+        $this->context->setMacroImports($node);
 
         $parent = $node->hasNode('parent') ? $node->getNode('parent') : null;
         if ($parent instanceof ConstantExpression && \is_string($parent->getAttribute('value'))) {
