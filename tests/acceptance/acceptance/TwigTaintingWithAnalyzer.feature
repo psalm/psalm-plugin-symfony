@@ -917,7 +917,10 @@ Feature: Twig tainting with analyzer
   Scenario: What a specialized method of an object parameter returns of a tainted argument of a PHP call is not displayed by a call of the template with only the raw filter
     Given I have the following code
       """
-      /** @psalm-api */
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
       final class Organization
       {
           public string $id = '';
@@ -945,7 +948,10 @@ Feature: Twig tainting with analyzer
   Scenario: A tainted parameter given to a specialized method of an object parameter returning it is displayed with only the raw filter
     Given I have the following code
       """
-      /** @psalm-api */
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
       final class Organization
       {
           public string $id = '';
@@ -978,7 +984,10 @@ Feature: Twig tainting with analyzer
   Scenario: What a specialized method of an object parameter returns of a tainted argument of a PHP call is displayed by that call
     Given I have the following code
       """
-      /** @psalm-api */
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
       final class Organization
       {
           public string $id = '';
