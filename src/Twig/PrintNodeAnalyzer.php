@@ -124,9 +124,10 @@ final class PrintNodeAnalyzer
 
     /**
      * `item.name` and `item['name']` give the value of the key `name` of `item`, whose other keys can hold other taints:
-     * like an array fetch in PHP. A method call gives the taints of `item` and of what the methods it may call return
-     * (see Context::getMethodCallTaintDestination()). An attribute the analysis can't tell gives the taints of the
-     * whole of `item`, and of its arguments.
+     * like an array fetch in PHP. A method call gives what the methods it may call return (see
+     * Context::getMethodCallTaintDestination()). An attribute the analysis can't tell gives the taints of the whole of
+     * `item` (for a method call on a variable, only if the methods may return their receiver, see
+     * Context::mayReturnTheReceiver()), and of its arguments.
      *
      * `item.name` and `item.name(...)` of an object give its property or what its method returns: those of the
      * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()).
@@ -167,10 +168,15 @@ final class PrintNodeAnalyzer
             ? $this->getArgumentTaintSources($arguments)
             : null;
         if (null !== $argumentSources) {
-            // what the receiver holds stays, as a method of an object specialized by instance returns what it holds
-            $call = $this->context->getMethodCallTaintDestination($expression, (string) $attribute->getAttribute('value'), $argumentSources);
+            $name = (string) $attribute->getAttribute('value');
+            $call = $this->context->getMethodCallTaintDestination($expression, $name, $argumentSources, $sources);
             if (null !== $call) {
-                return [...$sources, ...$objectSources, $call];
+                return [...$objectSources, $call];
+            }
+
+            if ($node instanceof NameExpression && !$this->context->mayReturnTheReceiver($name)) {
+                // what the methods return of what their objects hold comes with the attributes of the objects
+                $sources = [];
             }
         }
 

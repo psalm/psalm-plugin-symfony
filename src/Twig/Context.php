@@ -224,27 +224,22 @@ final class Context
      * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
-     * returns what it is given.
+     * returns what it is given (its receiver only if mayReturnTheReceiver()). What the receiver holds, $receiver,
+     * comes into the call only for the methods of a class specialized by instance or of a builtin class, as their PHP
+     * calls return what the object they are called on holds (see mayReturnWhatTheObjectHolds()); any other method
+     * returns what its object holds through its body.
      *
      * @param list<list<DataFlowNode>> $arguments
+     * @param list<DataFlowNode>       $receiver
      */
-    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
+    public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments, array $receiver = []): ?DataFlowNode
     {
         $codebase = $this->codebase;
         if (null === $codebase) {
             return null;
         }
 
-        $methods = [];
-        $methodsByName = $this->getMethodsByName($codebase);
-        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
-            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
-        }
-
-        if ([] === $methods) {
-            $methods = $methodsByName['__call'] ?? [];
-        }
-
+        $methods = $this->getCalledMethods($codebase, $name);
         if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($codebase, $methods)) {
             return null;
         }
@@ -252,7 +247,14 @@ final class Context
         $taintDestination = $this->getNode($expression, 'method_'.$name);
         $location = $this->getLineLocation($expression->getTemplateLine());
 
-        foreach ($methods as [$methodId, $storage, $_]) {
+        foreach ($methods as [$methodId, $storage, $className]) {
+            if (self::mayReturnWhatTheObjectHolds($codebase->classlike_storage_provider->get($className))) {
+                foreach ($receiver as $source) {
+                    $this->taint->addPath($source, $taintDestination, 'arg');
+                }
+                $receiver = [];
+            }
+
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
@@ -361,6 +363,66 @@ final class Context
         }
 
         return $sources;
+    }
+
+    /**
+     * Whether the method call `item.name(...)` may return what its receiver holds, where the analysis can't tell the
+     * methods it calls (see getMethodCallTaintDestination()): if one of them is a method of a class specialized by
+     * instance or of a builtin class, or of a class extended by one, as their PHP calls return what the object they
+     * are called on holds (see mayReturnWhatTheObjectHolds()), or if no class has such a method. Any other method
+     * returns what its object holds through its body, which the attributes of the objects of a variable of the
+     * template give (see getObjectAttributeSources()).
+     */
+    public function mayReturnTheReceiver(string $name): bool
+    {
+        if (null === $this->codebase) {
+            return true;
+        }
+
+        $methods = $this->getCalledMethods($this->codebase, $name);
+        if ([] === $methods) {
+            return true;
+        }
+
+        foreach ($methods as [, , $className]) {
+            foreach ([$this->codebase->classlike_storage_provider->get($className), ...self::getDescendants($className)] as $storage) {
+                if (self::mayReturnWhatTheObjectHolds($storage)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the PHP calls of the methods of the class of $storage may return what the object they are called on
+     * holds, besides what their bodies return of it: those of a class specialized by instance, and those of a builtin
+     * class, whose objects keep what is given to their methods and give it back (as Psalm's object flows of the
+     * builtin containers, like ArrayObject, do).
+     *
+     * @psalm-mutation-free
+     */
+    private static function mayReturnWhatTheObjectHolds(ClassLikeStorage $storage): bool
+    {
+        return $storage->specialize_instance || !$storage->user_defined;
+    }
+
+    /**
+     * The methods the method call `item.name(...)` may call: the method `name`, `getName`, `isName` or `hasName` of
+     * any class, or else the `__call` of any class (see getMethodCallTaintDestination()).
+     *
+     * @return list<array{string, MethodStorage, string}>
+     */
+    private function getCalledMethods(Codebase $codebase, string $name): array
+    {
+        $methods = [];
+        $methodsByName = $this->getMethodsByName($codebase);
+        foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
+            $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
+        }
+
+        return [] === $methods ? $methodsByName['__call'] ?? [] : $methods;
     }
 
     /**
