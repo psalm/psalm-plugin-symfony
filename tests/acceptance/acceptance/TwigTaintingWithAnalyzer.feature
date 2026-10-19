@@ -2710,3 +2710,127 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: A tainted property of an object parameter given to a macro is displayed with only the raw filter by the macro
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show(person) %}<b>{{ person.name|raw }}</b>{% endmacro %}
+      <h1>{{ _self.show(user) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted property of an object parameter given to a macro is displayed escaped by the macro
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show(person) %}<b>{{ person.name }}</b>{% endmacro %}
+      <h1>{{ _self.show(user) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted property of an object parameter given to a macro parameter of its name is displayed with only the raw filter by the macro
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show(user) %}<b>{{ user.name|raw }}</b>{% endmacro %}
+      <h1>{{ _self.show(user) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted property of the objects of a typed list a getter of an object parameter returns is displayed with only the raw filter by a macro looping over them
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Organization
+      {
+          /** @var list<User> */
+          private array $users = [];
+
+          /** @psalm-capabilities read-props|write-this-props|write-refs */
+          public function addUser(User $user): void
+          {
+              $this->users[] = $user;
+          }
+
+          /** @return list<User> */
+          public function getUsers(): array
+          {
+              return $this->users;
+          }
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      $organization = new Organization();
+      $organization->addUser($user);
+      echo twig()->render('index.html.twig', ['organization' => $organization]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro list(users) %}{% for u in users %}<li>{{ u.name|raw }}</li>{% endfor %}{% endmacro %}
+      <ul>{{ _self.list(organization.users) }}</ul>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors

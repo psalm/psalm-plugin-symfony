@@ -281,8 +281,8 @@ final class PrintNodeAnalyzer
     }
 
     /**
-     * A call of a macro outputs what the macro prints, given the arguments of the call: what it prints escaped has no
-     * taints. Null if the analysis can't tell which macro is called.
+     * A call of a macro outputs what the macro prints, given the arguments of the call and the objects they hold: what
+     * it prints escaped has no taints. Null if the analysis can't tell which macro is called.
      */
     private function getMacroOutput(MacroReferenceExpression $expression): ?DataFlowNode
     {
@@ -295,13 +295,17 @@ final class PrintNodeAnalyzer
         foreach ($callArguments->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
             if ($value instanceof SpreadUnary) {
                 // an unpacked argument can give any parameter
-                $arguments[] = [null, $this->getTaintSources($value->getNode('node'))];
+                $arguments[] = [null, $this->getTaintSources($value->getNode('node')), []];
                 continue;
             }
 
             // a position, or a name
             $position = $key instanceof ConstantExpression ? $key->getAttribute('value') : $key->getAttribute('name');
-            $arguments[] = [\is_int($position) || ctype_digit((string) $position) ? (int) $position : (string) $position, $this->getTaintSources($value)];
+            $arguments[] = [
+                \is_int($position) || ctype_digit((string) $position) ? (int) $position : (string) $position,
+                $this->getTaintSources($value),
+                $this->context->getObjectsAttributeBases($value),
+            ];
         }
 
         return $this->context->callMacro($expression, $arguments);
