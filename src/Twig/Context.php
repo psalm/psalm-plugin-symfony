@@ -1182,8 +1182,10 @@ final class Context
      * for `{% for i in variable.items %}{{ i.name }}{% endfor %}`, `items[]` standing for the items of what `items`
      * gives (see taintAssignmentFromSources()). So are the chains a template it gives such a variable to reads, by its
      * context or by a key of `with`: `[items[], name]` for `{% for i in variable.items %}{% include 'part' %}{% endfor %}`
-     * if `part` reads `i.name`. The template is read as a whole: a variable stands for any chain it is set to, wherever
-     * it is read.
+     * if `part` reads `i.name`, and also those of the items of the chain, as the included template may loop over the
+     * variable: `[users, name]` and `[users[], name]` for `{% include 'part' with {users: variable.users} %}` if `part`
+     * reads `u.name` in `{% for u in users %}`. The template is read as a whole: a variable stands for any chain it is
+     * set to, wherever it is read.
      *
      * @return array{variables: list<string>, attributes: list<non-empty-list<string>>}
      */
@@ -1239,6 +1241,22 @@ final class Context
                 }
             }
         };
+        /**
+         * Reads the chains $paths an included template reads of the objects the chains $prefixes give, and of their
+         * items: the template may loop over a variable it is given (see includeTemplate()).
+         *
+         * @param iterable<list<string>>       $prefixes
+         * @param list<non-empty-list<string>> $paths
+         */
+        $addIncludedAttributes = static function (iterable $prefixes, array $paths) use ($addAttributes): void {
+            foreach ($prefixes as $prefix) {
+                $addAttributes([$prefix], $paths);
+                if ([] !== $prefix) {
+                    $prefix[] = array_pop($prefix).'[]';
+                    $addAttributes([$prefix], $paths);
+                }
+            }
+        };
         $assign = static function (Node $variable, Node $value, bool $isItem) use (&$chains, $getChains): void {
             if (!$variable instanceof NameExpression) {
                 return;
@@ -1258,7 +1276,7 @@ final class Context
                 $chains[(string) $variable->getAttribute('name')][implode('.', $chain)] = $chain;
             }
         };
-        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, $getChains, $addAttributes, $assign, $twig): void {
+        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, $getChains, $addAttributes, $addIncludedAttributes, $assign, $twig): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
@@ -1305,7 +1323,7 @@ final class Context
                 foreach ($variables instanceof ArrayExpression ? $variables->getKeyValuePairs() : [] as ['key' => $key, 'value' => $value]) {
                     if ($key instanceof ConstantExpression) {
                         $keyed[(string) $key->getAttribute('value')] = true;
-                        $addAttributes($getChains($value), $includedReads['attributes']);
+                        $addIncludedAttributes($getChains($value), $includedReads['attributes']);
                     }
                 }
 
@@ -1315,7 +1333,7 @@ final class Context
                     // a variable of this template set to a chain, or looping over one, holds the objects of the chain
                     foreach ($includedReads['variables'] as $variableName) {
                         if (!isset($keyed[$variableName])) {
-                            $addAttributes($chains[$variableName] ?? [], $includedReads['attributes']);
+                            $addIncludedAttributes($chains[$variableName] ?? [], $includedReads['attributes']);
                         }
                     }
                 }
