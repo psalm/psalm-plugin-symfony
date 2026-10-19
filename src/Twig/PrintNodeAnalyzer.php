@@ -60,7 +60,8 @@ final class PrintNodeAnalyzer
     {
         if ($expression instanceof FilterExpression) {
             if (self::isEscapingFilter($expression)) {
-                return [];
+                // autoescaping outputs the markup of a macro as is
+                return self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : [];
             }
 
             // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...)
@@ -295,8 +296,18 @@ final class PrintNodeAnalyzer
         $arguments = [];
         foreach ($callArguments->getKeyValuePairs() as ['key' => $key, 'value' => $value]) {
             if ($value instanceof SpreadUnary) {
-                // an unpacked argument can give any parameter
-                $arguments[] = [null, $this->getTaintSources($value->getNode('node')), []];
+                // the items of an unpacked array can give any parameter, and hold the objects of the array's items
+                $unpacked = $value->getNode('node');
+                $bases = [];
+                foreach ($unpacked instanceof ArrayExpression ? $unpacked->getKeyValuePairs() : [] as ['value' => $item]) {
+                    $bases = [...$bases, ...$this->context->getObjectsAttributeBases($item)];
+                }
+
+                $arguments[] = [
+                    null,
+                    $this->getTaintSources($unpacked),
+                    $unpacked instanceof ArrayExpression ? $bases : $this->context->getObjectsAttributeBases($unpacked, true),
+                ];
                 continue;
             }
 
@@ -317,5 +328,52 @@ final class PrintNodeAnalyzer
         $filterName = Context::getFilterName($expression);
 
         return 'escape' === $filterName || 'e' === $filterName;
+    }
+
+    /**
+     * The nodes of the markup $expression gives, which autoescaping outputs as is: what a macro gives, a variable set
+     * to it (see Context::isMarkup()), or a branch of a condition, or the value or the default of `default`, giving
+     * it. Anything else, like a concatenation, gives a string, which autoescaping escapes.
+     *
+     * @return list<DataFlowNode>
+     */
+    private function getMarkupSources(Node $expression): array
+    {
+        if ($expression instanceof MacroReferenceExpression || $expression instanceof NameExpression) {
+            return array_values(array_filter($this->getTaintSources($expression), $this->context->isMarkup(...)));
+        }
+
+        if ($expression->hasNode('test')) {
+            // a condition (`a ? b : c`, `a ?? b`, or what `default` gives), whose branches Twig >= 3.17 names left and right
+            $sources = [];
+            foreach ($expression->hasNode('expr2') ? ['expr2', 'expr3'] : ['left', 'right'] as $branch) {
+                $sources = [...$sources, ...($expression->hasNode($branch) ? $this->getMarkupSources($expression->getNode($branch)) : [])];
+            }
+
+            return $sources;
+        }
+
+        if ($expression instanceof FilterExpression && 'default' === Context::getFilterName($expression)) {
+            $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+
+            return [
+                ...$this->getMarkupSources($expression->getNode('node')),
+                ...(null !== $arguments && $arguments->hasNode('0') ? $this->getMarkupSources($arguments->getNode('0')) : []),
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * Whether $expression is the escaping Twig's autoescaping adds, whose third argument is true: it outputs markup,
+     * like what a macro gives, as is.
+     */
+    private static function isAutoescaping(FilterExpression $expression): bool
+    {
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $autoescape = null !== $arguments && $arguments->hasNode('2') ? $arguments->getNode('2') : null;
+
+        return $autoescape instanceof ConstantExpression && true === $autoescape->getAttribute('value');
     }
 }

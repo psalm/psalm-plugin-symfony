@@ -35,7 +35,9 @@ use Twig\Node\Expression\FunctionExpression;
 use Twig\Node\Expression\GetAttrExpression;
 use Twig\Node\Expression\MacroReferenceExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\Expression\Unary\SpreadUnary;
 use Twig\Node\ForNode;
+use Twig\Node\ImportNode;
 use Twig\Node\IncludeNode;
 use Twig\Node\MacroNode;
 use Twig\Node\ModuleNode;
@@ -108,8 +110,11 @@ final class Context
     /** @var list<int>|null the offset at which each line of the template starts */
     private $lineOffsets;
 
-    /** @var array<string, MacroNode> the macros of the template, by name */
-    private $macros = [];
+    /** @var array<string, string> the templates whose macros the template imports, by the variable it imports them as (see getMacroImports()) */
+    private $macroImports = [];
+
+    /** @var array<string, true> the nodes, by id, of what calls of macros give: markup, which autoescaping outputs as is */
+    private $markups = [];
 
     /**
      * The variables, the attributes of their objects, the output, the conditional depth and the loop targets of the
@@ -121,6 +126,9 @@ final class Context
 
     /** @var array<string, array{variables: list<string>, attributes: list<non-empty-list<string>>}> template name => the variables it reads from its context, and the chains of attributes it reads (see getTemplateReads()) */
     private static $templateReads = [];
+
+    /** @var array<string, array<string, MacroNode>> template name => its macros, by name (see getTemplateReads()) */
+    private static $templateMacros = [];
 
     /** @var array<string, DataFlowNode|null> class and chain of attributes => what Twig gives for the chain from an object of the class (see getObjectAttribute()) */
     private static $objectAttributes = [];
@@ -178,10 +186,36 @@ final class Context
      */
     public function taintVariable(NameExpression $expression): array
     {
-        /** @var string $variableName */
-        $variableName = $expression->getAttribute('name');
+        return $this->getVariableValues((string) $expression->getAttribute('name'), $expression);
+    }
 
-        return $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $expression)];
+    /**
+     * The nodes of the values the variable $variableName, read by $expression, can have: those it is set to, or its
+     * value in the context of the template. A macro only sees its arguments and the globals of Twig, which the
+     * analysis doesn't know the values of.
+     *
+     * @return non-empty-list<DataFlowNode>
+     */
+    private function getVariableValues(string $variableName, Node $expression): array
+    {
+        if (isset($this->localVariables[$variableName])) {
+            return $this->localVariables[$variableName];
+        }
+
+        return null === $this->templateScope
+            ? [$this->getContextVariable($variableName, $expression)]
+            : [$this->getNode($expression, $variableName, 'global')];
+    }
+
+    /**
+     * Whether $node is what a call of a macro gives, or a variable set to it: markup, which Twig's autoescaping
+     * outputs as is.
+     *
+     * @psalm-capabilities read-props
+     */
+    public function isMarkup(DataFlowNode $node): bool
+    {
+        return isset($this->markups[$node->id]);
     }
 
     /**
@@ -245,9 +279,12 @@ final class Context
      */
     private function getAttributeBases(string $variableName): array
     {
-        return isset($this->localVariables[$variableName])
-            ? $this->localAttributes[$variableName] ?? []
-            : [self::getAttributeBase($this->sourceContext->getName(), $variableName)];
+        if (isset($this->localVariables[$variableName])) {
+            return $this->localAttributes[$variableName] ?? [];
+        }
+
+        // a macro doesn't see the variables of the template
+        return null === $this->templateScope ? [self::getAttributeBase($this->sourceContext->getName(), $variableName)] : [];
     }
 
     public function getTaintDestination(DataFlowNode $taintSource, FilterExpression $expression): DataFlowNode
@@ -728,6 +765,14 @@ final class Context
             ? [...$this->taintVariable($destinationVariable), $taintDestination]
             : [$taintDestination];
         $this->localAttributes[$destinationName] = $attributes;
+
+        $value = null !== $objectsOf && !$objectsOf instanceof AbstractExpression && 1 === \count($objectsOf) ? $objectsOf->getNode('0') : $objectsOf;
+        $isMarkup = $value instanceof MacroReferenceExpression
+            || ($value instanceof NameExpression && [] !== $sources && [] === array_filter($sources, fn (DataFlowNode $source): bool => !$this->isMarkup($source)));
+        if (!$isItem && $isMarkup) {
+            // a variable set to what a macro gives, or to a variable holding only that, holds its markup
+            $this->markups[$taintDestination->id] = true;
+        }
     }
 
     /**
@@ -803,13 +848,11 @@ final class Context
     }
 
     /**
-     * @param iterable<MacroNode> $macros the macros of the template
+     * Reads the templates whose macros the template, $module, imports (see getMacroImports()).
      */
-    public function setMacros(iterable $macros): void
+    public function setMacroImports(ModuleNode $module): void
     {
-        foreach ($macros as $macro) {
-            $this->macros[(string) $macro->getAttribute('name')] = $macro;
-        }
+        $this->macroImports = self::getMacroImports($module, $this->sourceContext->getName());
     }
 
     /**
@@ -820,16 +863,18 @@ final class Context
     {
         $this->templateScope = [$this->localVariables, $this->localAttributes, $this->parentNodes, $this->conditionalDepth, $this->loopTargets];
 
-        [$parameters, $varargs] = $this->getMacroParameters($macro);
+        $templateName = $this->sourceContext->getName();
+        [$parameters, $varargs] = $this->getMacroParameters($templateName, $macro);
         $this->localVariables = array_map(static fn (DataFlowNode $parameter): array => [$parameter], $parameters);
         $this->localAttributes = [];
         foreach ($parameters as $name => $_) {
-            $this->localAttributes[$name] = [$this->getMacroParameterBase($macro, $name)];
+            $this->localAttributes[$name] = [self::getMacroParameterBase($templateName, $macro, $name)];
         }
         // the arguments the macro has no parameter for are in `varargs`, or in the variable it declares for them
         $variadicName = $macro->hasAttribute('variadic_name') ? $macro->getAttribute('variadic_name') : null;
         foreach (['varargs', ...(\is_string($variadicName) ? [$variadicName] : [])] as $name) {
             $this->localVariables[$name] = [$varargs];
+            $this->localAttributes[$name] = [self::getMacroParameterBase($templateName, $macro, 'varargs')];
         }
         $this->parentNodes = [];
         $this->conditionalDepth = 0;
@@ -838,7 +883,7 @@ final class Context
 
     public function leaveMacro(MacroNode $macro): void
     {
-        $output = $this->getNode($macro, 'macro_'.(string) $macro->getAttribute('name'), 'output');
+        $output = self::getMacroOutput($this->taint, $this->sourceContext->getName(), $macro);
         foreach ($this->parentNodes as $source) {
             $this->taint->addPath($source, $output, 'arg');
         }
@@ -850,9 +895,10 @@ final class Context
     }
 
     /**
-     * Calls the macro of this template $call calls, giving its parameters the taints of $arguments, the sources of
-     * each argument by position or name (null for an argument unpacked into all of them), and the bases of the
-     * attributes of the objects the argument holds (see getObjectsAttributeBases()): the parameter holds them.
+     * Calls the macro $call calls, giving its parameters the taints of $arguments, the sources of each argument by
+     * position or name (null for arguments unpacked into all of them), and the bases of the attributes of the objects
+     * the argument holds (see getObjectsAttributeBases()): the parameter holds them, and `varargs` holds those of the
+     * arguments the macro has no parameter for as its items.
      *
      * @param list<array{int|string|null, list<DataFlowNode>, list<string>}> $arguments
      *
@@ -860,26 +906,31 @@ final class Context
      */
     public function callMacro(MacroReferenceExpression $call, array $arguments): ?DataFlowNode
     {
-        $macro = $this->getCalledMacro($call);
-        if (null === $macro) {
+        $called = self::getCalledMacro($this->twig, $call, $this->macroImports, $this->sourceContext->getName());
+        if (null === $called) {
             return null;
         }
 
-        [$parameters, $varargs] = $this->getMacroParameters($macro);
+        [$templateName, $macro] = $called;
+        [$parameters, $varargs] = $this->getMacroParameters($templateName, $macro);
         $names = array_keys($parameters);
+        $varargsBase = self::getMacroParameterBase($templateName, $macro, 'varargs');
 
-        $paths = self::getTemplateReads($this->twig, $this->sourceContext->getName())['attributes'];
+        $paths = self::getTemplateReads($this->twig, $templateName)['attributes'];
         foreach ($arguments as [$key, $sources, $bases]) {
-            // the parameter the argument gives, whose objects it holds
-            $name = null;
+            // the parameters the argument gives, which hold its objects
             if (null === $key) {
-                $destinations = [...array_values($parameters), $varargs];
+                $given = $names;
             } elseif (\is_int($key)) {
-                $destinations = [isset($names[$key]) ? $parameters[$names[$key]] : $varargs];
-                $name = $names[$key] ?? null;
+                $given = isset($names[$key]) ? [$names[$key]] : [];
             } else {
-                $destinations = [$parameters[$key] ?? $varargs];
-                $name = isset($parameters[$key]) ? $key : null;
+                $given = isset($parameters[$key]) ? [$key] : [];
+            }
+
+            $destinations = array_map(static fn (string $name): DataFlowNode => $parameters[$name], $given);
+            if (null === $key || [] === $given) {
+                $destinations[] = $varargs;
+                $this->linkAttributes($bases, $varargsBase, $paths, true);
             }
 
             foreach ($sources as $source) {
@@ -888,47 +939,114 @@ final class Context
                 }
             }
 
-            if (null !== $name) {
-                $this->linkAttributes($bases, $this->getMacroParameterBase($macro, $name), $paths);
+            foreach ($given as $name) {
+                $this->linkAttributes($bases, self::getMacroParameterBase($templateName, $macro, $name), $paths);
             }
         }
 
-        return $this->getNode($macro, 'macro_'.(string) $macro->getAttribute('name'), 'output');
+        $output = self::getMacroOutput($this->taint, $templateName, $macro);
+        $this->markups[$output->id] = true;
+
+        return $output;
     }
 
     /**
-     * The macro of this template (`_self`) $call calls by its name, if any.
+     * The templates whose macros the template $tree, $templateName, imports, by the variable it imports them as:
+     * `m` for `{% import 'macros.html.twig' as m %}`, and for `{% from ... import show %}` the variable Twig gives
+     * the calls of `show` (see getMacroImportKey()). `_self` is the template itself.
+     *
+     * @return array<string, string>
      */
-    private function getCalledMacro(MacroReferenceExpression $call): ?MacroNode
+    private static function getMacroImports(Node $tree, string $templateName): array
+    {
+        $imports = [];
+        if ($tree instanceof ImportNode) {
+            $template = $tree->getNode('expr');
+            $variable = $tree->getNode('var');
+            // Twig >= 3.15 assigns the variable of the template as a node of its own
+            $variable = $variable->hasNode('var') ? $variable->getNode('var') : $variable;
+            if ($template instanceof ConstantExpression && \is_string($template->getAttribute('value'))) {
+                $imports[self::getMacroImportKey($variable)] = $template->getAttribute('value');
+            } elseif ($template instanceof NameExpression && '_self' === $template->getAttribute('name')) {
+                $imports[self::getMacroImportKey($variable)] = $templateName;
+            }
+        }
+
+        foreach ($tree as $child) {
+            $imports = [...$imports, ...self::getMacroImports($child, $templateName)];
+        }
+
+        return $imports;
+    }
+
+    /**
+     * The key of the variable $variable a template imports macros as: its name, or for one Twig names when compiling
+     * (that of a `from`), the node itself, which the calls of the macros share.
+     */
+    private static function getMacroImportKey(Node $variable): string
+    {
+        $name = $variable->hasAttribute('name') ? $variable->getAttribute('name') : null;
+
+        return \is_string($name) ? 'name '.$name : 'node '.spl_object_id($variable);
+    }
+
+    /**
+     * The template, and the macro of it, $call, made in the template $templateName importing $imports (see
+     * getMacroImports()), calls by its name: one of the template itself (`_self`), or of a template it imports. Null
+     * if the analysis can't tell which.
+     *
+     * @param array<string, string> $imports
+     *
+     * @return array{string, MacroNode}|null
+     */
+    private static function getCalledMacro(Environment $twig, MacroReferenceExpression $call, array $imports, string $templateName): ?array
     {
         $name = $call->getAttribute('name');
-        if ('_self' !== $call->getNode('template')->getAttribute('name') || !\is_string($name)) {
+        $template = $call->getNode('template');
+        $template = $template->hasAttribute('name') && '_self' === $template->getAttribute('name')
+            ? $templateName
+            : $imports[self::getMacroImportKey($template)] ?? null;
+        if (null === $template || !\is_string($name)) {
             return null;
         }
 
+        self::getTemplateReads($twig, $template);
+        $macros = self::$templateMacros[$template] ?? [];
         // older Twig versions name the macro called after the method it compiles to (`macro_name`)
-        if (!isset($this->macros[$name]) && str_starts_with($name, 'macro_')) {
+        if (!isset($macros[$name]) && str_starts_with($name, 'macro_')) {
             $name = substr($name, \strlen('macro_'));
         }
 
-        return $this->macros[$name] ?? null;
+        return isset($macros[$name]) ? [$template, $macros[$name]] : null;
     }
 
     /**
-     * Where the attributes of the objects of the parameter $name of $macro come from (see getAttributeBase()): the
-     * objects of the arguments its calls give it (see callMacro()).
+     * Where the attributes of the objects of the parameter $name of $macro, of the template $templateName, come from
+     * (see getAttributeBase()): the objects of the arguments its calls give it (see callMacro()).
      */
-    private function getMacroParameterBase(MacroNode $macro, string $name): string
+    private static function getMacroParameterBase(string $templateName, MacroNode $macro, string $name): string
     {
-        return self::getAttributeBase($this->sourceContext->getName(), '_self.'.(string) $macro->getAttribute('name').'('.$name.')');
+        return self::getAttributeBase($templateName, '_self.'.(string) $macro->getAttribute('name').'('.$name.')');
     }
 
     /**
-     * The nodes of the parameters of $macro by name, and of the arguments it has no parameter for.
+     * The node of what $macro, of the template $templateName, outputs: what its calls, in any template, give.
+     */
+    private static function getMacroOutput(TaintFlowGraph $graph, string $templateName, MacroNode $macro): DataFlowNode
+    {
+        $output = DataFlowNode::getForPropertyFetch(self::getAttributeBase($templateName, '_self.'.(string) $macro->getAttribute('name').'()'));
+        $graph->addNode($output);
+
+        return $output;
+    }
+
+    /**
+     * The nodes of the parameters of $macro, of the template $templateName, by name, and of the arguments it has no
+     * parameter for: the same for its calls in any template.
      *
      * @return array{array<string, DataFlowNode>, DataFlowNode}
      */
-    private function getMacroParameters(MacroNode $macro): array
+    private function getMacroParameters(string $templateName, MacroNode $macro): array
     {
         $arguments = $macro->getNode('arguments');
         if ($arguments instanceof ArrayExpression) {
@@ -947,11 +1065,15 @@ final class Context
         }
 
         $parameters = [];
-        foreach ($names as $name) {
-            $parameters[$name] = $this->getNode($macro, $name, 'parameter');
+        foreach ([...$names, 'varargs'] as $name) {
+            $parameters[$name] = DataFlowNode::getForPropertyFetch(self::getMacroParameterBase($templateName, $macro, $name));
+            $this->taint->addNode($parameters[$name]);
         }
 
-        return [$parameters, $this->getNode($macro, 'varargs', 'parameter')];
+        $varargs = $parameters['varargs'];
+        unset($parameters['varargs']);
+
+        return [$parameters, $varargs];
     }
 
     /**
@@ -981,8 +1103,7 @@ final class Context
 
             $bases = $variables['objects'][$variableName] ?? [];
             if ($withContext && !isset($variables['keyed'][$variableName])) {
-                $values = $this->localVariables[$variableName] ?? [$this->getContextVariable($variableName, $includeNode)];
-                foreach ($values as $source) {
+                foreach ($this->getVariableValues($variableName, $includeNode) as $source) {
                     $this->taint->addPath($source, $destination, 'arg');
                 }
 
@@ -1000,19 +1121,20 @@ final class Context
 
     /**
      * Gives the chains of attributes $paths of the objects of $destinationBase, and of its items, those of the objects
-     * of each of $bases, and of their items.
+     * of each of $bases, and of their items. If $asItems, the objects of $bases are rather the items of
+     * $destinationBase.
      *
      * @param list<string>                 $bases
      * @param list<non-empty-list<string>> $paths
      */
-    private function linkAttributes(array $bases, string $destinationBase, array $paths): void
+    private function linkAttributes(array $bases, string $destinationBase, array $paths, bool $asItems = false): void
     {
         foreach ($bases as $base) {
-            foreach (['', '[]'] as $items) {
+            foreach ($asItems ? ['' => '[]'] : ['' => '', '[]' => '[]'] as $items => $destinationItems) {
                 foreach ($paths as $path) {
                     $attribute = implode('.', $path);
                     $source = self::getAttributeNode($base.$items, $attribute);
-                    $destination = self::getAttributeNode($destinationBase.$items, $attribute);
+                    $destination = self::getAttributeNode($destinationBase.$destinationItems, $attribute);
                     $this->taint->addNode($source);
                     $this->taint->addNode($destination);
                     $this->taint->addPath($source, $destination, 'arg');
@@ -1467,6 +1589,14 @@ final class Context
         $embeddedTemplates = [];
         /** @var list<Node> $macroArguments the arguments of the calls of the macros of the template */
         $macroArguments = [];
+        $imports = self::getMacroImports($tree, $templateName);
+        $macros = [];
+        foreach ($tree->hasNode('macros') ? $tree->getNode('macros') : [] as $macro) {
+            if ($macro instanceof MacroNode) {
+                $macros[(string) $macro->getAttribute('name')] = $macro;
+            }
+        }
+        self::$templateMacros[$templateName] = $macros;
         /**
          * The chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
          * attributes of one: those giving the objects of the variable, followed by the chain.
@@ -1532,7 +1662,7 @@ final class Context
                 $chains[(string) $variable->getAttribute('name')][implode('.', $chain)] = $chain;
             }
         };
-        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, &$macroArguments, $getChains, $addAttributes, $addIncludedAttributes, $assign, $twig): void {
+        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, &$macroArguments, $getChains, $addAttributes, $addIncludedAttributes, $assign, $twig, $imports, $templateName): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
@@ -1552,10 +1682,23 @@ final class Context
                 $assign($node->getNode('value_target'), $node->getNode('seq'), true);
             }
 
-            if ($node instanceof MacroReferenceExpression && '_self' === $node->getNode('template')->getAttribute('name')) {
+            $called = $node instanceof MacroReferenceExpression ? self::getCalledMacro($twig, $node, $imports, $templateName) : null;
+            if (null !== $called) {
                 $arguments = $node->getNode('arguments');
                 foreach ($arguments instanceof ArrayExpression ? $arguments->getKeyValuePairs() : [] as ['value' => $value]) {
-                    $macroArguments[] = $value;
+                    // the items of an array unpacked into the arguments are arguments
+                    $unpacked = $value instanceof SpreadUnary ? $value->getNode('node') : null;
+                    $values = $unpacked instanceof ArrayExpression
+                        ? array_column($unpacked->getKeyValuePairs(), 'value')
+                        : [$unpacked ?? $value];
+                    foreach ($values as $argument) {
+                        if ($called[0] === $templateName) {
+                            $macroArguments[] = $argument;
+                        } else {
+                            // a macro of another template reads what that template reads
+                            $addIncludedAttributes($getChains($argument), self::getTemplateReads($twig, $called[0])['attributes']);
+                        }
+                    }
                 }
             }
 
