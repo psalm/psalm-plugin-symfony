@@ -3317,3 +3317,99 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: A tainted property of an object parameter given to a macro is displayed with only the raw filter by the macro through a variable set to a condition giving what it gives
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user, 'name' => $_GET['name'], 'shown' => (bool) $_GET['shown']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show(person) %}<b>{{ person.name|raw }}</b>{% endmacro %}
+      {% set shown = shown ? _self.show(user) : '' %}<h1>{{ shown }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted property of an object parameter given to a macro is displayed with only the raw filter by the macro through a variable set to a variable that may hold what it gives
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user, 'name' => $_GET['name'], 'shown' => (bool) $_GET['shown']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show(person) %}<b>{{ person.name|raw }}</b>{% endmacro %}
+      {% set shown = name %}{% if user %}{% set shown = _self.show(user) %}{% endif %}{% set copy = shown %}<h1>{{ copy }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter set to a variable that may also hold what a macro gives is not displayed with autoescaping on
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user, 'name' => $_GET['name'], 'shown' => (bool) $_GET['shown']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show() %}<b>safe</b>{% endmacro %}
+      {% set shown = name %}{% if user %}{% set shown = _self.show() %}{% endif %}{% set copy = shown %}<h1>{{ copy }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter in a condition also giving what a macro gives is not displayed with autoescaping on through a variable set to it
+    Given I have the following code
+      """
+      /** @psalm-api */
+      final class User
+      {
+          public string $name = '';
+          public string $id = '';
+      }
+
+      $user = new User();
+      $user->name = is_string($_GET['untrusted']) ? $_GET['untrusted'] : '';
+      echo twig()->render('index.html.twig', ['user' => $user, 'name' => $_GET['name'], 'shown' => (bool) $_GET['shown']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% macro show() %}<b>safe</b>{% endmacro %}
+      {% set shown = shown ? _self.show() : name %}<h1>{{ shown }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors

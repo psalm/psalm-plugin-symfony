@@ -371,7 +371,7 @@ final class PrintNodeAnalyzer
      *
      * @return list<DataFlowNode>
      */
-    private function getMarkupSources(Node $expression): array
+    public function getMarkupSources(Node $expression): array
     {
         if ($expression instanceof MacroReferenceExpression || $expression instanceof NameExpression) {
             return array_values(array_filter($this->getTaintSources($expression), $this->context->isMarkup(...)));
