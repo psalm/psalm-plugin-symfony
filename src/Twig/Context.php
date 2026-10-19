@@ -230,12 +230,13 @@ final class Context
      */
     public function getMethodCallTaintDestination(GetAttrExpression $expression, string $name, array $arguments): ?DataFlowNode
     {
-        if (null === $this->codebase) {
+        $codebase = $this->codebase;
+        if (null === $codebase) {
             return null;
         }
 
         $methods = [];
-        $methodsByName = $this->getMethodsByName($this->codebase);
+        $methodsByName = $this->getMethodsByName($codebase);
         foreach ([$name, 'get'.$name, 'is'.$name, 'has'.$name] as $methodName) {
             $methods = [...$methods, ...$methodsByName[strtolower($methodName)] ?? []];
         }
@@ -244,16 +245,17 @@ final class Context
             $methods = $methodsByName['__call'] ?? [];
         }
 
-        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($this->codebase, $methods)) {
+        if ([] === $methods || self::MAX_CALLED_METHODS < \count($methods) || !self::isOneHierarchy($codebase, $methods)) {
             return null;
         }
 
         $taintDestination = $this->getNode($expression, 'method_'.$name);
+        $location = $this->getLineLocation($expression->getTemplateLine());
 
         foreach ($methods as [$methodId, $storage, $_]) {
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
-            $specialization = $storage->specialize_call ? $this->getLineLocation($expression->getTemplateLine()) : null;
+            $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
 
             foreach ($arguments as $offset => $sources) {
@@ -302,6 +304,19 @@ final class Context
         }
 
         return $taintDestination;
+    }
+
+    /**
+     * $location, that of a call of $method, if Psalm specializes the calls of $method to their locations, as it does
+     * its PHP calls (see TaintFlowGraph::isCallSpecialized()): those of a method annotated with
+     * `@psalm-taint-specialize` or pure, and those of a method of the project that can't be overridden, as long as
+     * it turns out to be pure. Else null. A method whose calls are specialized returns to each call only what that
+     * call gives it, and what it returns of its own: its unspecialized return node must have no edge, which would
+     * take what every call gives it, and stop it from returning to the calls.
+     */
+    private static function getCallSpecialization(Codebase $codebase, TaintFlowGraph $graph, MethodStorage $method, ?CodeLocation $location): ?CodeLocation
+    {
+        return null !== $location && TaintFlowGraph::isCallSpecialized($graph, $codebase, $method, $location) ? $location : null;
     }
 
     /**
@@ -825,16 +840,23 @@ final class Context
      * the method and, if it has few of them (at most MAX_CALLED_METHODS methods in all), of its overrides. Linking a
      * call to the bodies of many classes makes the resolution of the taint graph explode.
      *
+     * A method whose calls Psalm specializes returns to each PHP call what that call gives it (see
+     * getCallSpecialization()), so the attribute takes its return specialized to a call of its own: at the
+     * declaration of the method, where there is no PHP call, and which no argument is given to. It returns what the
+     * method returns of its own, without what the PHP calls give the method. The call of a template gives its
+     * arguments to the method through a call specialized to it (see getMethodCallTaintDestination()).
+     *
      * @return non-empty-list<DataFlowNode>
      */
     private static function getMethodReturns(Codebase $codebase, TaintFlowGraph $graph, ClassLikeStorage $storage, string $methodName, MethodIdentifier $declaringMethodId, MethodStorage $method): array
     {
         $casedName = $method->cased_name ?? $methodName;
-        $return = DataFlowNode::getForMethodReturn($storage->name.'::'.$casedName, $method);
+        $specialization = self::getCallSpecialization($codebase, $graph, $method, $method->location);
+        $return = DataFlowNode::getForMethodReturn($storage->name.'::'.$casedName, $method, $specialization);
         $graph->addNode($return);
         if (strtolower($storage->name) !== strtolower($declaringMethodId->fq_class_name)) {
             // an inherited method, linked like Psalm links it for a PHP call
-            $declaringReturn = DataFlowNode::getForMethodReturn($codebase->methods->getCasedMethodId($declaringMethodId), $method);
+            $declaringReturn = DataFlowNode::getForMethodReturn($codebase->methods->getCasedMethodId($declaringMethodId), $method, $specialization);
             $graph->addNode($declaringReturn);
             $graph->addPath($declaringReturn, $return, 'parent');
         }
@@ -843,7 +865,7 @@ final class Context
         foreach ($storage->final ? [] : self::getDescendants($storage->name) as $descendant) {
             $override = $descendant->methods[$methodName] ?? null;
             if (null !== $override && !$override->abstract) {
-                $returns[] = DataFlowNode::getForMethodReturn($descendant->name.'::'.($override->cased_name ?? $methodName), $override);
+                $returns[] = DataFlowNode::getForMethodReturn($descendant->name.'::'.($override->cased_name ?? $methodName), $override, self::getCallSpecialization($codebase, $graph, $override, $override->location));
             }
         }
 
