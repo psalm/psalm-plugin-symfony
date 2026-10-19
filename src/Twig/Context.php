@@ -693,8 +693,10 @@ final class Context
         $this->localAttributes[$destinationName] = $attributes;
 
         $value = null !== $objectsOf && !$objectsOf instanceof AbstractExpression && 1 === \count($objectsOf) ? $objectsOf->getNode('0') : $objectsOf;
-        if (!$isItem && $value instanceof MacroReferenceExpression) {
-            // a variable set to what a macro gives holds its markup
+        $isMarkup = $value instanceof MacroReferenceExpression
+            || ($value instanceof NameExpression && [] !== $sources && [] === array_filter($sources, fn (DataFlowNode $source): bool => !$this->isMarkup($source)));
+        if (!$isItem && $isMarkup) {
+            // a variable set to what a macro gives, or to a variable holding only that, holds its markup
             $this->markups[$taintDestination->id] = true;
         }
     }

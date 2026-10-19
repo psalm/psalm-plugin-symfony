@@ -61,9 +61,7 @@ final class PrintNodeAnalyzer
         if ($expression instanceof FilterExpression) {
             if (self::isEscapingFilter($expression)) {
                 // autoescaping outputs the markup of a macro as is
-                return self::isAutoescaping($expression)
-                    ? array_values(array_filter($this->getTaintSources($expression->getNode('node')), $this->context->isMarkup(...)))
-                    : [];
+                return self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : [];
             }
 
             // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...)
@@ -329,6 +327,41 @@ final class PrintNodeAnalyzer
         $filterName = Context::getFilterName($expression);
 
         return 'escape' === $filterName || 'e' === $filterName;
+    }
+
+    /**
+     * The nodes of the markup $expression gives, which autoescaping outputs as is: what a macro gives, a variable set
+     * to it (see Context::isMarkup()), or a branch of a condition, or the value or the default of `default`, giving
+     * it. Anything else, like a concatenation, gives a string, which autoescaping escapes.
+     *
+     * @return list<DataFlowNode>
+     */
+    private function getMarkupSources(Node $expression): array
+    {
+        if ($expression instanceof MacroReferenceExpression || $expression instanceof NameExpression) {
+            return array_values(array_filter($this->getTaintSources($expression), $this->context->isMarkup(...)));
+        }
+
+        if ($expression->hasNode('test')) {
+            // a condition (`a ? b : c`, `a ?? b`, or what `default` gives), whose branches Twig >= 3.17 names left and right
+            $sources = [];
+            foreach ($expression->hasNode('expr2') ? ['expr2', 'expr3'] : ['left', 'right'] as $branch) {
+                $sources = [...$sources, ...($expression->hasNode($branch) ? $this->getMarkupSources($expression->getNode($branch)) : [])];
+            }
+
+            return $sources;
+        }
+
+        if ($expression instanceof FilterExpression && 'default' === Context::getFilterName($expression)) {
+            $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+
+            return [
+                ...$this->getMarkupSources($expression->getNode('node')),
+                ...(null !== $arguments && $arguments->hasNode('0') ? $this->getMarkupSources($arguments->getNode('0')) : []),
+            ];
+        }
+
+        return [];
     }
 
     /**
