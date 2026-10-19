@@ -6,6 +6,7 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Twig\Environment;
 use Twig\Node\EmbedNode;
+use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\ForNode;
@@ -53,8 +54,9 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         if ($node instanceof SetNode && !$node->getAttribute('capture')) {
             /** @var array<NameExpression> $names */
             $names = $node->getNode('names');
-            // several names are given one value each, a single name the whole value
-            $values = 1 < \count($names) ? iterator_to_array($node->getNode('values')) : [$node->getNode('values')];
+            // each name is given a value; Twig < 3.15 gives a single name the value itself rather than a list of it
+            $values = $node->getNode('values');
+            $values = $values instanceof AbstractExpression ? [$values] : iterator_to_array($values);
 
             foreach ($names as $i => $name) {
                 if (isset($values[$i])) {

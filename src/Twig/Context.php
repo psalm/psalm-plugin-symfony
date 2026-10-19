@@ -54,9 +54,11 @@ use Twig\TwigFunction;
  *     unkeyed: list<DataFlowNode>,
  *     whole: list<DataFlowNode>,
  *     objects: array<string, list<string>>,
+ *     printed: array<string, list<DataFlowNode>>,
  * } the variables an include gives: the values of the keys of `with` by name, those of its keys the analysis can't
  *   tell, and the arrays it can't tell the keys of; and by name the bases of the attributes of the objects of the
- *   values of the keys of `with` (see getObjectsAttributeBases())
+ *   values of the keys of `with` (see getObjectsAttributeBases()), and what printing those set to a variable gives
+ *   (see taintPrintedVariable()), whose keyed values are then what the variable holds
  */
 final class Context
 {
@@ -74,8 +76,14 @@ final class Context
     /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
 
+    /** @var array<string, DataFlowNode> the node of the first print of each variable of the context of the template (see getPrintedVariable()) */
+    private $unassignedStrings = [];
+
     /** @var array<string, non-empty-list<DataFlowNode>> the nodes of the values a variable set by the template can have */
     private $localVariables = [];
+
+    /** @var array<string, non-empty-list<DataFlowNode>> the nodes of what printing a variable set by the template can give, for one set to a variable (see getPrintedVariable()) */
+    private $localStrings = [];
 
     /** @var array<string, list<string>> the attributes of the objects a variable set by the template can have (see getAttributeBases()) */
     private $localAttributes = [];
@@ -98,7 +106,7 @@ final class Context
     /** @var int how many `if` and `for` the analysis is in, whose body may not run */
     private $conditionalDepth = 0;
 
-    /** @var list<array<string, array{non-empty-list<DataFlowNode>|null, list<string>}>> the values, and the attributes of their objects, the targets of the loops the analysis is in had before them */
+    /** @var list<array<string, array{non-empty-list<DataFlowNode>|null, list<string>, non-empty-list<DataFlowNode>|null}>> the values, the attributes of their objects and what printing them gives, the targets of the loops the analysis is in had before them */
     private $loopTargets = [];
 
     /** @var array<string, DataFlowNode> the nodes of the template, by Twig node and label */
@@ -117,10 +125,10 @@ final class Context
     private $markups = [];
 
     /**
-     * The variables, the attributes of their objects, the output, the conditional depth and the loop targets of the
-     * template, while in a macro.
+     * The variables, the attributes of their objects, what printing them gives, the output, the conditional depth and
+     * the loop targets of the template, while in a macro.
      *
-     * @var array{array<string, non-empty-list<DataFlowNode>>, array<string, list<string>>, array<DataFlowNode>, int, list<array<string, array{non-empty-list<DataFlowNode>|null, list<string>}>>}|null
+     * @var array{array<string, non-empty-list<DataFlowNode>>, array<string, list<string>>, array<string, non-empty-list<DataFlowNode>>, array<DataFlowNode>, int, list<array<string, array{non-empty-list<DataFlowNode>|null, list<string>, non-empty-list<DataFlowNode>|null}>>}|null
      */
     private $templateScope;
 
@@ -180,31 +188,77 @@ final class Context
     }
 
     /**
-     * The nodes of the values the variable read by $expression can have.
+     * The nodes of the values the variable read by $expression can have, read both as an object and as a string (see
+     * taintObjectVariable() and taintPrintedVariable()): what a filter, a function or a comparison reads of it.
      *
      * @return non-empty-list<DataFlowNode>
      */
     public function taintVariable(NameExpression $expression): array
     {
-        return $this->getVariableValues((string) $expression->getAttribute('name'), $expression);
+        $variableName = (string) $expression->getAttribute('name');
+        $nodes = [];
+        foreach ([...$this->getObjectVariable($variableName, $expression), ...$this->getPrintedVariable($variableName, $expression)] as $node) {
+            $nodes[$node->id] = $node;
+        }
+
+        return array_values($nodes);
     }
 
     /**
-     * The nodes of the values the variable $variableName, read by $expression, can have: those it is set to, or its
-     * value in the context of the template. A macro only sees its arguments and the globals of Twig, which the
-     * analysis doesn't know the values of.
+     * The nodes of what the variable read by $expression holds, which its attributes are read from. For a variable of
+     * the context, an integration giving apart what it gives as a string gives it what the variable holds (see
+     * getForTemplateVariableObject()). A variable set to a variable, or looping over one, holds what that one holds,
+     * or its items.
      *
      * @return non-empty-list<DataFlowNode>
      */
-    private function getVariableValues(string $variableName, Node $expression): array
+    public function taintObjectVariable(NameExpression $expression): array
+    {
+        return $this->getObjectVariable((string) $expression->getAttribute('name'), $expression);
+    }
+
+    /**
+     * The nodes of what printing the variable read by $expression, as is or with `raw`, can give: what converting its
+     * value to a string gives. For a variable of the context, an integration knowing what that gives (e.g. what the
+     * __toString of an object returns, escaping what the object holds) gives it apart (see
+     * getForTemplateVariableString()). A variable set to a variable, or looping over one, prints what that one prints,
+     * or its items.
+     *
+     * @return non-empty-list<DataFlowNode>
+     */
+    public function taintPrintedVariable(NameExpression $expression): array
+    {
+        return $this->getPrintedVariable((string) $expression->getAttribute('name'), $expression);
+    }
+
+    /**
+     * @return non-empty-list<DataFlowNode>
+     */
+    private function getObjectVariable(string $variableName, Node $expression): array
     {
         if (isset($this->localVariables[$variableName])) {
             return $this->localVariables[$variableName];
         }
 
+        // a macro only sees its arguments and the globals of Twig, which the analysis doesn't know the values of
         return null === $this->templateScope
             ? [$this->getContextVariable($variableName, $expression)]
             : [$this->getNode($expression, $variableName, 'global')];
+    }
+
+    /**
+     * @return non-empty-list<DataFlowNode>
+     */
+    private function getPrintedVariable(string $variableName, Node $expression): array
+    {
+        if (isset($this->localVariables[$variableName])) {
+            return $this->localStrings[$variableName] ?? $this->localVariables[$variableName];
+        }
+
+        // a macro doesn't see the variables of the template (see getObjectVariable())
+        return null === $this->templateScope
+            ? [$this->unassignedStrings[$variableName] ??= $this->getNode($expression, '(string) '.$variableName, 'read')]
+            : $this->getObjectVariable($variableName, $expression);
     }
 
     /**
@@ -740,7 +794,9 @@ final class Context
      * body of an `if` or of a `for`, which may not run, the variable can also keep the value it had, unless $always.
      *
      * The objects of the value are those $objectsOf, the value it is set to or loops over, holds, or its items if
-     * $isItem (see getObjectsAttributeBases()).
+     * $isItem (see getObjectsAttributeBases()). A variable set to a variable takes apart what that one holds and what
+     * it prints (see taintObjectVariable() and taintPrintedVariable()), rather than $sources; one looping over a
+     * variable takes the items of what that one holds.
      *
      * @param list<DataFlowNode> $sources
      */
@@ -749,6 +805,19 @@ final class Context
         /** @var string $destinationName */
         $destinationName = $destinationVariable->getAttribute('name');
         $taintDestination = $this->getNode($destinationVariable, $destinationName);
+
+        $printed = null;
+        $value = null === $objectsOf ? null : self::getObjectsPath($objectsOf);
+        if (null !== $value && [] === $value[1]) {
+            $sources = $this->taintObjectVariable($value[0]);
+            // the items of a variable are those of what it holds, which they print
+            if (!$isItem) {
+                $printed = $this->getNode($destinationVariable, '(string) '.$destinationName);
+                foreach ($this->taintPrintedVariable($value[0]) as $source) {
+                    $this->taint->addPath($source, $printed, $pathType);
+                }
+            }
+        }
 
         foreach ($sources as $source) {
             $this->taint->addPath($source, $taintDestination, $pathType);
@@ -759,10 +828,15 @@ final class Context
         $isConditional = 0 < $this->conditionalDepth && !$always;
         if ($isConditional) {
             $attributes = array_values(array_unique([...$this->getAttributeBases($destinationName), ...$attributes]));
+            $this->localStrings[$destinationName] = [...$this->taintPrintedVariable($destinationVariable), $printed ?? $taintDestination];
+        } elseif (null !== $printed) {
+            $this->localStrings[$destinationName] = [$printed];
+        } else {
+            unset($this->localStrings[$destinationName]);
         }
 
         $this->localVariables[$destinationName] = $isConditional
-            ? [...$this->taintVariable($destinationVariable), $taintDestination]
+            ? [...$this->taintObjectVariable($destinationVariable), $taintDestination]
             : [$taintDestination];
         $this->localAttributes[$destinationName] = $attributes;
 
@@ -823,7 +897,11 @@ final class Context
     {
         $values = [];
         foreach ($targetNames as $targetName) {
-            $values[$targetName] = [$this->localVariables[$targetName] ?? null, $this->localAttributes[$targetName] ?? []];
+            $values[$targetName] = [
+                $this->localVariables[$targetName] ?? null,
+                $this->localAttributes[$targetName] ?? [],
+                $this->localStrings[$targetName] ?? null,
+            ];
         }
 
         $this->loopTargets[] = $values;
@@ -837,12 +915,15 @@ final class Context
     {
         $this->leaveConditional();
 
-        foreach (array_pop($this->loopTargets) ?? [] as $targetName => [$value, $attributes]) {
-            if (null === $value) {
-                unset($this->localVariables[$targetName], $this->localAttributes[$targetName]);
-            } else {
+        foreach (array_pop($this->loopTargets) ?? [] as $targetName => [$value, $attributes, $strings]) {
+            unset($this->localVariables[$targetName], $this->localAttributes[$targetName], $this->localStrings[$targetName]);
+            if (null !== $value) {
                 $this->localVariables[$targetName] = $value;
                 $this->localAttributes[$targetName] = $attributes;
+            }
+
+            if (null !== $strings) {
+                $this->localStrings[$targetName] = $strings;
             }
         }
     }
@@ -861,14 +942,16 @@ final class Context
      */
     public function enterMacro(MacroNode $macro): void
     {
-        $this->templateScope = [$this->localVariables, $this->localAttributes, $this->parentNodes, $this->conditionalDepth, $this->loopTargets];
+        $this->templateScope = [$this->localVariables, $this->localAttributes, $this->localStrings, $this->parentNodes, $this->conditionalDepth, $this->loopTargets];
 
         $templateName = $this->sourceContext->getName();
         [$parameters, $varargs] = $this->getMacroParameters($templateName, $macro);
         $this->localVariables = array_map(static fn (DataFlowNode $parameter): array => [$parameter], $parameters);
         $this->localAttributes = [];
+        $this->localStrings = [];
         foreach ($parameters as $name => $_) {
             $this->localAttributes[$name] = [self::getMacroParameterBase($templateName, $macro, $name)];
+            $this->localStrings[$name] = [$this->getMacroParameterString($templateName, $macro, $name)];
         }
         // the arguments the macro has no parameter for are in `varargs`, or in the variable it declares for them
         $variadicName = $macro->hasAttribute('variadic_name') ? $macro->getAttribute('variadic_name') : null;
@@ -889,7 +972,7 @@ final class Context
         }
 
         if (null !== $this->templateScope) {
-            [$this->localVariables, $this->localAttributes, $this->parentNodes, $this->conditionalDepth, $this->loopTargets] = $this->templateScope;
+            [$this->localVariables, $this->localAttributes, $this->localStrings, $this->parentNodes, $this->conditionalDepth, $this->loopTargets] = $this->templateScope;
             $this->templateScope = null;
         }
     }
@@ -898,9 +981,10 @@ final class Context
      * Calls the macro $call calls, giving its parameters the taints of $arguments, the sources of each argument by
      * position or name (null for arguments unpacked into all of them), and the bases of the attributes of the objects
      * the argument holds (see getObjectsAttributeBases()): the parameter holds them, and `varargs` holds those of the
-     * arguments the macro has no parameter for as its items.
+     * arguments the macro has no parameter for as its items. The parameter prints what the argument prints (see
+     * taintPrintedVariable()), the nodes of the last element of the argument.
      *
-     * @param list<array{int|string|null, list<DataFlowNode>, list<string>}> $arguments
+     * @param list<array{int|string|null, list<DataFlowNode>, list<string>, list<DataFlowNode>}> $arguments
      *
      * @return DataFlowNode|null the node of what the macro outputs, null if the analysis can't tell which macro it is
      */
@@ -917,7 +1001,7 @@ final class Context
         $varargsBase = self::getMacroParameterBase($templateName, $macro, 'varargs');
 
         $paths = self::getTemplateReads($this->twig, $templateName)['attributes'];
-        foreach ($arguments as [$key, $sources, $bases]) {
+        foreach ($arguments as [$key, $sources, $bases, $printed]) {
             // the parameters the argument gives, which hold its objects
             if (null === $key) {
                 $given = $names;
@@ -941,6 +1025,10 @@ final class Context
 
             foreach ($given as $name) {
                 $this->linkAttributes($bases, self::getMacroParameterBase($templateName, $macro, $name), $paths);
+                $string = $this->getMacroParameterString($templateName, $macro, $name);
+                foreach ($printed as $source) {
+                    $this->taint->addPath($source, $string, 'arg');
+                }
             }
         }
 
@@ -1077,6 +1165,18 @@ final class Context
     }
 
     /**
+     * The node of what printing the parameter $name of $macro, of the template $templateName, gives: what printing
+     * the arguments its calls give it gives (see callMacro()).
+     */
+    private function getMacroParameterString(string $templateName, MacroNode $macro, string $name): DataFlowNode
+    {
+        $string = DataFlowNode::getForPropertyFetch(self::getMacroParameterBase($templateName, $macro, $name).'#string');
+        $this->taint->addNode($string);
+
+        return $string;
+    }
+
+    /**
      * Includes the template $includedTemplateName, giving each variable it reads from its context (see
      * getTemplateReads()) what $variables gives it, and if $withContext the variable of its name of this template. The
      * objects of the variable have the attributes the included template reads: those of the objects of the value of
@@ -1093,7 +1193,10 @@ final class Context
             $destination = self::getForTemplateVariable($includedTemplateName, $variableName);
             $this->taint->addNode($destination);
 
-            foreach ([...$variables['keyed'][$variableName] ?? [], ...$variables['unkeyed']] as $source) {
+            // a key of `with` set to a variable gives apart what it holds and what it prints, as does the context
+            $keyed = $variables['keyed'][$variableName] ?? [];
+            $channels = isset($variables['printed'][$variableName]) ? [$keyed, $variables['printed'][$variableName]] : null;
+            foreach ([...null === $channels ? $keyed : [], ...$variables['unkeyed']] as $source) {
                 $this->taint->addPath($source, $destination, 'arg');
             }
 
@@ -1103,11 +1206,23 @@ final class Context
 
             $bases = $variables['objects'][$variableName] ?? [];
             if ($withContext && !isset($variables['keyed'][$variableName])) {
-                foreach ($this->getVariableValues($variableName, $includeNode) as $source) {
-                    $this->taint->addPath($source, $destination, 'arg');
+                $channels = [$this->getObjectVariable($variableName, $includeNode), $this->getPrintedVariable($variableName, $includeNode)];
+                $bases = $this->getAttributeBases($variableName);
+            }
+
+            if (null !== $channels) {
+                // the included template reads what the variable holds and prints what it prints, as this one does
+                $objectDestination = self::getForTemplateVariableObject($includedTemplateName, $variableName);
+                $stringDestination = self::getForTemplateVariableString($includedTemplateName, $variableName);
+                $this->taint->addNode($objectDestination);
+                $this->taint->addNode($stringDestination);
+                foreach ($channels[0] as $source) {
+                    $this->taint->addPath($source, $objectDestination, 'arg');
                 }
 
-                $bases = $this->getAttributeBases($variableName);
+                foreach ($channels[1] as $source) {
+                    $this->taint->addPath($source, $stringDestination, 'arg');
+                }
             }
 
             $this->linkAttributes($bases, self::getAttributeBase($includedTemplateName, $variableName), $includedReads['attributes']);
@@ -1145,18 +1260,34 @@ final class Context
 
     /**
      * Makes the variables the template reads from its context take the taints of the variables of their name given to
-     * it, and of the keys of their name of the contexts the analysis can't tell the keys of.
+     * it, and of the keys of their name of the contexts the analysis can't tell the keys of. What it reads of what
+     * they hold and what it prints of them also take apart the taints an integration gives what they hold and what
+     * they give as strings (see getForTemplateVariableObject() and getForTemplateVariableString()).
      */
     public function taintUnassignedVariables(string $templateName): void
     {
         $context = self::getForTemplateContext($templateName);
         $this->taint->addNode($context);
 
-        foreach ($this->unassignedVariables as $variableName => $taintable) {
+        $reads = [];
+        foreach ($this->unassignedVariables as $variableName => $read) {
+            $reads[$variableName][] = [$read, self::getForTemplateVariableObject($templateName, $variableName)];
+        }
+
+        foreach ($this->unassignedStrings as $variableName => $read) {
+            $reads[$variableName][] = [$read, self::getForTemplateVariableString($templateName, $variableName)];
+        }
+
+        foreach ($reads as $variableName => $variableReads) {
             $variable = self::getForTemplateVariable($templateName, $variableName);
             $this->taint->addNode($variable);
             $this->taint->addPath($context, $variable, "arrayvalue-fetch-'".$variableName."'");
-            $this->taint->addPath($variable, $taintable, 'arg');
+
+            foreach ($variableReads as [$read, $channel]) {
+                $this->taint->addNode($channel);
+                $this->taint->addPath($variable, $read, 'arg');
+                $this->taint->addPath($channel, $read, 'arg');
+            }
         }
     }
 
@@ -1190,6 +1321,33 @@ final class Context
     public static function getForTemplateVariable(string $templateName, string $variableName): DataFlowNode
     {
         return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName);
+    }
+
+    /**
+     * The node of what a variable of the context of the template holds, for an integration that gives apart what the
+     * variable gives when printed (see getForTemplateVariableString()): what the template reads its attributes from,
+     * and what it reads of the variable everywhere but when printing it, as is or with `raw`. Taints given to
+     * getForTemplateVariable() reach both.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplateVariableObject(string $templateName, string $variableName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName.'#object');
+    }
+
+    /**
+     * The node of what a variable of the context of the template gives when converted to a string, for an integration
+     * that knows it (e.g. what the __toString of an object returns, escaping what the object holds): what printing the
+     * variable, as is or with `raw`, outputs. The template also reads it, with what the variable holds (see
+     * getForTemplateVariableObject()), where it reads the variable as a value: given to a filter, a function or a
+     * comparison.
+     *
+     * @psalm-pure
+     */
+    public static function getForTemplateVariableString(string $templateName, string $variableName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#'.$variableName.'#string');
     }
 
     /**
