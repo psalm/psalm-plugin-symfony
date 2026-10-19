@@ -134,6 +134,9 @@ final class Context
     /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>|null method name => the methods of that name of every class, with their method id and class */
     private static $methodsByName;
 
+    /** @var array<string, array{in?: array<int, string>, out?: string, key?: int}>|null method of a builtin class => what flows into and out of the object it is called on, as Psalm follows it (see getReceiverPath()) */
+    private static $objectFlows;
+
     /**
      * @psalm-capabilities read-props
      */
@@ -286,10 +289,9 @@ final class Context
      * is no such method, if they are methods of unrelated classes (what one of them returns from what its object
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
-     * returns what it is given (its receiver only if mayReturnTheReceiver()). What the receiver holds, $receiver,
-     * comes into the call only for the methods of a class specialized by instance or of a builtin class, as their PHP
-     * calls return what the object they are called on holds (see mayReturnWhatTheObjectHolds()); any other method
-     * returns what its object holds through its body.
+     * returns what it is given (of its receiver, see getReceiverTaintSources()). What the receiver holds, $receiver,
+     * comes into the call only for the methods whose PHP calls return what the object they are called on holds (see
+     * getReceiverPath()); any other method returns what its object holds through its body.
      *
      * @param list<list<DataFlowNode>> $arguments
      * @param list<DataFlowNode>       $receiver
@@ -310,16 +312,15 @@ final class Context
         $location = $this->getLineLocation($expression->getTemplateLine());
 
         foreach ($methods as [$methodId, $storage, $className]) {
-            if (self::mayReturnWhatTheObjectHolds($codebase->classlike_storage_provider->get($className))) {
-                foreach ($receiver as $source) {
-                    $this->taint->addPath($source, $taintDestination, 'arg');
-                }
-                $receiver = [];
+            $receiverPath = [] === $receiver ? null : self::getReceiverPath($codebase, $className, $storage, $expression);
+            if (null !== $receiverPath) {
+                $this->taint->addPath($this->addReceiverPath($expression, $name, $methodId, $storage, $receiverPath, $receiver), $taintDestination, 'arg');
             }
 
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
+            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
 
             foreach ($arguments as $offset => $sources) {
@@ -346,8 +347,6 @@ final class Context
                     $this->taint->addPath($source, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
                 }
             }
-
-            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
 
             foreach ($storage->return_source_params as $offset => $pathType) {
                 foreach ($isMagic ? [] : self::getArgumentsOfParameter($storage, $arguments, $offset) as $source) {
@@ -428,46 +427,110 @@ final class Context
     }
 
     /**
-     * Whether the method call `item.name(...)` may return what its receiver holds, where the analysis can't tell the
-     * methods it calls (see getMethodCallTaintDestination()): if one of them is a method of a class specialized by
-     * instance or of a builtin class, or of a class extended by one, as their PHP calls return what the object they
-     * are called on holds (see mayReturnWhatTheObjectHolds()), or if no class has such a method. Any other method
-     * returns what its object holds through its body, which the attributes of the objects of a variable of the
-     * template give (see getObjectAttributeSources()).
+     * The nodes of what the method call $expression, `item.name(...)`, returns of what its receiver holds, the nodes
+     * $receiver, where the analysis can't tell the methods it calls (see getMethodCallTaintDestination()): what the
+     * PHP calls of each of them return of what the object they are called on holds, through its path (see
+     * getReceiverPath()), or all of it if no class has such a method. Any other method returns what its object holds
+     * through its body, which the attributes of the objects of a variable of the template give (see
+     * getObjectAttributeSources()).
+     *
+     * @param list<DataFlowNode> $receiver
+     *
+     * @return list<DataFlowNode>
      */
-    public function mayReturnTheReceiver(string $name): bool
+    public function getReceiverTaintSources(GetAttrExpression $expression, string $name, array $receiver): array
     {
-        if (null === $this->codebase) {
-            return true;
+        $methods = null === $this->codebase ? [] : $this->getCalledMethods($this->codebase, $name);
+        if (null === $this->codebase || [] === $methods || [] === $receiver) {
+            return $receiver;
         }
 
-        $methods = $this->getCalledMethods($this->codebase, $name);
-        if ([] === $methods) {
-            return true;
-        }
-
-        foreach ($methods as [, , $className]) {
-            foreach ([$this->codebase->classlike_storage_provider->get($className), ...self::getDescendants($className)] as $storage) {
-                if (self::mayReturnWhatTheObjectHolds($storage)) {
-                    return true;
-                }
+        $sources = [];
+        foreach ($methods as [$methodId, $method, $className]) {
+            $path = self::getReceiverPath($this->codebase, $className, $method, $expression);
+            if (null !== $path) {
+                $sources[] = $this->addReceiverPath($expression, $name, $methodId, $method, $path, $receiver);
             }
         }
 
-        return false;
+        return $sources;
     }
 
     /**
-     * Whether the PHP calls of the methods of the class of $storage may return what the object they are called on
-     * holds, besides what their bodies return of it: those of a class specialized by instance, and those of a builtin
-     * class, whose objects keep what is given to their methods and give it back (as Psalm's object flows of the
-     * builtin containers, like ArrayObject, do).
+     * Makes what $method, called by $methodId, returns of what its receiver holds, the nodes $receiver, flow through
+     * $path into a node of its own for the method call $expression, `item.name(...)`, without the taints its return
+     * type removes.
      *
-     * @psalm-mutation-free
+     * @param list<DataFlowNode> $receiver
      */
-    private static function mayReturnWhatTheObjectHolds(ClassLikeStorage $storage): bool
+    private function addReceiverPath(GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, string $path, array $receiver): DataFlowNode
     {
-        return $storage->specialize_instance || !$storage->user_defined;
+        $node = $this->getNode($expression, 'method_'.$name, 'receiver '.$methodId);
+        $removedTaints = $method->removed_taints | ($method->signature_return_type?->getTaintsToRemove() ?? 0);
+        foreach ($receiver as $source) {
+            $this->taint->addPath($source, $node, $path, 0, $removedTaints);
+        }
+
+        return $node;
+    }
+
+    /**
+     * The path through which what the object a PHP call of $method of the class $className is called on holds flows
+     * into what it returns, besides what its body returns of it. Null if it doesn't.
+     *
+     * For a class specialized by instance, or extended by one, all of it: the properties of each object hold its own
+     * taints. For the
+     * methods of the builtin containers and of the classes extending them, like ArrayObject::getArrayCopy() or
+     * ArrayObject::offsetGet(), the path Psalm follows (see its dictionaries/InternalTaintObjectFlowMap.php, which
+     * Psalm\Internal\Analyzer\Statements\Expression\Call\Method\NativeClassTaintAnalyzer reads, from the class
+     * or its closest parent having an entry for the method): all of it, or its items, or the item of the literal key
+     * the call of $expression gives.
+     */
+    private static function getReceiverPath(Codebase $codebase, string $className, MethodStorage $method, ?GetAttrExpression $expression = null): ?string
+    {
+        $storage = $codebase->classlike_storage_provider->get($className);
+        foreach ([$storage, ...self::getDescendants($className)] as $class) {
+            if ($class->specialize_instance) {
+                return 'arg';
+            }
+        }
+
+        if (null === self::$objectFlows) {
+            // Psalm reads the map from its own directory, with no API to ask it
+            $map = \dirname((string) (new \ReflectionClass(Codebase::class))->getFileName(), 3).'/dictionaries/InternalTaintObjectFlowMap.php';
+            /** @var array<string, array{in?: array<int, string>, out?: string, key?: int}> */
+            self::$objectFlows = is_file($map) ? require $map : [];
+        }
+
+        $methodName = strtolower($method->cased_name ?? '');
+        foreach ([strtolower($storage->name), ...array_keys($storage->parent_classes)] as $class) {
+            $flow = self::$objectFlows[$class.'::'.$methodName] ?? null;
+            if (null === $flow) {
+                continue;
+            }
+
+            if (!isset($flow['out'])) {
+                return null;
+            }
+
+            $key = isset($flow['key']) && null !== $expression ? self::getLiteralArgument($expression, $flow['key']) : null;
+
+            return null === $key ? $flow['out'] : $flow['out']."-'".$key."'";
+        }
+
+        return null;
+    }
+
+    /**
+     * The value of the argument at $offset of the method call $expression, if it is a literal string or integer.
+     */
+    private static function getLiteralArgument(GetAttrExpression $expression, int $offset): int|string|null
+    {
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $value = $arguments instanceof ArrayExpression ? $arguments->getKeyValuePairs()[$offset]['value'] ?? null : null;
+        $literal = $value instanceof ConstantExpression ? $value->getAttribute('value') : null;
+
+        return \is_int($literal) || \is_string($literal) ? $literal : null;
     }
 
     /**

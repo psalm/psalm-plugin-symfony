@@ -1980,6 +1980,125 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario Outline: What a builtin object holds is not displayed through a method of its class not giving it back
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['bag' => new ArrayObject([$_GET['untrusted']])]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <p>{{ bag.<method>()|raw }}</p>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+    Examples:
+      | method   |
+      | count    |
+      | getFlags |
+
+  Scenario: What a builtin object holds is displayed with only the raw filter through the only method of its name giving it back
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['bag' => new ArrayObject([$_GET['untrusted']])]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <ul>{% for value in bag.exchangeArray([]) %}<li>{{ value|raw }}</li>{% endfor %}</ul>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: The tainted item of a literal key of a builtin object is displayed with only the raw filter through a method of its class giving it back
+    Given I have the following code
+      """
+      echo twig()->render('index.html.twig', ['bag' => new ArrayObject(['untrusted' => $_GET['untrusted'], 'literal' => 'literal'])]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <p>{{ bag.offsetGet('untrusted')|raw }}</p>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: What an object specialized by instance holds is displayed with only the raw filter through the only method of its name
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-taint-specialize
+       * @psalm-immutable
+       */
+      final class Box
+      {
+          public function __construct(private string $value)
+          {
+          }
+
+          public function getBoxedValue(): string
+          {
+              return $this->value;
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => new Box(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.boxedValue()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario Outline: What a variable holds besides an object is not displayed through a method of the object named like a method of a builtin or stubbed class
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Comment
+      {
+          private int $views = 0;
+
+          /** @psalm-capabilities read-props|write-this-props|write-refs */
+          public function view(): void
+          {
+              ++$this->views;
+          }
+
+          /** @psalm-pure */
+          public function <method>(): string
+          {
+              return 'literal';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => $_GET['untrusted']]);
+      echo twig()->render('index.html.twig', ['item' => new Comment()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.<method>()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+    Examples:
+      | method     |
+      | getContent |
+      | getMessage |
+
   Scenario: A tainted parameter given to a method that unrelated classes have is displayed with only the raw filter
     Given I have the following code
       """
