@@ -16,7 +16,7 @@ Feature: File tainting
   Scenario Outline: A path from the request is opened
     Given I have the following code
       """
-      $path = (string) $_GET['path'];
+      $path = is_string($_GET['path']) ? $_GET['path'] : '';
       <code>;
       """
     When I run Psalm with taint analysis
