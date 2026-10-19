@@ -484,7 +484,8 @@ final class Context
      * ArrayObject::offsetGet(), the path Psalm follows (see its dictionaries/InternalTaintObjectFlowMap.php, which
      * Psalm\Internal\Analyzer\Statements\Expression\Call\Method\NativeClassTaintAnalyzer reads, from the class
      * or its closest parent having an entry for the method): all of it, or its items, or the item of the literal key
-     * the call of $expression gives.
+     * the call of $expression gives. For a Generator, what it yields or returns, as Psalm follows it (see its
+     * MethodCallReturnTypeFetcher).
      */
     private static function getReceiverPath(Codebase $codebase, string $className, MethodStorage $method, ?GetAttrExpression $expression = null): ?string
     {
@@ -503,6 +504,16 @@ final class Context
         }
 
         $methodName = strtolower($method->cased_name ?? '');
+        if ('generator' === strtolower($storage->name)) {
+            // what a generator gives comes from what it yields and returns, as Psalm follows it apart from the map
+            return match ($methodName) {
+                'current', 'send' => 'arrayvalue-fetch',
+                'key' => 'arraykey-fetch',
+                'getreturn' => 'return',
+                default => null,
+            };
+        }
+
         foreach ([strtolower($storage->name), ...array_keys($storage->parent_classes)] as $class) {
             $flow = self::$objectFlows[$class.'::'.$methodName] ?? null;
             if (null === $flow) {

@@ -2028,6 +2028,37 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario Outline: What a generator yields or returns is displayed with only the raw filter through the method giving it back
+    Given I have the following code
+      """
+      /**
+       * @return Generator<int, mixed, mixed, mixed>
+       * @psalm-capabilities read-globals
+       */
+      function generate(): Generator
+      {
+          yield $_GET['yielded'];
+
+          return $_GET['returned'];
+      }
+
+      echo twig()->render('index.html.twig', ['generator' => generate()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <p>{{ generator.<method>()|raw }}</p>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+    Examples:
+      | method    |
+      | getReturn |
+      | current   |
+
   Scenario: What an object specialized by instance holds is displayed with only the raw filter through the only method of its name
     Given I have the following code
       """
