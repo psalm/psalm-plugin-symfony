@@ -566,7 +566,9 @@ final class Context
      * as its PHP calls do when Psalm specializes the class by instance: into the `$this` its body takes, specialized
      * to the call at $location, so that the call returns only what the body returns of it (see
      * DataFlowNode::getForMethodReturn()), as the PHP calls of the method do. False if Psalm doesn't analyze its body
-     * so: a method of a class not specialized by instance, of a trait, static, or whose body isn't analyzed.
+     * so: a method of a class not specialized by instance, of a trait, static, or whose body isn't analyzed. False
+     * too for a method of a class that is extended: its body, analyzed for the class, calls the methods of the class
+     * on `$this`, which an object of a class extending it may override.
      *
      * @param list<DataFlowNode> $receiver
      */
@@ -575,6 +577,7 @@ final class Context
         $class = $codebase->classlike_storage_provider->get($className);
         $methodLocation = $method->location;
         if (!$class->specialize_instance || $class->is_trait || $method->is_static || !$method->specialize_call
+            || (!$class->final && [] !== self::getDescendants($className))
             || null === $methodLocation || !$codebase->config->isInProjectDirs($methodLocation->file_path)
         ) {
             return false;
