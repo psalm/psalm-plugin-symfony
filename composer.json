@@ -14,8 +14,8 @@
         "ext-simplexml": "*",
         "symfony/expression-language": "^5.0 || ^6.0 || ^7.0 || ^8.0",
         "symfony/framework-bundle": "^5.0 || ^6.0 || ^7.0 || ^8.0",
-        "psalm/psalm-plugin-api": "^0.3",
-        "vimeo/psalm": "^7.0.0-beta24 || dev-master"
+        "psalm/psalm-plugin-api": "^0.4",
+        "vimeo/psalm": "^7|dev-master"
     },
     "require-dev": {
         "doctrine/annotations": "^1.8|^2",
