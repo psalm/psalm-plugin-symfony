@@ -1593,7 +1593,8 @@ final class Context
 
     /**
      * The types of the items of the arrays, the iterables and the traversable objects of $type, which a loop over it
-     * gives: for a traversable object, the last of its type parameters, as for an Iterator<TKey, TValue>.
+     * gives: for a traversable object, the type parameter its class gives the TValue of Traversable (see
+     * getTraversableValueType()).
      *
      * @return list<Union>
      */
@@ -1607,11 +1608,58 @@ final class Context
                 $items[] = $atomic->getGenericValueType();
             } elseif ($atomic instanceof TGenericObject && $codebase->classOrInterfaceExists($atomic->value)
                 && ($codebase->classExtendsOrImplements($atomic->value, \Traversable::class) || $codebase->interfaceExtends($atomic->value, \Traversable::class))) {
-                $items[] = end($atomic->type_params);
+                $value = self::getTraversableValueType($codebase, $atomic);
+                if (null !== $value) {
+                    $items[] = $value;
+                }
             }
         }
 
         return $items;
+    }
+
+    /**
+     * The type $object, of a class implementing Traversable, gives the TValue of Traversable: the type parameter of
+     * the class it stands for, or the type its class gives it. Not merely its last type parameter, which can be a
+     * purity template (`ArrayIterator<TKey, TValue, TStorage>`).
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getTraversableValueType(Codebase $codebase, TGenericObject $object): ?Union
+    {
+        $storage = $codebase->classlike_storage_provider->get($object->value);
+        $class = $storage->name;
+        $name = 'TValue';
+        if ('traversable' !== strtolower($class)) {
+            $value = $storage->template_extended_params['Traversable']['TValue'] ?? null;
+            // what the classes it extends give it, down to a type parameter of its own
+            while (null !== $value) {
+                $atomics = $value->getAtomicTypes();
+                $parameter = 1 === \count($atomics) ? reset($atomics) : null;
+                if (!$parameter instanceof TTemplateParam) {
+                    return $value;
+                }
+
+                if (strtolower($parameter->defining_class) === strtolower($class)) {
+                    $name = $parameter->param_name;
+                    break;
+                }
+
+                $extended = $storage->template_extended_params[$parameter->defining_class][$parameter->param_name] ?? null;
+                if (null === $extended || $extended === $value) {
+                    return $value;
+                }
+                $value = $extended;
+            }
+
+            if (null === $value) {
+                return null;
+            }
+        }
+
+        $offset = array_search($name, array_keys($storage->template_types ?? []), true);
+
+        return false === $offset ? null : $object->type_params[$offset] ?? null;
     }
 
     /**
