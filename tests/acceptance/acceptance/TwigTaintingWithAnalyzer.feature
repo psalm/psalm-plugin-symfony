@@ -1901,6 +1901,14 @@ Feature: Twig tainting with analyzer
        */
       final class Photo
       {
+          private int $likes = 0;
+
+          /** @psalm-capabilities read-props|write-this-props|write-refs */
+          public function like(): void
+          {
+              ++$this->likes;
+          }
+
           /** @psalm-pure */
           public function getIdStr(): string
           {
@@ -1917,6 +1925,226 @@ Feature: Twig tainting with analyzer
       """
     When I run Psalm with taint analysis
     And I see no errors
+
+  Scenario: What a variable holds besides an object is not displayed through a method that unrelated classes specialized by instance have, not returning what their objects hold
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Comment
+      {
+          private int $views = 0;
+
+          /** @psalm-capabilities read-props|write-this-props|write-refs */
+          public function view(): void
+          {
+              ++$this->views;
+          }
+
+          /** @psalm-pure */
+          public function getIdStr(): string
+          {
+              return 'literal';
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Photo
+      {
+          /** @psalm-pure */
+          public function getIdStr(): string
+          {
+              return 'literal';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => $_GET['untrusted']]);
+      echo twig()->render('index.html.twig', ['item' => new Comment()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.getIdStr()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: What an object specialized by instance holds is not displayed through a method of its class not returning it
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Box
+      {
+          public function __construct(public string $value)
+          {
+          }
+
+          /** @psalm-pure */
+          public function getIdStr(): string
+          {
+              return 'literal';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => new Box(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.getIdStr()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: What an object specialized by instance holds is not displayed through a method of its class reading it but not returning it
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Box
+      {
+          public function __construct(public string $value)
+          {
+          }
+
+          public function getIdStr(): string
+          {
+              return '' === $this->value ? 'empty' : 'literal';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => new Box(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.getIdStr()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: What an object specialized by instance holds is displayed with only the raw filter through a method of its parent class returning what an override returns of it
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      class Base
+      {
+          public function __construct(public string $value)
+          {
+          }
+
+          public function me(): self
+          {
+              return $this->pick();
+          }
+
+          protected function pick(): self
+          {
+              return new self('literal');
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Child extends Base
+      {
+          #[\Override]
+          protected function pick(): self
+          {
+              return $this;
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => new Child(is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.me().value|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: What an object held by an object specialized by instance holds is displayed with only the raw filter through a method of its parent class returning what an override returns of it
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Inner
+      {
+          public function __construct(private string $value)
+          {
+          }
+
+          public function getValue(): string
+          {
+              return $this->value;
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      class Base
+      {
+          public function __construct(protected Inner $inner)
+          {
+          }
+
+          public function getInner(): Inner
+          {
+              return $this->pick();
+          }
+
+          protected function pick(): Inner
+          {
+              return new Inner('literal');
+          }
+      }
+
+      /**
+       * @psalm-api
+       * @psalm-immutable
+       */
+      final class Child extends Base
+      {
+          #[\Override]
+          protected function pick(): Inner
+          {
+              return $this->inner;
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['item' => new Child(new Inner(is_string($_GET['untrusted']) ? $_GET['untrusted'] : ''))]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ item.getInner().getValue()|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
 
   Scenario: What an object specialized by instance holds is displayed through a method that unrelated classes have
     Given I have the following code
@@ -1940,7 +2168,7 @@ Feature: Twig tainting with analyzer
 
       /**
        * @psalm-api
-       * @psalm-capabilities read-props|write-this-props|write-refs
+       * @psalm-immutable
        */
       final class Photo
       {
