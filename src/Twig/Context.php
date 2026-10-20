@@ -16,6 +16,7 @@ use Psalm\Storage\ClassLikeStorage;
 use Psalm\Storage\FunctionLikeStorage;
 use Psalm\Storage\MethodStorage;
 use Psalm\Storage\PropertyStorage;
+use Psalm\Type;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TGenericObject;
 use Psalm\Type\Atomic\TIterable;
@@ -149,9 +150,6 @@ final class Context
 
     /** @var array<lowercase-string, non-empty-list<array{string, MethodStorage, string}>>|null method name => the methods of that name of every class, with their method id and class */
     private static $methodsByName;
-
-    /** @var array<string, array{in?: array<int, string>, out?: string, key?: int}>|null method of a builtin class => what flows into and out of the object it is called on, as Psalm follows it (see getReceiverPath()) */
-    private static $objectFlows;
 
     /**
      * @psalm-capabilities read-props
@@ -570,13 +568,10 @@ final class Context
      * into what it returns, besides what its body returns of it. Null if it doesn't.
      *
      * For a class specialized by instance, or extended by one, all of it: the properties of each object hold its own
-     * taints. For the
-     * methods of the builtin containers and of the classes extending them, like ArrayObject::getArrayCopy() or
-     * ArrayObject::offsetGet(), the path Psalm follows (see its dictionaries/InternalTaintObjectFlowMap.php, which
-     * Psalm\Internal\Analyzer\Statements\Expression\Call\Method\NativeClassTaintAnalyzer reads, from the class
-     * or its closest parent having an entry for the method): all of it, or its items, or the item of the literal key
-     * the call of $expression gives. For a Generator, what it yields or returns, as Psalm follows it (see its
-     * MethodCallReturnTypeFetcher).
+     * taints. For the methods of the builtin containers and of the classes extending them, like
+     * ArrayObject::getArrayCopy() or ArrayObject::offsetGet(), and for those of a Generator, the path Psalm follows
+     * (see Codebase::getReceiverTaintPath()): all of it, its items or keys, the item of the literal key the call of
+     * $expression gives, or what a generator returns.
      */
     private static function getReceiverPath(Codebase $codebase, string $className, MethodStorage $method, ?GetAttrExpression $expression = null): ?string
     {
@@ -587,52 +582,35 @@ final class Context
             }
         }
 
-        if (null === self::$objectFlows) {
-            // Psalm reads the map from its own directory, with no API to ask it
-            $map = \dirname((string) (new \ReflectionClass(Codebase::class))->getFileName(), 3).'/dictionaries/InternalTaintObjectFlowMap.php';
-            /** @var array<string, array{in?: array<int, string>, out?: string, key?: int}> */
-            self::$objectFlows = is_file($map) ? require $map : [];
-        }
-
-        $methodName = strtolower($method->cased_name ?? '');
-        if ('generator' === strtolower($storage->name)) {
-            // what a generator gives comes from what it yields and returns, as Psalm follows it apart from the map
-            return match ($methodName) {
-                'current', 'send' => 'arrayvalue-fetch',
-                'key' => 'arraykey-fetch',
-                'getreturn' => 'return',
-                default => null,
-            };
-        }
-
-        foreach ([strtolower($storage->name), ...array_keys($storage->parent_classes)] as $class) {
-            $flow = self::$objectFlows[$class.'::'.$methodName] ?? null;
-            if (null === $flow) {
-                continue;
-            }
-
-            if (!isset($flow['out'])) {
-                return null;
-            }
-
-            $key = isset($flow['key']) && null !== $expression ? self::getLiteralArgument($expression, $flow['key']) : null;
-
-            return null === $key ? $flow['out'] : $flow['out']."-'".$key."'";
-        }
-
-        return null;
+        return $codebase->getReceiverTaintPath(
+            $storage->name.'::'.($method->cased_name ?? ''),
+            null === $expression ? [] : self::getLiteralArgumentTypes($expression),
+        );
     }
 
     /**
-     * The value of the argument at $offset of the method call $expression, if it is a literal string or integer.
+     * The types of the arguments of the method call $expression that are literal strings or integers, by position.
+     *
+     * @return array<int, Union>
      */
-    private static function getLiteralArgument(GetAttrExpression $expression, int $offset): int|string|null
+    private static function getLiteralArgumentTypes(GetAttrExpression $expression): array
     {
         $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
-        $value = $arguments instanceof ArrayExpression ? $arguments->getKeyValuePairs()[$offset]['value'] ?? null : null;
-        $literal = $value instanceof ConstantExpression ? $value->getAttribute('value') : null;
+        if (!$arguments instanceof ArrayExpression) {
+            return [];
+        }
 
-        return \is_int($literal) || \is_string($literal) ? $literal : null;
+        $types = [];
+        foreach ($arguments->getKeyValuePairs() as $offset => ['value' => $value]) {
+            $literal = $value instanceof ConstantExpression ? $value->getAttribute('value') : null;
+            if (\is_int($literal)) {
+                $types[$offset] = Type::getInt(false, $literal);
+            } elseif (\is_string($literal)) {
+                $types[$offset] = Type::getString($literal);
+            }
+        }
+
+        return $types;
     }
 
     /**
