@@ -13,6 +13,13 @@ class Environment
     public function render($name, array $context = []): string {}
 
     /**
+     * @param string $template The template source
+     *
+     * @psalm-taint-sink eval $template
+     */
+    public function createTemplate(string $template, ?string $name = null): TemplateWrapper {}
+
+    /**
      * @template T of object
      *
      * @param class-string<T> $class
