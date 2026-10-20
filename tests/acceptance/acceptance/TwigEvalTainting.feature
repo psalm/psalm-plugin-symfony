@@ -29,6 +29,7 @@ Feature: Twig eval tainting
       | code                                  |
       | $twig->createTemplate($source)        |
       | $loader->setTemplate('name', $source) |
+      | new ArrayLoader(['name' => $source])  |
 
   Scenario: A template name from the request is not compiled
     Given I have the following code
@@ -37,6 +38,19 @@ Feature: Twig eval tainting
       {
           $name = is_string($_GET['name']) ? $_GET['name'] : '';
           $loader->setTemplate($name, 'Hello');
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
+
+  Scenario: A template name from the request given to an array loader is not compiled
+    Given I have the following code
+      """
+      function run(): ArrayLoader
+      {
+          $name = is_string($_GET['name']) ? $_GET['name'] : '';
+
+          return new ArrayLoader([$name => 'Hello']);
       }
       """
     When I run Psalm with taint analysis
