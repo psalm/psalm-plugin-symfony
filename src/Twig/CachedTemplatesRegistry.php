@@ -44,7 +44,7 @@ final class CachedTemplatesRegistry
     /**
      * @return \Generator<string>
      *
-     * @psalm-capabilities read-props
+     * @psalm-pure
      */
     private static function generateNames(string $baseName): \Generator
     {
