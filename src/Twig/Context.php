@@ -405,13 +405,13 @@ final class Context
         foreach ($methods as [$methodId, $storage, $className]) {
             $receiverPath = [] === $receiver ? null : self::getReceiverPath($codebase, $className, $storage, $expression);
             if (null !== $receiverPath) {
-                $this->taint->addPath($this->addReceiverPath($expression, $name, $methodId, $storage, $receiverPath, $receiver), $taintDestination, 'arg');
+                $this->taint->addPath($this->addReceiverPath($codebase, $expression, $name, $methodId, $storage, $receiverPath, $receiver), $taintDestination, 'arg');
             }
 
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
-            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove() ?? 0);
+            $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
 
             foreach ($arguments as $offset => $sources) {
@@ -479,7 +479,7 @@ final class Context
      *
      * @param non-empty-list<array{string, MethodStorage, string}> $methods
      *
-     * @psalm-capabilities read-props
+     * @psalm-pure
      */
     private static function isOneHierarchy(Codebase $codebase, array $methods): bool
     {
@@ -540,7 +540,7 @@ final class Context
         foreach ($methods as [$methodId, $method, $className]) {
             $path = self::getReceiverPath($this->codebase, $className, $method, $expression);
             if (null !== $path) {
-                $sources[] = $this->addReceiverPath($expression, $name, $methodId, $method, $path, $receiver);
+                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, $path, $receiver);
             }
         }
 
@@ -554,10 +554,10 @@ final class Context
      *
      * @param list<DataFlowNode> $receiver
      */
-    private function addReceiverPath(GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, string $path, array $receiver): DataFlowNode
+    private function addReceiverPath(Codebase $codebase, GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, string $path, array $receiver): DataFlowNode
     {
         $node = $this->getNode($expression, 'method_'.$name, 'receiver '.$methodId);
-        $removedTaints = $method->removed_taints | ($method->signature_return_type?->getTaintsToRemove() ?? 0);
+        $removedTaints = $method->removed_taints | ($method->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
         foreach ($receiver as $source) {
             $this->taint->addPath($source, $node, $path, 0, $removedTaints);
         }
@@ -732,18 +732,19 @@ final class Context
      */
     private function getCallableRemovedTaints($callable): int
     {
-        $storage = null === $this->codebase ? null : self::getCallableStorage($this->codebase, $callable);
-        if (null === $storage) {
+        $codebase = $this->codebase;
+        $storage = null === $codebase ? null : self::getCallableStorage($codebase, $callable);
+        if (null === $codebase || null === $storage) {
             return 0;
         }
 
         // the docblock of a project callable isn't checked against what it returns, unlike that of a library, which
         // Psalm types the calls of the library with
-        $returnType = null !== $storage->location && $this->codebase?->config->isInProjectDirs($storage->location->file_path)
+        $returnType = null !== $storage->location && $codebase->config->isInProjectDirs($storage->location->file_path)
             ? $storage->signature_return_type
             : $storage->return_type;
 
-        return $storage->removed_taints | ($returnType?->getTaintsToRemove() ?? 0);
+        return $storage->removed_taints | ($returnType?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
     }
 
     /**
@@ -1592,7 +1593,8 @@ final class Context
 
     /**
      * The types of the items of the arrays, the iterables and the traversable objects of $type, which a loop over it
-     * gives: for a traversable object, the last of its type parameters, as for an Iterator<TKey, TValue>.
+     * gives: for a traversable object, the type parameter its class gives the TValue of Traversable (see
+     * getTraversableValueType()).
      *
      * @return list<Union>
      */
@@ -1606,7 +1608,10 @@ final class Context
                 $items[] = $atomic->getGenericValueType();
             } elseif ($atomic instanceof TGenericObject && $codebase->classOrInterfaceExists($atomic->value)
                 && ($codebase->classExtendsOrImplements($atomic->value, \Traversable::class) || $codebase->interfaceExtends($atomic->value, \Traversable::class))) {
-                $items[] = end($atomic->type_params);
+                $value = self::getTraversableValueType($codebase, $atomic);
+                if (null !== $value) {
+                    $items[] = $value;
+                }
             }
         }
 
@@ -1614,11 +1619,55 @@ final class Context
     }
 
     /**
+     * The type $object, of a class implementing Traversable, gives the TValue of Traversable: the type parameter of
+     * the class it stands for, or the type its class gives it. Not merely its last type parameter, which can be a
+     * purity template (`ArrayIterator<TKey, TValue, TStorage>`).
+     *
+     * @psalm-capabilities read-props
+     */
+    private static function getTraversableValueType(Codebase $codebase, TGenericObject $object): ?Union
+    {
+        $storage = $codebase->classlike_storage_provider->get($object->value);
+        $class = $storage->name;
+        $name = 'TValue';
+        if ('traversable' !== strtolower($class)) {
+            $value = $storage->template_extended_params['Traversable']['TValue'] ?? null;
+            // what the classes it extends give it, down to a type parameter of its own
+            while (null !== $value) {
+                $atomics = $value->getAtomicTypes();
+                $parameter = 1 === \count($atomics) ? reset($atomics) : null;
+                if (!$parameter instanceof TTemplateParam) {
+                    return $value;
+                }
+
+                if (strtolower($parameter->defining_class) === strtolower($class)) {
+                    $name = $parameter->param_name;
+                    break;
+                }
+
+                $extended = $storage->template_extended_params[$parameter->defining_class][$parameter->param_name] ?? null;
+                if (null === $extended || $extended === $value) {
+                    return $value;
+                }
+                $value = $extended;
+            }
+
+            if (null === $value) {
+                return null;
+            }
+        }
+
+        $offset = array_search($name, array_keys($storage->template_types ?? []), true);
+
+        return false === $offset ? null : $object->type_params[$offset] ?? null;
+    }
+
+    /**
      * The classes of the objects of $type, and of the bounds of its template parameters.
      *
      * @return list<string>
      *
-     * @psalm-mutation-free
+     * @psalm-pure
      */
     private static function getObjectClasses(Union $type): array
     {
