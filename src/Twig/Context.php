@@ -381,8 +381,9 @@ final class Context
      * holds would be taken by the calls on objects of all the others), or if there are more than MAX_CALLED_METHODS
      * (linking a call to the bodies of many classes makes the resolution of the taint graph explode): the call then
      * returns what it is given (of its receiver, see getReceiverTaintSources()). What the receiver holds, $receiver,
-     * comes into the call only for the methods whose PHP calls return what the object they are called on holds (see
-     * getReceiverPath()); any other method returns what its object holds through its body.
+     * enters the body of a method of a class Psalm specializes by instance as the `$this` of the call (see
+     * addReceiverToBody()), else comes into the call only for the methods whose PHP calls return what the object they
+     * are called on holds (see getReceiverPath()); any other method returns what its object holds through its body.
      *
      * @param list<list<DataFlowNode>> $arguments
      * @param list<DataFlowNode>       $receiver
@@ -403,14 +404,17 @@ final class Context
         $location = $this->getLineLocation($expression->getTemplateLine());
 
         foreach ($methods as [$methodId, $storage, $className]) {
-            $receiverPath = [] === $receiver ? null : self::getReceiverPath($codebase, $className, $storage, $expression);
+            // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
+            // arguments give the body: what the object holds comes with the receiver
+            $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
+
+            $receiverPath = [] === $receiver || (null !== $specialization && $this->addReceiverToBody($codebase, $className, $storage, $receiver, $specialization))
+                ? null
+                : self::getReceiverPath($codebase, $className, $storage, $expression);
             if (null !== $receiverPath) {
                 $this->taint->addPath($this->addReceiverPath($codebase, $expression, $name, $methodId, $storage, $receiverPath, $receiver), $taintDestination, 'arg');
             }
 
-            // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
-            // arguments give the body: what the object holds comes with the receiver
-            $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
             $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
             $isMagic = '__call' === strtolower((string) $storage->cased_name);
 
@@ -520,10 +524,11 @@ final class Context
     /**
      * The nodes of what the method call $expression, `item.name(...)`, returns of what its receiver holds, the nodes
      * $receiver, where the analysis can't tell the methods it calls (see getMethodCallTaintDestination()): what the
-     * PHP calls of each of them return of what the object they are called on holds, through its path (see
-     * getReceiverPath()), or all of it if no class has such a method. Any other method returns what its object holds
-     * through its body, which the attributes of the objects of a variable of the template give (see
-     * getObjectAttributeSources()).
+     * PHP calls of each of them return of what the object they are called on holds: through the body of a method
+     * of a class Psalm specializes by instance, which takes it as the `$this` of the call (see addReceiverToBody()),
+     * else through its path (see getReceiverPath()), or all of it if no class has such a method. Any other method
+     * returns what its object holds through its body, which the attributes of the objects of a variable of the
+     * template give (see getObjectAttributeSources()).
      *
      * @param list<DataFlowNode> $receiver
      *
@@ -537,7 +542,16 @@ final class Context
         }
 
         $sources = [];
+        $location = $this->getLineLocation($expression->getTemplateLine());
         foreach ($methods as [$methodId, $method, $className]) {
+            if ($this->addReceiverToBody($this->codebase, $className, $method, $receiver, $location)) {
+                // what the body of the call specialized to its location returns of its own object
+                $returnNode = DataFlowNode::getForMethodReturn($methodId, $method, $location);
+                $this->taint->addNode($returnNode);
+                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, 'arg', [$returnNode]);
+                continue;
+            }
+
             $path = self::getReceiverPath($this->codebase, $className, $method, $expression);
             if (null !== $path) {
                 $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, $path, $receiver);
@@ -545,6 +559,40 @@ final class Context
         }
 
         return $sources;
+    }
+
+    /**
+     * Makes what the receiver of a call of $method of the class $className holds, the nodes $receiver, enter its body
+     * as its PHP calls do when Psalm specializes the class by instance: into the `$this` its body takes, specialized
+     * to the call at $location, so that the call returns only what the body returns of it (see
+     * DataFlowNode::getForMethodReturn()), as the PHP calls of the method do. False if Psalm doesn't analyze its body
+     * so: a method of a class not specialized by instance, of a trait, static, or whose body isn't analyzed.
+     *
+     * @param list<DataFlowNode> $receiver
+     */
+    private function addReceiverToBody(Codebase $codebase, string $className, MethodStorage $method, array $receiver, CodeLocation $location): bool
+    {
+        $class = $codebase->classlike_storage_provider->get($className);
+        $methodLocation = $method->location;
+        if (!$class->specialize_instance || $class->is_trait || $method->is_static || !$method->specialize_call
+            || null === $methodLocation || !$codebase->config->isInProjectDirs($methodLocation->file_path)
+        ) {
+            return false;
+        }
+
+        // the node Psalm gives the `$this` of the body of a method whose calls it specializes, keyed by the class
+        // analyzing it and the lowercase name of the method
+        $thisNode = DataFlowNode::getForAssignment(
+            '$this in '.$class->name.'::'.strtolower((string) $method->cased_name),
+            $methodLocation,
+            DataFlowNode::getSpecializationKey($location),
+        );
+        $this->taint->addNode($thisNode);
+        foreach ($receiver as $source) {
+            $this->taint->addPath($source, $thisNode, '=');
+        }
+
+        return true;
     }
 
     /**
