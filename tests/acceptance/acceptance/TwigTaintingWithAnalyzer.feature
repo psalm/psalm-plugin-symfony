@@ -1837,6 +1837,186 @@ Feature: Twig tainting with analyzer
     When I run Psalm with taint analysis
     And I see no errors
 
+  Scenario: What a PHP call stores under a key, tainted, is displayed with only the raw filter by a method call of the template reading that key
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Cache
+      {
+          /** @var array<string, string> */
+          private array $values = [];
+
+          /**
+           * @psalm-flow ($value) -> Cache::$data[$key]
+           * @psalm-capabilities read-props|write-this-props|write-refs
+           */
+          public function set(string $key, string $value): void
+          {
+              $this->values[$key] = $value;
+          }
+
+          /**
+           * @psalm-flow Cache::$data[$key] -> return
+           * @psalm-capabilities read-props
+           */
+          public function get(string $key): string
+          {
+              return '';
+          }
+      }
+
+      $cache = new Cache();
+      $cache->set('name', (string) $_GET['untrusted']);
+      echo twig()->render('index.html.twig', ['cache' => $cache]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ cache.get('name')|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: What a PHP call stores under a key, tainted, is not displayed by a method call of the template reading another key
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Cache
+      {
+          /** @var array<string, string> */
+          private array $values = [];
+
+          /**
+           * @psalm-flow ($value) -> Cache::$data[$key]
+           * @psalm-capabilities read-props|write-this-props|write-refs
+           */
+          public function set(string $key, string $value): void
+          {
+              $this->values[$key] = $value;
+          }
+
+          /**
+           * @psalm-flow Cache::$data[$key] -> return
+           * @psalm-capabilities read-props
+           */
+          public function get(string $key): string
+          {
+              return '';
+          }
+      }
+
+      $cache = new Cache();
+      $cache->set('name', (string) $_GET['untrusted']);
+      echo twig()->render('index.html.twig', ['cache' => $cache]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ cache.get('title')|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: What a PHP call stores under a key, tainted, is displayed with only the raw filter by a method call of the template reading a key it does not know
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Cache
+      {
+          /** @var array<string, string> */
+          private array $values = [];
+
+          /**
+           * @psalm-flow ($value) -> Cache::$data[$key]
+           * @psalm-capabilities read-props|write-this-props|write-refs
+           */
+          public function set(string $key, string $value): void
+          {
+              $this->values[$key] = $value;
+          }
+
+          /**
+           * @psalm-flow Cache::$data[$key] -> return
+           * @psalm-capabilities read-props
+           */
+          public function get(string $key): string
+          {
+              return '';
+          }
+      }
+
+      $cache = new Cache();
+      $cache->set('name', (string) $_GET['untrusted']);
+      echo twig()->render('index.html.twig', ['cache' => $cache, 'key' => (string) $_GET['key']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ cache.get(key)|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter stored under a key by a method call of the template is displayed with only the raw filter by a PHP call reading that key
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-capabilities read-props|write-this-props|write-refs
+       */
+      final class Cache
+      {
+          /** @var array<string, string> */
+          private array $values = [];
+
+          /**
+           * @psalm-flow ($value) -> Cache::$data[$key]
+           * @psalm-capabilities read-props|write-this-props|write-refs
+           */
+          public function set(string $key, string $value): void
+          {
+              $this->values[$key] = $value;
+          }
+
+          /**
+           * @psalm-flow Cache::$data[$key] -> return
+           * @psalm-capabilities read-props
+           */
+          public function get(string $key): string
+          {
+              return '';
+          }
+      }
+
+      $cache = new Cache();
+      echo twig()->render('index.html.twig', ['cache' => $cache, 'untrusted' => (string) $_GET['untrusted']]);
+      echo $cache->get('name');
+      """
+    And I have the following "index.html.twig" template
+      """
+      {{ cache.set('name', untrusted) }}
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: What a variable holds besides an object is not displayed through a method of the object returning something else
     Given I have the following code
       """
