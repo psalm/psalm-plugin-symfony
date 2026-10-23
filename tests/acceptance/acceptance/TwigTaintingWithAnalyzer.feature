@@ -1849,11 +1849,14 @@ Feature: Twig tainting with analyzer
           /** @var array<string, string> */
           private array $values = [];
 
+          /** @var array<string, string> */
+          private array $defaults = [];
+
           /**
            * @psalm-flow ($value) -> Cache::$data[$key]
            * @psalm-capabilities read-props|write-this-props|write-refs
            */
-          public function set(string $key, string $value): void
+          public function remember(string $key, string $value): void
           {
               $this->values[$key] = $value;
           }
@@ -1862,19 +1865,19 @@ Feature: Twig tainting with analyzer
            * @psalm-flow Cache::$data[$key] -> return
            * @psalm-capabilities read-props
            */
-          public function get(string $key): string
+          public function recall(string $key): string
           {
-              return '';
+              return $this->defaults[$key] ?? '';
           }
       }
 
       $cache = new Cache();
-      $cache->set('name', (string) $_GET['untrusted']);
+      $cache->remember('name', (is_string($_GET['untrusted']) ? $_GET['untrusted'] : ''));
       echo twig()->render('index.html.twig', ['cache' => $cache]);
       """
     And I have the following "index.html.twig" template
       """
-      <h1>{{ cache.get('name')|raw }}</h1>
+      <h1>{{ cache.recall('name')|raw }}</h1>
       """
     When I run Psalm with taint analysis
     Then I see these errors
@@ -1895,11 +1898,14 @@ Feature: Twig tainting with analyzer
           /** @var array<string, string> */
           private array $values = [];
 
+          /** @var array<string, string> */
+          private array $defaults = [];
+
           /**
            * @psalm-flow ($value) -> Cache::$data[$key]
            * @psalm-capabilities read-props|write-this-props|write-refs
            */
-          public function set(string $key, string $value): void
+          public function remember(string $key, string $value): void
           {
               $this->values[$key] = $value;
           }
@@ -1908,19 +1914,19 @@ Feature: Twig tainting with analyzer
            * @psalm-flow Cache::$data[$key] -> return
            * @psalm-capabilities read-props
            */
-          public function get(string $key): string
+          public function recall(string $key): string
           {
-              return '';
+              return $this->defaults[$key] ?? '';
           }
       }
 
       $cache = new Cache();
-      $cache->set('name', (string) $_GET['untrusted']);
+      $cache->remember('name', (is_string($_GET['untrusted']) ? $_GET['untrusted'] : ''));
       echo twig()->render('index.html.twig', ['cache' => $cache]);
       """
     And I have the following "index.html.twig" template
       """
-      <h1>{{ cache.get('title')|raw }}</h1>
+      <h1>{{ cache.recall('title')|raw }}</h1>
       """
     When I run Psalm with taint analysis
     And I see no errors
@@ -1937,11 +1943,14 @@ Feature: Twig tainting with analyzer
           /** @var array<string, string> */
           private array $values = [];
 
+          /** @var array<string, string> */
+          private array $defaults = [];
+
           /**
            * @psalm-flow ($value) -> Cache::$data[$key]
            * @psalm-capabilities read-props|write-this-props|write-refs
            */
-          public function set(string $key, string $value): void
+          public function remember(string $key, string $value): void
           {
               $this->values[$key] = $value;
           }
@@ -1950,19 +1959,19 @@ Feature: Twig tainting with analyzer
            * @psalm-flow Cache::$data[$key] -> return
            * @psalm-capabilities read-props
            */
-          public function get(string $key): string
+          public function recall(string $key): string
           {
-              return '';
+              return $this->defaults[$key] ?? '';
           }
       }
 
       $cache = new Cache();
-      $cache->set('name', (string) $_GET['untrusted']);
-      echo twig()->render('index.html.twig', ['cache' => $cache, 'key' => (string) $_GET['key']]);
+      $cache->remember('name', (is_string($_GET['untrusted']) ? $_GET['untrusted'] : ''));
+      echo twig()->render('index.html.twig', ['cache' => $cache, 'key' => (is_string($_GET['key']) ? $_GET['key'] : '')]);
       """
     And I have the following "index.html.twig" template
       """
-      <h1>{{ cache.get(key)|raw }}</h1>
+      <h1>{{ cache.recall(key)|raw }}</h1>
       """
     When I run Psalm with taint analysis
     Then I see these errors
@@ -1983,11 +1992,14 @@ Feature: Twig tainting with analyzer
           /** @var array<string, string> */
           private array $values = [];
 
+          /** @var array<string, string> */
+          private array $defaults = [];
+
           /**
            * @psalm-flow ($value) -> Cache::$data[$key]
            * @psalm-capabilities read-props|write-this-props|write-refs
            */
-          public function set(string $key, string $value): void
+          public function remember(string $key, string $value): void
           {
               $this->values[$key] = $value;
           }
@@ -1996,25 +2008,57 @@ Feature: Twig tainting with analyzer
            * @psalm-flow Cache::$data[$key] -> return
            * @psalm-capabilities read-props
            */
-          public function get(string $key): string
+          public function recall(string $key): string
           {
-              return '';
+              return $this->defaults[$key] ?? '';
           }
       }
 
       $cache = new Cache();
-      echo twig()->render('index.html.twig', ['cache' => $cache, 'untrusted' => (string) $_GET['untrusted']]);
-      echo $cache->get('name');
+      echo twig()->render('index.html.twig', ['cache' => $cache, 'untrusted' => (is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      echo $cache->recall('name');
       """
     And I have the following "index.html.twig" template
       """
-      {{ cache.set('name', untrusted) }}
+      {{ cache.remember('name', untrusted) }}
       """
     When I run Psalm with taint analysis
     Then I see these errors
       | Type                  | Message                                    |
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A tainted parameter given to a sink of a method called in an escaped print is reported
+    Given I have the following code
+      """
+      /**
+       * @psalm-api
+       * @psalm-pure
+       */
+      final class Runner
+      {
+          /**
+           * @psalm-pure
+           * @psalm-taint-sink shell $command
+           */
+          public function launchJob(string $command): string
+          {
+              return '' === $command ? '' : 'ran';
+          }
+      }
+
+      echo twig()->render('index.html.twig', ['runner' => new Runner(), 'untrusted' => (is_string($_GET['untrusted']) ? $_GET['untrusted'] : '')]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ runner.launchJob(untrusted) }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message                     |
+      | TaintedShell | Detected tainted shell code |
+      | TaintedShell | Detected tainted shell code |
     And I see no other errors
 
   Scenario: What a variable holds besides an object is not displayed through a method of the object returning something else
