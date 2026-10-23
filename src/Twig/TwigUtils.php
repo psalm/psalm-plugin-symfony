@@ -15,6 +15,23 @@ use Psalm\Type\Union;
 
 final class TwigUtils
 {
+    /**
+     * The values of the constants Psalm does not know the value of, like those defined at run time.
+     *
+     * @var array<string, string>
+     */
+    private static array $constants = [];
+
+    /**
+     * Makes the constant $name stand for $value in the template names and directories: for the constants whose value
+     * is known to the plugins or the configuration but not to Psalm, like a directory of the project defined at run
+     * time.
+     */
+    public static function addConstant(string $name, string $value): void
+    {
+        self::$constants[ltrim($name, '\\')] = $value;
+    }
+
     public static function extractTemplateNameFromExpression(Expr $templateName, StatementsSource $source): string
     {
         return self::resolveStringFromExpression($templateName, $source);
@@ -48,6 +65,10 @@ final class TwigUtils
             $left = self::resolveStringFromExpression($templateName->left, $source);
 
             return $left.$right;
+        }
+
+        if ($templateName instanceof Expr\ConstFetch && isset(self::$constants[$templateName->name->toString()])) {
+            return self::$constants[$templateName->name->toString()];
         }
 
         // a variable, a constant or `__DIR__` of a literal value

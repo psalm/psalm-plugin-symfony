@@ -171,6 +171,14 @@ The template is then the one at that path, named from the template root or, outs
 </pluginClass>
 ```
 
+A constant whose value Psalm does not know, like one defined at run time, takes its value in the template names and directories from a `twigConstant` (or, for a value known only to another plugin, like a path in the analysed project, from `TwigUtils::addConstant()`):
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigConstant name="TEMPLATE_DIR">/views</twigConstant>
+</pluginClass>
+```
+
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
 #### Cache Analyzer

@@ -21,6 +21,7 @@ use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
+use Psalm\SymfonyPsalmPlugin\Twig\TwigUtils;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -122,6 +123,14 @@ final class Plugin implements PluginEntryPointInterface
             AnalyzedTemplatesTainter::addRenderMethod($method[0], $method[1], $templateArgument, $contextArgument, $templateDirectoryArgument);
         }
         $registration->registerHooksFromClass(AnalyzedTemplatesTainter::class);
+        foreach ($config->twigConstant ?? [] as $constant) {
+            $name = trim((string) ($constant['name'] ?? ''));
+            if ('' === $name) {
+                throw new ConfigException('A twig constant has no name.');
+            }
+
+            TwigUtils::addConstant($name, (string) $constant);
+        }
 
         if (isset($config->twigRootPath)) {
             $twig_root_path = trim((string) $config->twigRootPath, DIRECTORY_SEPARATOR);
