@@ -150,6 +150,17 @@ To leverage the real Twig file analyzer, you have to configure a checker and a s
 
 Without the scanner, Psalm also parses the templates as PHP, and reports parse errors for those containing `<?php`.
 
+The analyzer follows the calls of `Twig\Environment::render()`, `AbstractController::render()` and `AbstractController::renderView()`, and of the methods overriding them.
+If your application renders templates through methods of its own, add them to the plugin configuration with the arguments (counted from 0, by default 0 and 1) naming the template and giving its variables.
+The calls of the methods overriding them, and of those of the classes implementing them when they are of an interface, are followed as well:
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigRenderMethod>App\View\Renderer::render</twigRenderMethod>
+    <twigRenderMethod templateArgument="1" contextArgument="2">App\View\Mailer::send</twigRenderMethod>
+</pluginClass>
+```
+
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
 #### Cache Analyzer
