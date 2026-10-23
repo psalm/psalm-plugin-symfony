@@ -26,14 +26,15 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 {
     /**
      * The methods rendering a template: those of the class, of the classes extending it and of the classes
-     * implementing it, with the arguments naming the template and giving its variables.
+     * implementing it, with the arguments naming the template, giving its variables and, if any, naming the directory
+     * the template is named relative to.
      *
-     * @var list<array{class: string, method: lowercase-string, template: int<0, max>, context: int<0, max>}>
+     * @var list<array{class: string, method: lowercase-string, template: int<0, max>, context: int<0, max>, directory: int<0, max>|null}>
      */
     private static array $renderMethods = [
-        ['class' => Environment::class, 'method' => 'render', 'template' => 0, 'context' => 1],
-        ['class' => AbstractController::class, 'method' => 'render', 'template' => 0, 'context' => 1],
-        ['class' => AbstractController::class, 'method' => 'renderview', 'template' => 0, 'context' => 1],
+        ['class' => Environment::class, 'method' => 'render', 'template' => 0, 'context' => 1, 'directory' => null],
+        ['class' => AbstractController::class, 'method' => 'render', 'template' => 0, 'context' => 1, 'directory' => null],
+        ['class' => AbstractController::class, 'method' => 'renderview', 'template' => 0, 'context' => 1, 'directory' => null],
     ];
 
     /**
@@ -46,18 +47,21 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     /**
      * Makes the calls of $class::$method, and of the methods overriding it, render the template named by their argument
      * $templateArgument with the variables of their argument $contextArgument (both counted from 0), and return what
-     * it outputs.
+     * it outputs. With $templateDirectoryArgument, the template is named relative to the directory that argument names
+     * (an absolute path, like `__DIR__`), not to the template root.
      *
      * @param int<0, max> $templateArgument
      * @param int<0, max> $contextArgument
+     * @param int<0, max>|null $templateDirectoryArgument
      */
-    public static function addRenderMethod(string $class, string $method, int $templateArgument = 0, int $contextArgument = 1): void
+    public static function addRenderMethod(string $class, string $method, int $templateArgument = 0, int $contextArgument = 1, ?int $templateDirectoryArgument = null): void
     {
         self::$renderMethods[] = [
             'class' => ltrim($class, '\\'),
             'method' => strtolower($method),
             'template' => $templateArgument,
             'context' => $contextArgument,
+            'directory' => $templateDirectoryArgument,
         ];
     }
 
@@ -75,12 +79,22 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         [$calledClass, $calledMethod] = explode('::', $event->getMethodId());
         $renderMethod = self::findRenderMethod($codebase, $calledClass, strtolower($calledMethod));
         $args = $expr->getArgs();
-        if (null === $renderMethod || !isset($args[$renderMethod['template']], $args[$renderMethod['context']])) {
+        if (null === $renderMethod
+            || !isset($args[$renderMethod['template']], $args[$renderMethod['context']])
+            || (null !== $renderMethod['directory'] && !isset($args[$renderMethod['directory']]))
+        ) {
             return;
         }
 
         try {
-            $templateName = TwigUtils::extractTemplateNameFromExpression($args[$renderMethod['template']]->value, $statements_source);
+            $templateName = null === $renderMethod['directory']
+                ? TwigUtils::extractTemplateNameFromExpression($args[$renderMethod['template']]->value, $statements_source)
+                : TwigUtils::extractTemplateNameInDirectory(
+                    $args[$renderMethod['directory']]->value,
+                    $args[$renderMethod['template']]->value,
+                    $statements_source,
+                    $codebase,
+                );
         } catch (TemplateNameUnresolvedException $exception) {
             if ($statements_source instanceof StatementsAnalyzer) {
                 $statements_source->getProjectAnalyzer()->progress->debug($exception->getMessage());
@@ -162,7 +176,7 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     /**
      * @param lowercase-string $calledMethod
      *
-     * @return array{class: string, method: lowercase-string, template: int<0, max>, context: int<0, max>}|null
+     * @return array{class: string, method: lowercase-string, template: int<0, max>, context: int<0, max>, directory: int<0, max>|null}|null
      */
     private static function findRenderMethod(Codebase $codebase, string $calledClass, string $calledMethod): ?array
     {
