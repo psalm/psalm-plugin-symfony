@@ -23,6 +23,7 @@ Feature: Twig tainting through configured render methods
             <twigRenderMethod>Renderer::render</twigRenderMethod>
             <twigRenderMethod templateArgument="1" contextArgument="2">\StaticRenderer::fetch</twigRenderMethod>
             <twigRenderMethod>RendererInterface::show</twigRenderMethod>
+            <twigRenderMethod templateArgument="1" contextArgument="2" templateDirectoryArgument="0">DirectoryRenderer::fetch</twigRenderMethod>
           </pluginClass>
         </plugins>
         <issueHandlers>
@@ -56,6 +57,15 @@ Feature: Twig tainting through configured render methods
 
       /** @psalm-pure */
       final class StaticRenderer
+      {
+          public static function fetch(string $directory, string $template, array $context): string
+          {
+              return '';
+          }
+      }
+
+      /** @psalm-pure */
+      final class DirectoryRenderer
       {
           public static function fetch(string $directory, string $template, array $context): string
           {
@@ -184,3 +194,51 @@ Feature: Twig tainting through configured render methods
       """
     When I run Psalm with taint analysis
     And I see no errors
+
+  Scenario: A tainted parameter of a render method naming the template in a directory of the template root is displayed with the raw filter
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo DirectoryRenderer::fetch(__DIR__ . '/templates/emails', 'welcome.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "emails/welcome.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message               |
+      | TaintedHtml           | Detected tainted HTML |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: A render method naming the template in a directory does not render the template of the same name in the template root
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo DirectoryRenderer::fetch(__DIR__ . '/templates/emails', 'index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: A tainted parameter of a render method naming the template in a directory out of the template root is displayed with the raw filter
+    Given the template root directory is "views"
+    And I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo DirectoryRenderer::fetch(__DIR__ . '/views', 'page.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "page.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message               |
+      | TaintedHtml           | Detected tainted HTML |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors

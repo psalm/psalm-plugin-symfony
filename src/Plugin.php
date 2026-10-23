@@ -114,11 +114,12 @@ final class Plugin implements PluginEntryPointInterface
             $method = explode('::', trim((string) $renderMethod));
             $templateArgument = (int) ($renderMethod['templateArgument'] ?? 0);
             $contextArgument = (int) ($renderMethod['contextArgument'] ?? 1);
-            if (2 !== count($method) || '' === $method[0] || '' === $method[1] || $templateArgument < 0 || $contextArgument < 0) {
+            $templateDirectoryArgument = isset($renderMethod['templateDirectoryArgument']) ? (int) $renderMethod['templateDirectoryArgument'] : null;
+            if (2 !== count($method) || '' === $method[0] || '' === $method[1] || $templateArgument < 0 || $contextArgument < 0 || (null !== $templateDirectoryArgument && $templateDirectoryArgument < 0)) {
                 throw new ConfigException(sprintf('The twig render method %s is not of the form Class::method with arguments counted from 0.', (string) $renderMethod));
             }
 
-            AnalyzedTemplatesTainter::addRenderMethod($method[0], $method[1], $templateArgument, $contextArgument);
+            AnalyzedTemplatesTainter::addRenderMethod($method[0], $method[1], $templateArgument, $contextArgument, $templateDirectoryArgument);
         }
         $registration->registerHooksFromClass(AnalyzedTemplatesTainter::class);
 
