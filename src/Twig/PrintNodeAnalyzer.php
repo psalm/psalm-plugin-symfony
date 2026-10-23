@@ -82,6 +82,10 @@ final class PrintNodeAnalyzer
     {
         if ($expression instanceof FilterExpression) {
             if (self::isEscapingFilter($expression)) {
+                // the escaped value is safe to print, but the calls it is made of still run: what they give the methods
+                // they call (sinks of their parameters, keyed stores) is still followed
+                $this->getTaintSources($expression->getNode('node'));
+
                 // autoescaping outputs the markup of a macro as is
                 return self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : [];
             }

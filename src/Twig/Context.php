@@ -8,6 +8,7 @@ use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Internal\Codebase\TaintFlowGraph;
+use Psalm\Internal\Codebase\TaintStore;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Internal\MethodIdentifier;
 use Psalm\Internal\Provider\ClassLikeStorageProvider;
@@ -447,6 +448,8 @@ final class Context
                 }
             }
 
+            $this->addStoreFlows($expression, $name, $methodId, $storage, $arguments, $taintDestination, $isMagic);
+
             $sourceTaints = (0 !== $storage->taint_source_types ? $storage->taint_source_types : $storage->added_taints) & ~$storage->removed_taints;
             if (0 !== $sourceTaints) {
                 $source = $this->getNode($expression, 'method_'.$name, 'source '.$methodId)->setTaints($sourceTaints);
@@ -460,6 +463,88 @@ final class Context
         }
 
         return $taintDestination;
+    }
+
+    /**
+     * Makes the method call $expression, `item.name(...)`, of $method store into and read from the keyed stores its
+     * `@psalm-flow` annotations name, `($value) -> Store::$data[$key]` and `Store::$data[$key] -> return`, as Psalm
+     * does for a PHP call (see TaintStore::taintCall()): under the key a literal argument gives, else under any key
+     * (see getStoreNames()). `__call` is given the arguments as the items of an array: each of them is stored under
+     * any key, and it reads any key.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     */
+    private function addStoreFlows(GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, array $arguments, DataFlowNode $taintDestination, bool $isMagic): void
+    {
+        foreach ($method->taint_store_writes as $write) {
+            $sources = [];
+            foreach ($isMagic ? array_keys($arguments) : $write['params'] as $offset) {
+                $sources = [...$sources, ...($isMagic ? $arguments[$offset] : self::getArgumentsOfParameter($method, $arguments, $offset))];
+            }
+
+            if ([] === $sources) {
+                continue;
+            }
+
+            $writeNode = $this->getNode($expression, 'method_'.$name, 'store write '.$methodId.' '.$write['store']);
+            foreach ($sources as $source) {
+                $this->taint->addPath($source, $writeNode, $write['path_type']);
+            }
+
+            $names = $isMagic ? [[false, '']] : self::getStoreNames($expression, $write['key'], $write['is_list']);
+            TaintStore::addWrite($this->taint, $write['store'], $names, $writeNode, $write['path_type']);
+        }
+
+        foreach ($method->taint_store_reads as $read) {
+            $readNode = $this->getNode($expression, 'method_'.$name, 'store read '.$methodId.' '.$read['store']);
+            $names = $isMagic ? [[false, '']] : self::getStoreNames($expression, $read['key'], $read['is_list']);
+            TaintStore::addRead($this->taint, $read['store'], $names, $readNode, $read['path_type']);
+            $this->taint->addPath($readNode, $taintDestination, 'arg');
+        }
+    }
+
+    /**
+     * The names of a keyed store the argument $key of the method call $expression gives, as TaintStore::getNames()
+     * tells them for a PHP call: exact for a literal string or integer, or for each item of a literal array of them if
+     * the argument is a list of keys ($isList), else any name.
+     *
+     * @return list<array{bool, string}>
+     */
+    private static function getStoreNames(GetAttrExpression $expression, ?int $key, bool $isList): array
+    {
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $argument = null;
+        if (null !== $key && $arguments instanceof ArrayExpression) {
+            foreach ($arguments->getKeyValuePairs() as $offset => ['value' => $value]) {
+                if ($offset === $key) {
+                    $argument = $value;
+                }
+            }
+        }
+
+        if ($isList) {
+            $values = $argument instanceof ArrayExpression
+                ? array_column($argument->getKeyValuePairs(), 'value')
+                : null;
+        } else {
+            $values = null === $argument ? null : [$argument];
+        }
+
+        if (null === $values) {
+            return [[false, '']];
+        }
+
+        $names = [];
+        foreach ($values as $value) {
+            $literal = $value instanceof ConstantExpression ? $value->getAttribute('value') : null;
+            if (!\is_string($literal) && !\is_int($literal)) {
+                return [[false, '']];
+            }
+
+            $names[] = [true, (string) $literal];
+        }
+
+        return $names;
     }
 
     /**
