@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\StaticCall;
 use Psalm\Codebase;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
@@ -127,7 +126,12 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
 
         // Taints going _out_ of the template. Psalm gives a static call the taints of its return after this event.
         if ($expr instanceof StaticCall) {
-            self::$staticCallTemplates ??= new \WeakMap();
+            if (null === self::$staticCallTemplates) {
+                /** @var \WeakMap<StaticCall, string> */
+                $staticCallTemplates = new \WeakMap();
+                self::$staticCallTemplates = $staticCallTemplates;
+            }
+
             self::$staticCallTemplates[$expr] = $templateName;
 
             return;
@@ -140,11 +144,17 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
     public static function afterExpressionAnalysis(AfterExpressionAnalysisEvent $event): ?bool
     {
         $expr = $event->getExpr();
-        if ($expr instanceof StaticCall && null !== self::$staticCallTemplates && isset(self::$staticCallTemplates[$expr])) {
-            $templateName = self::$staticCallTemplates[$expr];
-            unset(self::$staticCallTemplates[$expr]);
-            self::taintReturn($event->getCodebase(), $templateName, $event->getStatementsSource()->getNodeTypeProvider()->getType($expr));
+        if (!$expr instanceof StaticCall || null === self::$staticCallTemplates) {
+            return null;
         }
+
+        $templateName = self::$staticCallTemplates[$expr] ?? null;
+        if (null === $templateName) {
+            return null;
+        }
+
+        unset(self::$staticCallTemplates[$expr]);
+        self::taintReturn($event->getCodebase(), $templateName, $event->getStatementsSource()->getNodeTypeProvider()->getType($expr));
 
         return null;
     }

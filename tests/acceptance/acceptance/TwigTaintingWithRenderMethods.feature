@@ -54,6 +54,7 @@ Feature: Twig tainting through configured render methods
           }
       }
 
+      /** @psalm-pure */
       final class StaticRenderer
       {
           public static function fetch(string $directory, string $template, array $context): string
@@ -62,11 +63,14 @@ Feature: Twig tainting through configured render methods
           }
       }
 
+      /** @psalm-pure */
       interface RendererInterface
       {
+          /** @psalm-pure */
           public function show(string $template, array $context): string;
       }
 
+      /** @psalm-pure */
       final class ImplementingRenderer implements RendererInterface
       {
           #[\Override]
@@ -76,6 +80,7 @@ Feature: Twig tainting through configured render methods
           }
       }
 
+      /** @psalm-pure */
       final class UnrelatedRenderer
       {
           public function render(string $template, array $context): string
