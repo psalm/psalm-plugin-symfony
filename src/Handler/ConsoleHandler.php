@@ -96,7 +96,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 foreach ($inputItems as $inputItem) {
-                    if ($inputItem instanceof Expr\ArrayItem && $inputItem->value instanceof Expr\New_) {
+                    if ($inputItem->value instanceof Expr\New_) {
                         $args = [];
                         foreach ($inputItem->value->args as $arg) {
                             if ($arg instanceof Arg) {

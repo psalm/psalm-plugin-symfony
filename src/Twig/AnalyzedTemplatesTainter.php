@@ -6,8 +6,8 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\StaticCall;
-use Psalm\CodeLocation;
 use Psalm\Codebase;
+use Psalm\CodeLocation;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Plugin\EventHandler\AfterExpressionAnalysisInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
