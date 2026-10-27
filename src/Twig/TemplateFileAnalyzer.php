@@ -103,8 +103,6 @@ final class TemplateFileAnalyzer extends FileAnalyzer
     /**
      * The name of the template of the file $file_name (its path in the project): its path from the template root, or
      * its path in the project if it is outside of the root.
-     *
-     * @psalm-capabilities read-props
      */
     public static function getTemplateName(string $file_name): string
     {

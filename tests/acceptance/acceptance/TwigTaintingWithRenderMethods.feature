@@ -237,6 +237,11 @@ Feature: Twig tainting through configured render methods
       """
       <h1>{{ untrusted|raw }}</h1>
       """
+    And the template root directory is "templates"
+    And I have the following "layout.html.twig" template
+      """
+      <html></html>
+      """
     When I run Psalm with taint analysis
     Then I see these errors
       | Type                  | Message               |

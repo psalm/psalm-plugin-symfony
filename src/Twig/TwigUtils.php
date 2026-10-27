@@ -45,8 +45,8 @@ final class TwigUtils
     public static function extractTemplateNameInDirectory(Expr $directory, Expr $templateName, StatementsSource $source, Codebase $codebase): string
     {
         $directoryPath = self::resolveStringFromExpression($directory, $source);
-        $directoryPath = rtrim(realpath($directoryPath) ?: $directoryPath, '/');
-        $projectPath = rtrim(realpath($codebase->config->base_dir) ?: $codebase->config->base_dir, '/');
+        $directoryPath = rtrim(self::getRealPath($directoryPath), '/');
+        $projectPath = rtrim(self::getRealPath($codebase->config->base_dir), '/');
         if ($directoryPath !== $projectPath && !str_starts_with($directoryPath, $projectPath.'/')) {
             throw new TemplateNameUnresolvedException(sprintf('The template directory %s is not in the project', $directoryPath));
         }
@@ -56,6 +56,13 @@ final class TwigUtils
         return TemplateFileAnalyzer::getTemplateName(
             ('' === $relativePath ? '' : $relativePath.'/').self::resolveStringFromExpression($templateName, $source),
         );
+    }
+
+    private static function getRealPath(string $path): string
+    {
+        $realPath = realpath($path);
+
+        return false === $realPath ? $path : $realPath;
     }
 
     private static function resolveStringFromExpression(Expr $templateName, StatementsSource $source): string

@@ -50,8 +50,8 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
      * it outputs. With $templateDirectoryArgument, the template is named relative to the directory that argument names
      * (an absolute path, like `__DIR__`), not to the template root.
      *
-     * @param int<0, max> $templateArgument
-     * @param int<0, max> $contextArgument
+     * @param int<0, max>      $templateArgument
+     * @param int<0, max>      $contextArgument
      * @param int<0, max>|null $templateDirectoryArgument
      */
     public static function addRenderMethod(string $class, string $method, int $templateArgument = 0, int $contextArgument = 1, ?int $templateDirectoryArgument = null): void
