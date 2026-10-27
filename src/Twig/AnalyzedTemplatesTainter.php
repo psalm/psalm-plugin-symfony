@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\StaticCall;
+use Psalm\CodeLocation;
 use Psalm\Codebase;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Plugin\EventHandler\AfterExpressionAnalysisInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterExpressionAnalysisEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
+use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Union;
@@ -151,7 +154,10 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
             return;
         }
 
-        self::taintReturn($codebase, $templateName, $event->getReturnTypeCandidate());
+        $return = self::taintReturn($codebase, $statements_source, $expr, $templateName, $event->getReturnTypeCandidate());
+        if (null !== $return) {
+            $event->setReturnTypeCandidate($return);
+        }
     }
 
     #[\Override]
@@ -168,7 +174,12 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         }
 
         unset(self::$staticCallTemplates[$expr]);
-        self::taintReturn($event->getCodebase(), $templateName, $event->getStatementsSource()->getNodeTypeProvider()->getType($expr));
+        $statementsSource = $event->getStatementsSource();
+        $nodeTypeProvider = $statementsSource->getNodeTypeProvider();
+        $return = self::taintReturn($event->getCodebase(), $statementsSource, $expr, $templateName, $nodeTypeProvider->getType($expr));
+        if (null !== $return) {
+            $nodeTypeProvider->setType($expr, $return);
+        }
 
         return null;
     }
@@ -195,15 +206,20 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         return null;
     }
 
-    private static function taintReturn(Codebase $codebase, string $templateName, ?Union $return): void
+    /**
+     * The type of what the render call $call returns, $return, coming from a node of the call: the output of the
+     * template it renders flows into it, and what its method returns. The return node of a method whose calls Psalm
+     * doesn't specialize is shared by all its calls: the output of the template should not reach the other calls.
+     */
+    private static function taintReturn(Codebase $codebase, StatementsSource $statements_source, Expr $call, string $templateName, ?Union $return): ?Union
     {
-        if (null === $codebase->taint_flow_graph || null === $return) {
-            return;
+        if (null === $return || !$codebase->tracksTaintFlow($statements_source)) {
+            return null;
         }
 
-        $source = Context::getForTemplate($templateName);
-        foreach ($return->parent_nodes as $sink) {
-            $codebase->taint_flow_graph->addPath($source, $sink, '=');
-        }
+        $output = $codebase->getTaintNode($statements_source, 'render '.$templateName, new CodeLocation($statements_source, $call), $return);
+        $codebase->addTaintPath($statements_source, Context::getForTemplate($templateName), $output);
+
+        return $return->setParentNodes([$output]);
     }
 }

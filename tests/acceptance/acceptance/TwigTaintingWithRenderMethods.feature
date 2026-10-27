@@ -22,6 +22,7 @@ Feature: Twig tainting through configured render methods
           <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
             <twigRenderMethod>Renderer::render</twigRenderMethod>
             <twigRenderMethod templateArgument="1" contextArgument="2">\StaticRenderer::fetch</twigRenderMethod>
+            <twigRenderMethod templateArgument="1" contextArgument="2">ImpureStaticRenderer::fetch</twigRenderMethod>
             <twigRenderMethod>RendererInterface::show</twigRenderMethod>
             <twigRenderMethod templateArgument="1" contextArgument="2" templateDirectoryArgument="0">DirectoryRenderer::fetch</twigRenderMethod>
             <twigConstant name="EMAILS_DIRECTORY">/templates/emails</twigConstant>
@@ -59,6 +60,16 @@ Feature: Twig tainting through configured render methods
       /** @psalm-pure */
       final class StaticRenderer
       {
+          public static function fetch(string $directory, string $template, array $context): string
+          {
+              return '';
+          }
+      }
+
+      /** @psalm-mutable */
+      final class ImpureStaticRenderer
+      {
+          /** @psalm-impure */
           public static function fetch(string $directory, string $template, array $context): string
           {
               return '';
@@ -165,6 +176,43 @@ Feature: Twig tainting through configured render methods
       | TaintedHtml           | Detected tainted HTML |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: What a static render method call renders is only the output of the template it names
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      ImpureStaticRenderer::fetch(__DIR__, 'raw.html.twig', ['untrusted' => $untrusted]);
+      echo ImpureStaticRenderer::fetch(__DIR__, 'escaped.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "raw.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    And I have the following "escaped.html.twig" template
+      """
+      <h1>{{ untrusted }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+
+  Scenario: What a render method call renders is only the output of the template it names
+    Given I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      $renderer = new Renderer();
+      $renderer->render('raw.html.twig', ['untrusted' => $untrusted]);
+      echo $renderer->render('escaped.html.twig', ['untrusted' => $untrusted]);
+      """
+    And I have the following "raw.html.twig" template
+      """
+      <h1>{{ untrusted|raw }}</h1>
+      """
+    And I have the following "escaped.html.twig" template
+      """
+      <h1>{{ untrusted }}</h1>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
 
   Scenario: A tainted parameter of a method implementing a configured render method of an interface is displayed with the raw filter
     Given I have the following code
