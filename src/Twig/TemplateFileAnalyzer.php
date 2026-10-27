@@ -50,9 +50,7 @@ final class TemplateFileAnalyzer extends FileAnalyzer
 
         $twig = self::getEnvironment($codebase);
 
-        $local_file_name = str_starts_with($this->file_name, self::$rootPath.'/')
-            ? substr($this->file_name, \strlen(self::$rootPath) + 1)
-            : $this->file_name;
+        $local_file_name = self::getTemplateName($this->file_name);
         try {
             $twig_source = $twig->getLoader()->getSourceContext($local_file_name);
             $tree = $twig->parse($twig->tokenize($twig_source));
@@ -100,6 +98,17 @@ final class TemplateFileAnalyzer extends FileAnalyzer
         }
 
         return self::$environment = $twig;
+    }
+
+    /**
+     * The name of the template of the file $file_name (its path in the project): its path from the template root, or
+     * its path in the project if it is outside of the root.
+     */
+    public static function getTemplateName(string $file_name): string
+    {
+        return str_starts_with($file_name, self::$rootPath.'/')
+            ? substr($file_name, \strlen(self::$rootPath) + 1)
+            : $file_name;
     }
 
     public static function setTemplateRootPath(string $rootPath): void

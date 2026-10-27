@@ -161,6 +161,24 @@ The calls of the methods overriding them, and of those of the classes implementi
 </pluginClass>
 ```
 
+A method naming its template relative to a directory given in another argument, like `fetch(__DIR__, 'page.html.twig', $context)`, takes that argument as `templateDirectoryArgument`.
+The directory must resolve to a literal path in the project: a string, `__DIR__`, a constant or a variable of a literal value, or a concatenation of them.
+The template is then the one at that path, named from the template root or, outside of it, from the project:
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigRenderMethod templateArgument="1" contextArgument="2" templateDirectoryArgument="0">App\View\Templates::fetch</twigRenderMethod>
+</pluginClass>
+```
+
+A constant whose value Psalm does not know, like one defined at run time, takes its value in the template names and directories from a `twigConstant` (or, for a value known only to another plugin, like a path in the analysed project, from `TwigUtils::addConstant()`):
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigConstant name="TEMPLATE_DIR">/views</twigConstant>
+</pluginClass>
+```
+
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
 #### Cache Analyzer
