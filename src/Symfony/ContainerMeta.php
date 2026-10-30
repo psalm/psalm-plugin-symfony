@@ -103,6 +103,31 @@ final class ContainerMeta
         return $this->classNames;
     }
 
+    public function findTaggedServices(string $tagName): array
+    {
+        return $this->container->findTaggedServiceIds($tagName);
+    }
+
+    /** @return Definition[] */
+    public function getDefinitions(): array
+    {
+        return $this->container->getDefinitions();
+    }
+
+    /**
+     * @return \Iterator<int, list{string|Reference, string}>
+     *
+     * @psalm-suppress MoreSpecificReturnType
+     */
+    public function getInstanceClassFactories(): \Iterator
+    {
+        foreach ($this->container->getDefinitions() as $definition) {
+            if (is_array($factory = $definition->getFactory()) && null !== $factory[0] && 'Closure' !== $factory[0]) {
+                yield $factory;
+            }
+        }
+    }
+
     private function init(array $containerXmlPaths): void
     {
         $this->container = new ContainerBuilder();
