@@ -24,6 +24,7 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 
 - Detects the `ContainerInterface::get()` result type. Works better if you [configure](#configuration) a compiled container XML file.
 - Detects parameter return types from `ContainerInterface::getParameter()`.
+- Infers callable signatures from `#[AutowireCallable]`, `#[AutowireMethodOf]`, and `#[AutowireServiceClosure]`. Checks method targets and interface adapters.
 - Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20). Works only if you [configure](#configuration) a compiled container XML file.
 - Detects return types from console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`).
 Enforces to use "InputArgument" and "InputOption" constants as a best practice.

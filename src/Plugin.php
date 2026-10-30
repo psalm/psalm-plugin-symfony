@@ -7,6 +7,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\AutowireCallableHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
@@ -38,12 +39,15 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
+        require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $registration->registerHooksFromClass(HeaderBagHandler::class);
         $registration->registerHooksFromClass(ConsoleHandler::class);
         $registration->registerHooksFromClass(ContainerDependencyHandler::class);
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
+        $registration->registerHooksFromClass(AutowireCallableHandler::class);
+        AutowireCallableHandler::init(null);
 
         if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
             require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
@@ -65,6 +69,7 @@ final class Plugin implements PluginEntryPointInterface
         if (isset($config->containerXml)) {
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
+            AutowireCallableHandler::init($containerMeta);
 
             try {
                 /** @psalm-var list<class-string> $extensionClasses */
