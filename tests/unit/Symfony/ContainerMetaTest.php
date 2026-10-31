@@ -66,6 +66,17 @@ class ContainerMetaTest extends TestCase
         ];
     }
 
+    public function testSubscribedServiceIds(): void
+    {
+        self::assertSame([
+            'dummy_service_with_locator' => 'dummy_private_service',
+            'dummy_service_with_locator2' => 'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService',
+            'dummy_service_with_locator3' => 'Psalm\SymfonyPsalmPlugin\Tests\Fixture\DummyPrivateService',
+            'validator' => 'debug.validator',
+        ], $this->containerMeta->getSubscribedServiceIds('App\Controller\DummyController'));
+        self::assertNull($this->containerMeta->getSubscribedServiceIds('UnregisteredClass'));
+    }
+
     /**
      * @testdox with non-existent xml file
      */

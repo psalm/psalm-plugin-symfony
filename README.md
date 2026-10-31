@@ -24,7 +24,8 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 
 - Detects the `ContainerInterface::get()` result type. Works better if you [configure](#configuration) a compiled container XML file.
 - Detects parameter return types from `ContainerInterface::getParameter()`.
-- Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20). Works only if you [configure](#configuration) a compiled container XML file.
+- Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20) from literal service maps and `#[SubscribedService]` getters. Dynamic maps use the compiled container XML.
+- Infers locator service types from explicit `#[AutowireLocator]` maps, including `SubscribedService` entries, and checks unknown keys.
 - Detects return types from console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`).
 Enforces to use "InputArgument" and "InputOption" constants as a best practice.
 - Detects Doctrine repository classes associated to entities when configured via annotations.
