@@ -3913,7 +3913,10 @@ Feature: Twig tainting with analyzer
 
       use Twig\Attribute\AsTwigFilter;
 
-      /** @psalm-suppress UnusedClass */
+      /**
+       * @psalm-pure
+       * @psalm-suppress UnusedClass
+       */
       final class TwigRuntime
       {
           /**
@@ -4004,8 +4007,14 @@ Feature: Twig tainting with analyzer
       use Twig\Extension\AbstractExtension;
       use Twig\TwigFilter;
 
+      /**
+       * @psalm-pure
+       */
       final class Escaper
       {
+          /**
+           * @psalm-pure
+           */
           public function escape(string $value): string
           {
               return htmlspecialchars($value, ENT_QUOTES);
