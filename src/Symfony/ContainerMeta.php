@@ -30,7 +30,7 @@ final class ContainerMeta
     private array $classLocators = [];
 
     /**
-     * @var array<string, array<string, string>>
+     * @var array<string, array<array-key, string>>
      */
     private array $serviceLocators = [];
 
@@ -101,6 +101,18 @@ final class ContainerMeta
     public function getClassNames(): array
     {
         return $this->classNames;
+    }
+
+    /**
+     * @return array<array-key, string>|null
+     *
+     * @psalm-capabilities read-props
+     */
+    public function getSubscribedServiceIds(string $class): ?array
+    {
+        $locator = $this->classLocators[$class] ?? null;
+
+        return null === $locator ? null : ($this->serviceLocators[$locator] ?? []);
     }
 
     private function init(array $containerXmlPaths): void

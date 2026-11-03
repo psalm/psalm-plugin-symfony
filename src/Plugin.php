@@ -16,6 +16,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ServiceLocatorHandler;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
@@ -39,6 +40,7 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
+        require_once __DIR__.'/Handler/ServiceLocatorHandler.php';
         require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
@@ -46,6 +48,8 @@ final class Plugin implements PluginEntryPointInterface
         $registration->registerHooksFromClass(ConsoleHandler::class);
         $registration->registerHooksFromClass(ContainerDependencyHandler::class);
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
+        $registration->registerHooksFromClass(ServiceLocatorHandler::class);
+        ServiceLocatorHandler::init(null);
         $registration->registerHooksFromClass(AutowireCallableHandler::class);
         AutowireCallableHandler::init(null);
 
@@ -69,6 +73,7 @@ final class Plugin implements PluginEntryPointInterface
         if (isset($config->containerXml)) {
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
+            ServiceLocatorHandler::init($containerMeta);
             AutowireCallableHandler::init($containerMeta);
 
             try {

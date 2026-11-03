@@ -59,6 +59,9 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
         $expr = $event->getExpr();
         $codebase = $event->getCodebase();
         $context = $event->getContext();
+        if ($expr instanceof \PhpParser\Node\Expr\MethodCall && null !== ServiceLocatorHandler::getServices($statements_source->getNodeTypeProvider()->getType($expr->var))) {
+            return;
+        }
 
         if (!isset($expr->args[0])) {
             return;
