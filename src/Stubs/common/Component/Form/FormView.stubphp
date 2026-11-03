@@ -10,10 +10,27 @@ use Symfony\Component\Form\Exception\BadMethodCallException;
 class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
 {
     /**
-     * @psalm-suppress MixedArrayAssignment
-     * @psalm-suppress InvalidArrayOffset
+     * Keys other than the listed ones are set by form types and extensions, so the array stays open.
+     * The listed keys are the ones FormType::buildView() populates for every regular form type.
      *
-     * @psalm-var array{value: ?T, attr: array<array-key, mixed>}&array<string, mixed>
+     * @psalm-var array{
+     *     value: ?T,
+     *     attr: array<string, mixed>,
+     *     errors: FormErrorIterator<FormError|FormErrorIterator>,
+     *     valid: bool,
+     *     data: mixed,
+     *     required: bool,
+     *     label_attr: array<string, mixed>,
+     *     help: string|\Symfony\Contracts\Translation\TranslatableInterface|null,
+     *     help_attr: array<string, mixed>,
+     *     help_html: bool,
+     *     help_translation_parameters: array<string, mixed>,
+     *     compound: bool,
+     *     method: string,
+     *     action: string,
+     *     submitted: bool,
+     *     ...
+     * }
      */
     public array $vars = [
         'value' => null,
@@ -26,7 +43,7 @@ class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
     public $parent;
 
     /**
-     * @psalm-var array<string, FormView>
+     * @psalm-var array<int|string, FormView>
      */
     public $children = [];
 }

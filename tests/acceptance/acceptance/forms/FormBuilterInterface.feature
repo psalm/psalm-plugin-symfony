@@ -1,4 +1,4 @@
-@symfony-disabled
+@symfony-common
 Feature: Form builder
 
   Background:
@@ -8,7 +8,7 @@ Feature: Form builder
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
@@ -16,8 +16,9 @@ Feature: Form builder
       use Symfony\Component\Form\Extension\Core\Type\CollectionType;
 
       /** @extends AbstractType<User> */
-      class UserType extends AbstractType
+      final class UserType extends AbstractType
       {
+          #[\Override]
           public function buildForm(FormBuilderInterface $builder, array $options): void
           {
               $form = $builder->getForm();
