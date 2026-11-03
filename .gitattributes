@@ -1,6 +1,7 @@
 # Directories and files we do not want to distribute
 /.*                 export-ignore
 /tests/             export-ignore
+/bin/               export-ignore
 /composer.lock      export-ignore
 /codeception.yml    export-ignore
 /phpunit.xml        export-ignore

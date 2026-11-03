@@ -1,9 +1,9 @@
-@symfony-5 @symfony-6
+@symfony-6 @symfony-7
 Feature: Tainting
 
   Background:
-    # Request::get() is internal since Symfony 6.4
-    Given I have issue handlers "UnusedVariable,InternalMethod" suppressed
+    # Request::get() is internal since Symfony 6.4 and deprecated since Symfony 7.4
+    Given I have issue handlers "UnusedVariable,InternalMethod,DeprecatedMethod" suppressed
     And I have Symfony plugin enabled
     And I have the following code preamble
       """

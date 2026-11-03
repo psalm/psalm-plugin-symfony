@@ -1,4 +1,4 @@
-@symfony-5
+@symfony-6 @symfony-7
 Feature: AbstractController
 
   Background:
@@ -11,7 +11,7 @@ Feature: AbstractController
 
       use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
-      class MyController extends AbstractController
+      final class MyController extends AbstractController
       {
           public function __construct() {}
       }
