@@ -272,3 +272,71 @@ Feature: Required property
       | Type | Message |
       | PropertyNotSetInConstructor | Property MyServiceB::$a is not defined in constructor of MyServiceB or in any methods called in the constructor |
     And I see no other errors
+
+  Scenario: PropertyNotSetInConstructor error is raised for a property of a readonly class with the required attribute.
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Contracts\Service\Attribute\Required;
+
+      final class MyServiceA {
+      }
+
+      final readonly class MyServiceB {
+          #[Required]
+          public MyServiceA $a;
+
+          public function __construct() {}
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                        | Message                                                                                                          |
+      | PropertyNotSetInConstructor | Property MyServiceB::$a is not defined in constructor of MyServiceB or in any methods called in the constructor |
+    And I see no other errors
+
+  Scenario: PropertyNotSetInConstructor error is not raised for a property that is readonly only by the docblock tag.
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Contracts\Service\Attribute\Required;
+
+      final class MyServiceA {
+      }
+
+      final class MyServiceB {
+          /** @readonly */
+          #[Required]
+          public MyServiceA $a;
+
+          public function __construct() {}
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: PropertyNotSetInConstructor error is not raised for an inherited promoted property when the child constructor skips the parent one.
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Contracts\Service\Attribute\Required;
+
+      final class MyServiceA {
+      }
+
+      abstract class MyBaseService {
+          public function __construct(
+              #[Required]
+              public MyServiceA $a,
+          ) {}
+      }
+
+      final class MyServiceB extends MyBaseService {
+          public function __construct() {}
+      }
+      """
+    When I run Psalm
+    Then I see no errors
