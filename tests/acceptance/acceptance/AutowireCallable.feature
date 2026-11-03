@@ -248,3 +248,121 @@ Feature: Autowired callables
       | Type                    | Message                                  |
       | InvalidAutowireCallable | Method Formatter::hidden() is not public. |
     And I see no other errors
+
+  Scenario: A static return type is the target class
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Prefixer {
+          public function withPrefix(string $prefix): static { return $this; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Prefixer::class, method: 'withPrefix')]
+              private Closure $withPrefix,
+          ) {}
+
+          public function run(): Prefixer {
+              return ($this->withPrefix)('prefix');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A static parameter is the target class when it is final
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Money {
+          /** @param static $other */
+          public function add(self $other): static { return $other; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Money::class, method: 'add')]
+              private Closure $add,
+          ) {}
+
+          public function run(): Money {
+              return ($this->add)(new stdClass());
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message                                                 |
+      | InvalidArgument | Argument 1 expects Money, but stdClass provided |
+    And I see no other errors
+
+  Scenario Outline: A static parameter of a class that is not final leaves the signature as declared
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      class Money {
+          /** @param <type> $other */
+          public function equals($other): bool { return true; }
+      }
+      final class Euro extends Money {}
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Money::class, method: 'equals')]
+              private Closure $equals,
+          ) {}
+
+          public function run(): void {
+              $equals = $this->equals;
+              /** @psalm-trace $equals */
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                                 |
+      | Trace | /^\$equals: Closure(\[impure\])?$/ |
+    And I see no other errors
+
+    Examples:
+      | type          |
+      | static        |
+      | ?static       |
+      | list<static>  |
+
+  Scenario: A static nested in the return type of a class that is not final leaves the signature as declared
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      class Money {
+          /** @return Closure(static):bool */
+          public function equalTo(): Closure { return static fn (self $other): bool => true; }
+      }
+      final class Euro extends Money {}
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Money::class, method: 'equalTo')]
+              private Closure $equalTo,
+          ) {}
+
+          public function run(): void {
+              $equalTo = $this->equalTo;
+              /** @psalm-trace $equalTo */
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message                              |
+      | Trace | /^\$equalTo: Closure(\[impure\])?$/ |
+    And I see no other errors

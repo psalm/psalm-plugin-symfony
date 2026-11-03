@@ -248,17 +248,46 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             return null;
         }
 
+        // The closure is bound to an instance of $class, or of a subtype when $class is not final: then only a top-level
+        // `static` return type is known (it widens to $class), and any other `static` leaves the signature as declared
+        $final = $codebase->classlike_storage_provider->get($class)->final;
         $params = [];
         foreach ($storage->params as $parameter) {
             $parameter = clone $parameter;
             if (null !== $parameter->type) {
-                $parameter->type = TypeExpander::expandUnion($codebase, $parameter->type, $selfClass, $class, null);
+                if (!$final && self::mentionsStatic($codebase, $parameter->type, $selfClass, $class, false)) {
+                    return null;
+                }
+                $parameter->type = TypeExpander::expandUnion($codebase, $parameter->type, $selfClass, $class, null, final: true);
             }
             $params[] = $parameter;
         }
-        $returnType = null === $storage->return_type ? null : TypeExpander::expandUnion($codebase, $storage->return_type, $selfClass, $class, null);
+        $returnType = null;
+        if (null !== $storage->return_type) {
+            if (!$final && self::mentionsStatic($codebase, $storage->return_type, $selfClass, $class, true)) {
+                return null;
+            }
+            $returnType = TypeExpander::expandUnion($codebase, $storage->return_type, $selfClass, $class, null, final: true);
+        }
 
         return new Union([new TClosure($params, $returnType, $storage->capabilities, callable_id: strtolower((string) $id))]);
+    }
+
+    private static function mentionsStatic(Codebase $codebase, Union $type, string $selfClass, string $class, bool $exceptTopLevel): bool
+    {
+        foreach ($type->getAtomicTypes() as $atomic) {
+            // only a plain `static` (not generic, not an intersection) is exempted
+            if ($exceptTopLevel && TNamedObject::class === $atomic::class && [] === $atomic->extra_types && ($atomic->is_static || \in_array(strtolower($atomic->value), ['static', '$this'], true))) {
+                continue;
+            }
+            $single = new Union([$atomic]);
+            // the expansions only differ when the type mentions `static` or `$this`, at any depth
+            if (TypeExpander::expandUnion($codebase, $single, $selfClass, $class, null, final: true)->getId() !== TypeExpander::expandUnion($codebase, $single, $selfClass, $class, null)->getId()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function getString(Codebase $codebase, AttributeStorage $attribute, string $name, int $position): ?string
