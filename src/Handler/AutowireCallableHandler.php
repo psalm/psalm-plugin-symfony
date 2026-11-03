@@ -221,7 +221,7 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
 
             return null;
         }
-        $storage = $codebase->methods->getStorage($id);
+        $storage = $codebase->methods->getStorage($codebase->methods->getDeclaringMethodId($id) ?? $id);
         if (1 !== $storage->visibility) {
             IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not public.', $class, $method), $attribute->location));
 
