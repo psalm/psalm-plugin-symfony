@@ -317,25 +317,45 @@ Feature: Required property
     When I run Psalm
     Then I see no errors
 
-  Scenario: PropertyNotSetInConstructor error is not raised for an inherited promoted property when the child constructor skips the parent one.
-    Given I have the following code
+  Scenario: A promoted property with the required attribute stays initialized in its constructor without taint analysis.
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" runTaintAnalysis="false">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <containerXml>../../tests/acceptance/container.xml</containerXml>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
       """
       <?php
 
       use Symfony\Contracts\Service\Attribute\Required;
 
+      final class Dep {
+      }
+
       final class MyServiceA {
+          public int $id;
+
+          public function __construct(#[Required] public Dep $dep) {
+              $this->id = spl_object_id($this->dep);
+          }
       }
 
-      abstract class MyBaseService {
-          public function __construct(
-              #[Required]
-              public MyServiceA $a,
-          ) {}
-      }
+      final class MyServiceB {
+          public Dep $copy;
 
-      final class MyServiceB extends MyBaseService {
-          public function __construct() {}
+          public function __construct(#[Required] public Dep $a) {
+              $this->copy = $this->a;
+          }
       }
       """
     When I run Psalm

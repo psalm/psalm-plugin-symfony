@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
-use PhpParser\Node\Expr\Variable;
-use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Trait_;
-use Psalm\Aliases;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
@@ -24,6 +21,9 @@ use Psalm\Type\Atomic\TNull;
  * The pass only skips untyped, union and intersection typed properties before Symfony 8.1. Since 8.1 it also
  * rejects, with a container compilation error, properties that are not public(set). The handler follows the
  * strictest (8.1+) rules: a property Symfony may fail to write must keep its PropertyNotSetInConstructor issue.
+ *
+ * Constructor promoted properties are not handled: Psalm records no attributes for them and already treats them as
+ * initialized by their constructor.
  */
 final class RequiredPropertyHandler implements AfterClassLikeVisitInterface
 {
@@ -39,25 +39,21 @@ final class RequiredPropertyHandler implements AfterClassLikeVisitInterface
 
         $storage = $event->getStorage();
         $readonlyNames = self::nativeReadonlyPropertyNames($stmt);
-        $promotedRequiredNames = self::promotedRequiredPropertyNames($stmt, $event->getStatementsSource()->getAliases());
 
         foreach ($storage->properties as $name => $property) {
             if (isset($readonlyNames[$name])) {
                 continue;
             }
 
-            if (self::isInjectedBySymfony($property, isset($promotedRequiredNames[$name]))) {
+            if (self::isInjectedBySymfony($property)) {
                 $storage->initialized_properties[$name] = true;
-                // Psalm treats an inherited promoted property as uninitialized when the child declares its own
-                // constructor, which hides the injection by Symfony.
-                $property->is_promoted = false;
             }
         }
     }
 
     /**
-     * Names of the properties that are natively readonly (property or class modifier) without an explicit
-     * public(set). PHP makes these implicitly protected(set), so Symfony cannot write them.
+     * Names of the declared properties that are natively readonly (property or class modifier) without an
+     * explicit public(set). PHP makes these implicitly protected(set), so Symfony cannot write them.
      *
      * The syntax tree is used because PropertyStorage::$readonly also reflects the `@readonly` docblock tag,
      * which does not prevent Symfony from writing the property, and does not record the implicit set visibility.
@@ -77,76 +73,13 @@ final class RequiredPropertyHandler implements AfterClassLikeVisitInterface
             }
         }
 
-        foreach ($stmt->getMethods() as $method) {
-            if (0 !== strcasecmp('__construct', $method->name->toString())) {
-                continue;
-            }
-
-            foreach ($method->params as $param) {
-                if (!$param->isPromoted() || !$param->var instanceof Variable || !\is_string($param->var->name)) {
-                    continue;
-                }
-
-                if (($isReadonlyClass || $param->isReadonly()) && !$param->isPublicSet()) {
-                    $names[$param->var->name] = true;
-                }
-            }
-        }
-
         return $names;
-    }
-
-    /**
-     * Psalm does not copy the attributes of a promoted constructor parameter to the property it declares.
-     *
-     * @return array<string, true>
-     */
-    private static function promotedRequiredPropertyNames(ClassLike $stmt, Aliases $aliases): array
-    {
-        $names = [];
-
-        foreach ($stmt->getMethods() as $method) {
-            if (0 !== strcasecmp('__construct', $method->name->toString())) {
-                continue;
-            }
-
-            foreach ($method->params as $param) {
-                if (!$param->isPromoted() || !$param->var instanceof Variable || !\is_string($param->var->name)) {
-                    continue;
-                }
-
-                foreach ($param->attrGroups as $attrGroup) {
-                    foreach ($attrGroup->attrs as $attribute) {
-                        if (self::REQUIRED_ATTRIBUTE === self::resolveAttributeName($attribute->name, $aliases)) {
-                            $names[$param->var->name] = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return $names;
-    }
-
-    private static function resolveAttributeName(Name $name, Aliases $aliases): string
-    {
-        if ($name->isFullyQualified()) {
-            return $name->toString();
-        }
-
-        $first = $name->getFirst();
-        $alias = $aliases->uses[strtolower($first)] ?? null;
-        if (null !== $alias) {
-            return implode('\\', [$alias, ...array_slice($name->getParts(), 1)]);
-        }
-
-        return ('' !== (string) $aliases->namespace ? $aliases->namespace.'\\' : '').$name->toString();
     }
 
     /**
      * Applies the visibility, type and attribute rules of AutowireRequiredPropertiesPass.
      */
-    private static function isInjectedBySymfony(PropertyStorage $property, bool $promotedRequired): bool
+    private static function isInjectedBySymfony(PropertyStorage $property): bool
     {
         if ($property->is_static
             || ClassLikeAnalyzer::VISIBILITY_PUBLIC !== $property->visibility
@@ -155,7 +88,7 @@ final class RequiredPropertyHandler implements AfterClassLikeVisitInterface
             return false;
         }
 
-        if (!$promotedRequired && !self::hasRequiredAttribute($property)) {
+        if (!self::hasRequiredAttribute($property)) {
             return false;
         }
 
