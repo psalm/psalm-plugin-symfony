@@ -1,4 +1,4 @@
-@symfony-5, @symfony-6
+@symfony-common
 Feature: Form test
 
   Background:

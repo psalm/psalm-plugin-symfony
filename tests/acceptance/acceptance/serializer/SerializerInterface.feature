@@ -1,10 +1,9 @@
-@symfony-5
+@symfony-common
 Feature: Serializer interface
   Detect SerializerInterface::deserialize() result type
 
   Background:
-    Given I have issue handler "UnusedVariable,MethodSignatureMustProvideReturnType" suppressed
-    And I have Symfony plugin enabled
+    Given I have Symfony plugin enabled
 
   Scenario: Psalm recognizes deserialization result as an object when a class is passed as a type
     Given I have the following code
@@ -51,12 +50,14 @@ Feature: Serializer interface
 
       final class Serializer implements SerializerInterface
       {
-        public function serialize($data, string $format, array $context = [])
+        #[\Override]
+        public function serialize(mixed $data, string $format, array $context = []): string
         {
           return '';
         }
 
-        public function deserialize($data, string $type, string $format, array $context = [])
+        #[\Override]
+        public function deserialize(mixed $data, string $type, string $format, array $context = []): mixed
         {
           return [];
         }

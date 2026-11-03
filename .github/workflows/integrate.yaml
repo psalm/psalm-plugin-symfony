@@ -78,6 +78,8 @@ jobs:
           - 8.3
           - 8.4
 
+        # Every feature must carry a tag from the groups run below (see bin/ci/check-feature-tags.php).
+        # Unquoted YAML numbers are rendered without a trailing zero: 7.0 becomes "7" and 8.0 becomes "8".
         symfony-version:
           - 6
           - 7.0
@@ -102,7 +104,9 @@ jobs:
           tools: flex
 
       - name: "Restrict symfony dependencies to the correct version"
-        run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+        run: composer config extra.symfony.require "${SYMFONY_VERSION}.*"
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
@@ -114,4 +118,29 @@ jobs:
         run: vendor/bin/codecept build
 
       - name: "Run acceptance tests with codeception"
-        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+        run: |
+          major="${SYMFONY_VERSION%%.*}"
+          vendor/bin/codecept run -v -g symfony-common -g "symfony-${SYMFONY_VERSION}" -g "symfony-${major}"
+
+  acceptance-tags:
+    name: "Acceptance feature tags"
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v7
+
+      - name: "Install PHP with extensions"
+        uses: shivammathur/setup-php@v2
+        with:
+          coverage: none
+          php-version: 8.4
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: "Check that CI runs every acceptance feature"
+        run: php bin/ci/check-feature-tags.php
