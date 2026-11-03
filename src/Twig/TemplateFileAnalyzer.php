@@ -99,12 +99,17 @@ final class TemplateFileAnalyzer extends FileAnalyzer
                 continue;
             }
 
-            $extension = \is_string($runtimeClass)
-                ? new $extensionClass($runtimeClass)
-                : (new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor();
+            // the services of an extension are not available, but a constructor that can do without them (like those of
+            // the Symfony bridge extensions) still initializes its properties
+            $constructor = (new \ReflectionClass($extensionClass))->getConstructor();
 
             // Twig initializes an extension lazily, an extension built without its constructor may then fail for every template
             try {
+                $extension = match (true) {
+                    \is_string($runtimeClass) => new $extensionClass($runtimeClass),
+                    null === $constructor || ($constructor->isPublic() && 0 === $constructor->getNumberOfRequiredParameters()) => new $extensionClass(),
+                    default => (new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor(),
+                };
                 $probe = new Environment(new ArrayLoader());
                 $probe->addExtension($extension);
                 $probe->parse($probe->tokenize(new Source('', 'probe')));
