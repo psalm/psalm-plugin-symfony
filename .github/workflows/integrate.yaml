@@ -7,6 +7,13 @@ on:
       - 5.x
   schedule:
     - cron: "0 10 * * 6"
+  workflow_dispatch: ~
+
+# A new push to a pull request supersedes its running jobs. Pushes to 5.x and scheduled runs get a unique group,
+# so they are never cancelled or replaced by a later run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Psalm requires this plugin, and the checkout has no tags to guess its version from: without it, Composer installs
@@ -68,31 +75,44 @@ jobs:
         run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --shepherd --show-info=false --stats --output-format=github --php-version=8.0
         if: matrix.php-version == '8.0'
 
+  tests-matrix:
+    name: "Tests matrix"
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v7
+
+      # .github/acceptance-matrix.json lists the PHP and Symfony combinations. Pull requests and pushes run the
+      # "always" ones (the lowest and the highest PHP version of every Symfony version). Scheduled and manual runs
+      # add the "scheduled-only" ones, then every combination is split into the configured number of shards.
+      - name: "Build the Tests matrix"
+        id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          matrix="$(jq --compact-output --arg event "$EVENT_NAME" '
+            .shards as $shards
+            | (.always + (if $event == "schedule" or $event == "workflow_dispatch" then ."scheduled-only" else [] end))
+            | {include: [.[] | . as $combination | range(1; $shards + 1) | $combination + {shard: ., shards: $shards}]}
+          ' .github/acceptance-matrix.json)"
+          echo "$matrix" | jq .
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   tests:
-    name: "Tests (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
+    name: "Tests (PHP: ${{ matrix.php-version }}, Symfony: ${{ matrix.symfony-version }}, shard: ${{ matrix.shard }}/${{ matrix.shards }})"
+
+    needs: tests-matrix
 
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
-      matrix:
-        php-version:
-          - 8.2
-          - 8.3
-          - 8.4
-          - 8.5
-
-        symfony-version:
-          - 6
-          - 7.0
-          - 7.4
-          - 8.0
-
-        exclude:
-          - php-version: 8.2
-            symfony-version: 8.0
-          - php-version: 8.3
-            symfony-version: 8.0
+      matrix: ${{ fromJSON(needs.tests-matrix.outputs.matrix) }}
 
     steps:
       - name: "Checkout"
@@ -106,16 +126,23 @@ jobs:
           tools: flex
 
       - name: "Restrict symfony dependencies to the correct version"
-        run: composer config extra.symfony.require ${{ matrix.symfony-version }}.*
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+        run: composer config extra.symfony.require "${SYMFONY_VERSION}.*"
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
 
+      # The unit tests do not depend on the shard, so only the first one runs them.
       - name: "Run unit tests with phpunit"
+        if: matrix.shard == 1
         run: vendor/bin/phpunit --configuration=phpunit.xml
 
       - name: "Build acceptance tests with codeception"
         run: vendor/bin/codecept build
 
       - name: "Run acceptance tests with codeception"
-        run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+          SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+        run: vendor/bin/codecept run -v -g symfony-common -g "symfony-${SYMFONY_VERSION}" --shard "$SHARD"
