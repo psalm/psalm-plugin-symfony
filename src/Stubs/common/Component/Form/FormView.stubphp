@@ -10,25 +10,26 @@ use Symfony\Component\Form\Exception\BadMethodCallException;
 class FormView implements \ArrayAccess, \IteratorAggregate, \Countable
 {
     /**
-     * Keys other than the listed ones are set by form types and extensions, so the array stays open.
-     * The listed keys are the ones FormType::buildView() populates for every regular form type.
+     * "value" and "attr" are always present. The other listed keys are set by FormType::buildView(), so they are
+     * missing on a fresh FormView and on views of types that do not extend FormType (ButtonType).
+     * Keys added by other types stay readable and writable as mixed, so the array stays open.
      *
      * @psalm-var array{
      *     value: ?T,
-     *     attr: array<string, mixed>,
-     *     errors: FormErrorIterator<FormError|FormErrorIterator>,
-     *     valid: bool,
-     *     data: mixed,
-     *     required: bool,
-     *     label_attr: array<string, mixed>,
-     *     help: string|\Symfony\Contracts\Translation\TranslatableInterface|null,
-     *     help_attr: array<string, mixed>,
-     *     help_html: bool,
-     *     help_translation_parameters: array<string, mixed>,
-     *     compound: bool,
-     *     method: string,
-     *     action: string,
-     *     submitted: bool,
+     *     attr: array<array-key, mixed>,
+     *     errors?: FormErrorIterator<FormError>|FormErrorIterator<FormError|FormErrorIterator>,
+     *     valid?: bool,
+     *     data?: mixed,
+     *     required?: bool,
+     *     label_attr?: array<array-key, mixed>,
+     *     help?: string|\Symfony\Contracts\Translation\TranslatableInterface|null,
+     *     help_attr?: array<array-key, mixed>,
+     *     help_html?: bool,
+     *     help_translation_parameters?: array<array-key, mixed>,
+     *     compound?: bool,
+     *     method?: string,
+     *     action?: string,
+     *     submitted?: bool,
      *     ...
      * }
      */
