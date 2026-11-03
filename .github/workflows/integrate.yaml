@@ -2,6 +2,7 @@ name: "Integrate"
 
 on:
   pull_request: ~
+  workflow_dispatch: ~
   push:
     branches:
       - 5.x
@@ -119,3 +120,61 @@ jobs:
 
       - name: "Run acceptance tests with codeception"
         run: vendor/bin/codecept run -v -g symfony-common -g symfony-${{ matrix.symfony-version }}
+
+  # Tracks the unreleased vimeo/psalm master, so a change of Psalm that breaks the plugin shows up before the next
+  # release. It never blocks a change: it runs on schedule or on demand only, and a failure does not fail the workflow.
+  psalm-dev-master:
+    name: "Psalm dev-master canary (PHP: ${{matrix.php-version}}, Symfony: ${{matrix.symfony-version}})"
+
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    continue-on-error: true
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php-version: 8.5
+            symfony-version: 8.0
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v7
+
+      - name: "Install PHP with extensions"
+        uses: shivammathur/setup-php@v2
+        with:
+          coverage: none
+          php-version: ${{ matrix.php-version }}
+          tools: flex
+
+      - name: "Restrict symfony dependencies to the correct version"
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+        run: composer config extra.symfony.require "$SYMFONY_VERSION.*"
+
+      - name: "Install the unreleased vimeo/psalm"
+        run: |
+          composer require --no-update --no-interaction vimeo/psalm:dev-master
+          composer update --no-interaction --no-progress --prefer-dist
+
+      - name: "Show the installed vimeo/psalm"
+        run: composer show vimeo/psalm
+
+      - name: "Run vimeo/psalm"
+        run: vendor/bin/psalm --find-dead-code --find-unused-psalm-suppress --show-info=false --stats --output-format=github --php-version="$PHP_VERSION"
+        env:
+          PHP_VERSION: ${{ matrix.php-version }}
+
+      - name: "Run unit tests with phpunit"
+        run: vendor/bin/phpunit --configuration=phpunit.xml
+
+      - name: "Build acceptance tests with codeception"
+        run: vendor/bin/codecept build
+
+      - name: "Run acceptance tests with codeception"
+        env:
+          SYMFONY_VERSION: ${{ matrix.symfony-version }}
+        run: vendor/bin/codecept run -v -g symfony-common -g "symfony-$SYMFONY_VERSION"
