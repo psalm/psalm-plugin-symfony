@@ -9,10 +9,12 @@ use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\MethodCallAnalyzer;
 use Psalm\Internal\Analyzer\StatementsAnalyzer;
+use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Plugin\EventHandler\Event\MethodReturnTypeProviderEvent;
 use Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface;
 use Psalm\SymfonyPsalmPlugin\Exception\TemplateNameUnresolvedException;
 use Psalm\Type\Atomic\TNamedObject;
+use Psalm\Type\TaintKind;
 use Psalm\Type\Union;
 use Twig\Environment;
 
@@ -82,6 +84,34 @@ final class CachedTemplatesTainter implements MethodReturnTypeProviderInterface
             $context
         );
 
+        self::addGeneratedOutputSink($source, $event, $fake_method_call);
+
         return null;
+    }
+
+    /**
+     * A template compiled by Twig 3.9 or later yields its output instead of echoing it, so nothing outputs what the
+     * generator returned by `doDisplay()` holds: this makes that the output.
+     */
+    private static function addGeneratedOutputSink(StatementsAnalyzer $source, MethodReturnTypeProviderEvent $event, MethodCall $fakeMethodCall): void
+    {
+        $taintFlowGraph = $source->taint_flow_graph;
+        $generator = $source->node_data->getType($fakeMethodCall);
+        if (null === $taintFlowGraph || null === $generator) {
+            return;
+        }
+
+        $sink = DataFlowNode::getForCallableArg(
+            'builtin',
+            'twig_render',
+            0,
+            $event->getCodeLocation(),
+            TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES
+        );
+        $taintFlowGraph->addSink($sink);
+
+        foreach ($generator->parent_nodes as $parentNode) {
+            $taintFlowGraph->addPath($parentNode, $sink, 'arrayvalue-fetch');
+        }
     }
 }
