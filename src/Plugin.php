@@ -15,6 +15,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ServiceLocatorHandler;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
@@ -39,6 +40,7 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
+        require_once __DIR__.'/Handler/RequiredPropertyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/ServiceLocatorHandler.php';
         require_once __DIR__.'/Handler/AutowireCallableHandler.php';
@@ -47,6 +49,7 @@ final class Plugin implements PluginEntryPointInterface
         $registration->registerHooksFromClass(HeaderBagHandler::class);
         $registration->registerHooksFromClass(ConsoleHandler::class);
         $registration->registerHooksFromClass(ContainerDependencyHandler::class);
+        $registration->registerHooksFromClass(RequiredPropertyHandler::class);
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
         $registration->registerHooksFromClass(ServiceLocatorHandler::class);
         ServiceLocatorHandler::init(null);
