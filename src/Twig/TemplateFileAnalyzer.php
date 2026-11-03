@@ -99,17 +99,39 @@ final class TemplateFileAnalyzer extends FileAnalyzer
                 continue;
             }
 
-            $extension = \is_string($runtimeClass)
-                ? new $extensionClass($runtimeClass)
-                : (new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor();
+            $reflection = new \ReflectionClass($extensionClass);
+            $constructor = $reflection->getConstructor();
+            $builds = [];
+            if (\is_string($runtimeClass)) {
+                $builds[] = static fn (): ExtensionInterface => new $extensionClass($runtimeClass);
+            } else {
+                // the services of an extension are not available, but a constructor that can do without them (like those
+                // of the Symfony bridge extensions) still initializes its properties; one that fails without them may
+                // still give an extension that works without its constructor
+                if (null === $constructor || ($constructor->isPublic() && 0 === $constructor->getNumberOfRequiredParameters())) {
+                    $builds[] = static fn (): ExtensionInterface => new $extensionClass();
+                }
+                $builds[] = static fn (): ExtensionInterface => $reflection->newInstanceWithoutConstructor();
+            }
 
-            // Twig initializes an extension lazily, an extension built without its constructor may then fail for every template
-            try {
-                $probe = new Environment(new ArrayLoader());
-                $probe->addExtension($extension);
-                $probe->parse($probe->tokenize(new Source('', 'probe')));
-            } catch (\Throwable $error) {
-                $codebase->progress->warning(\sprintf('The Twig extension %s is not used to analyze the templates: %s', $extensionClass, $error->getMessage()));
+            $extension = null;
+            $failure = '';
+            foreach ($builds as $build) {
+                // Twig initializes an extension lazily, an extension built without its constructor may then fail for every template
+                try {
+                    $candidate = $build();
+                    $probe = new Environment(new ArrayLoader());
+                    $probe->addExtension($candidate);
+                    $probe->parse($probe->tokenize(new Source('', 'probe')));
+                    $extension = $candidate;
+                    break;
+                } catch (\Throwable $error) {
+                    $failure = $error->getMessage();
+                }
+            }
+
+            if (null === $extension) {
+                $codebase->progress->warning(\sprintf('The Twig extension %s is not used to analyze the templates: %s', $extensionClass, $failure));
 
                 continue;
             }

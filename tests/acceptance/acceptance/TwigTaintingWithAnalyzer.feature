@@ -4054,3 +4054,197 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario: An extension whose constructor needs no arguments is built with it
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true" autoloader="autoload.php">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <containerXml>container.xml</containerXml>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code in "container.xml"
+      """
+      <?xml version="1.0" encoding="utf-8"?>
+      <container xmlns="http://symfony.com/schema/dic/services">
+        <services>
+          <service id="twig" class="Twig\Environment" public="true">
+            <call method="addExtension"><argument type="service" id="app.twig_extension"/></call>
+          </service>
+          <service id="app.twig_extension" class="App\TwigExtension"/>
+        </services>
+      </container>
+      """
+    And I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      /**
+       * @psalm-pure
+       */
+      final class Escaper
+      {
+      }
+
+      final class TwigExtension extends AbstractExtension
+      {
+          public function __construct(private ?Escaper $escaper = null)
+          {
+          }
+
+          #[\Override]
+          public function getFilters(): array
+          {
+              if (null === $this->escaper) {
+                  $this->escaper = new Escaper();
+              }
+
+              return [new TwigFilter('app_escape', [self::class, 'escape'])];
+          }
+
+          /**
+           * @psalm-pure
+           * @psalm-taint-escape html
+           * @psalm-taint-escape has_quotes
+           */
+          public static function escape(string $value): string
+          {
+              return htmlspecialchars($value, ENT_QUOTES);
+          }
+      }
+      """
+    And I have the following code in "autoload.php"
+      """
+      <?php
+
+      require_once __DIR__.'/TwigExtension.php';
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|app_escape|raw }}</h1>
+      <h2>{{ untrusted|raw }}</h2>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+  Scenario: An extension whose constructor fails without its services is built without it
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true" autoloader="autoload.php">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <containerXml>container.xml</containerXml>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code in "container.xml"
+      """
+      <?xml version="1.0" encoding="utf-8"?>
+      <container xmlns="http://symfony.com/schema/dic/services">
+        <services>
+          <service id="twig" class="Twig\Environment" public="true">
+            <call method="addExtension"><argument type="service" id="app.twig_extension"/></call>
+          </service>
+          <service id="app.twig_extension" class="App\TwigExtension"/>
+        </services>
+      </container>
+      """
+    And I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      final class TwigExtension extends AbstractExtension
+      {
+          public function __construct(?\Stringable $prefix = null)
+          {
+              if (null === $prefix) {
+                  throw new \LogicException('The prefix service is missing.');
+              }
+          }
+
+          #[\Override]
+          public function getFilters(): array
+          {
+              return [new TwigFilter('app_escape', [self::class, 'escape'])];
+          }
+
+          /**
+           * @psalm-pure
+           * @psalm-taint-escape html
+           * @psalm-taint-escape has_quotes
+           */
+          public static function escape(string $value): string
+          {
+              return htmlspecialchars($value, ENT_QUOTES);
+          }
+      }
+      """
+    And I have the following code in "autoload.php"
+      """
+      <?php
+
+      require_once __DIR__.'/TwigExtension.php';
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|app_escape|raw }}</h1>
+      <h2>{{ untrusted|raw }}</h2>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
