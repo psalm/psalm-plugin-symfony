@@ -60,8 +60,13 @@ function featureTags(string $featureFile): array
             return $tags;
         }
         if (str_starts_with($line, '@')) {
-            foreach (preg_split('/[\s,]+/', $line, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $tag) {
-                $tags[] = ltrim($tag, '@');
+            // Same lexing as Gherkin: a "#" after whitespace starts a comment, and a tag runs up to the next whitespace
+            // (so "@a, @b" is the tag "a," followed by "b").
+            $line = (string) preg_replace('/\s#.*$/', '', $line);
+            foreach (preg_split('/\s+/', $line, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+                if (str_starts_with($token, '@')) {
+                    $tags[] = substr($token, 1);
+                }
             }
         }
     }
