@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "0 10 * * 6"
 
+env:
+  # Psalm requires this plugin, and the checkout has no tags to guess its version from: without it, Composer installs
+  # an old Psalm release candidate that did not require the plugin.
+  COMPOSER_ROOT_VERSION: 5.x-dev
+
 jobs:
   static-code-analysis:
     name: "Static Code Analysis (PHP: ${{matrix.php-version}}, deps: ${{matrix.dependencies}})"
@@ -18,7 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 8.1
           - 8.2
           - 8.3
           - 8.4
@@ -70,7 +74,6 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - 8.1
           - 8.2
           - 8.3
           - 8.4
@@ -82,12 +85,6 @@ jobs:
           - 8.0
 
         exclude:
-          - php-version: 8.1
-            symfony-version: 7.0
-          - php-version: 8.1
-            symfony-version: 7.4
-          - php-version: 8.1
-            symfony-version: 8.0
           - php-version: 8.2
             symfony-version: 8.0
           - php-version: 8.3
