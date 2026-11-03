@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
-class CachedTemplatesRegistry
+/**
+ * @psalm-capabilities read-props|write-this-props|write-refs
+ */
+final class CachedTemplatesRegistry
 {
     /**
      * @var array<string, string>
      */
     private $mapping = [];
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
     public function addTemplate(string $cacheClassName, string $templateName): void
     {
         $this->mapping[$templateName] = $cacheClassName;
@@ -18,6 +24,8 @@ class CachedTemplatesRegistry
 
     /**
      * @throws CachedTemplateNotFoundException
+     *
+     * @psalm-capabilities read-props
      */
     public function getCacheClassName(string $templateName): string
     {
@@ -35,6 +43,8 @@ class CachedTemplatesRegistry
 
     /**
      * @return \Generator<string>
+     *
+     * @psalm-pure
      */
     private static function generateNames(string $baseName): \Generator
     {

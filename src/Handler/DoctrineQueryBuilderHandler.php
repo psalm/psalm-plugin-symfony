@@ -10,8 +10,9 @@ use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\QueryBuilderSetParameter;
 
-class DoctrineQueryBuilderHandler implements AfterMethodCallAnalysisInterface
+final class DoctrineQueryBuilderHandler implements AfterMethodCallAnalysisInterface
 {
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $expr = $event->getExpr();

@@ -8,7 +8,7 @@ Feature: Form interface
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\FormInterface;
 

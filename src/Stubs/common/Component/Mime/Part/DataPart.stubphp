@@ -1,0 +1,11 @@
+<?php
+
+namespace Symfony\Component\Mime\Part;
+
+class DataPart extends TextPart
+{
+    /**
+     * @psalm-taint-sink file $path
+     */
+    public static function fromPath(string $path, ?string $name = null, ?string $contentType = null): self {}
+}

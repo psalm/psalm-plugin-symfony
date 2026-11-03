@@ -15,7 +15,7 @@ Feature: LockableTrait
       use Symfony\Component\Console\Input\InputOption;
       use Symfony\Component\Console\Output\OutputInterface;
 
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
         use LockableTrait;
       }

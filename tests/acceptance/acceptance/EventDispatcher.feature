@@ -11,7 +11,7 @@ Feature: EventDispatcherInterface
 
       use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
-      class Foo
+      final class Foo
       {
           public function test(EventDispatcherInterface $dispatcher, Foo $object): Foo
           {

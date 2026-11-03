@@ -20,7 +20,7 @@ Feature: RepositoryStringShortcut
   Scenario: Asserting using 'AppBundle:Entity' syntax raises issue
     Given I have the following code
       """
-      class SomeService
+      final class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
         {
@@ -37,7 +37,7 @@ Feature: RepositoryStringShortcut
   Scenario: Asserting using 'Entity::class' notation does not raise issue
     Given I have the following code
       """
-      class SomeService
+      final class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
         {
@@ -51,7 +51,7 @@ Feature: RepositoryStringShortcut
   Scenario: Dynamic repository calls should not be complained
     Given I have the following code
       """
-      class SomeService
+      final class SomeService
       {
         public function __construct(EntityManagerInterface $entityManager)
         {

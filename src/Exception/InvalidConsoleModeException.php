@@ -2,6 +2,6 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Exception;
 
-class InvalidConsoleModeException extends \InvalidArgumentException
+final class InvalidConsoleModeException extends \InvalidArgumentException
 {
 }

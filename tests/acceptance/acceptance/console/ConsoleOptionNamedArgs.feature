@@ -16,13 +16,15 @@ Feature: ConsoleOption named arguments with PHP8
   Scenario: Assert adding options skipping default arguments with named arguments works as expected
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption('test', mode: InputOption::VALUE_REQUIRED, default: 'test');
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $string */
@@ -41,8 +43,9 @@ Feature: ConsoleOption named arguments with PHP8
   Scenario: Assert adding options with only named arguments works as expected
     Given I have the following code
       """
-      class MyCommand extends Command
+      final class MyCommand extends Command
       {
+        #[\Override]
         public function configure(): void
         {
           $this->addOption(
@@ -54,6 +57,7 @@ Feature: ConsoleOption named arguments with PHP8
           );
         }
 
+        #[\Override]
         public function execute(InputInterface $input, OutputInterface $output): int
         {
           /** @psalm-trace $string */

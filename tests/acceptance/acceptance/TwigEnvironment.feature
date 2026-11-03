@@ -12,7 +12,7 @@ Feature: Twig Environment
     use Symfony\Component\Form\FormRenderer;
     use Twig\Environment;
 
-    class Foo
+    final class Foo
     {
     public function foo(Environment $environment): FormRenderer
     {

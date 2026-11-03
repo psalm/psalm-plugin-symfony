@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Psalm\Exception\ConfigException;
+use Psalm\SymfonyPsalmPlugin\Symfony\Loader\XmlFileLoader;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -13,10 +14,10 @@ use Symfony\Component\DependencyInjection\EnvVarProcessor;
 use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
-use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpKernel\Kernel;
 
-class ContainerMeta
+final class ContainerMeta
 {
     /**
      * @var array<string>
@@ -29,7 +30,7 @@ class ContainerMeta
     private array $classLocators = [];
 
     /**
-     * @var array<string, array<string, string>>
+     * @var array<string, array<array-key, string>>
      */
     private array $serviceLocators = [];
 
@@ -102,10 +103,33 @@ class ContainerMeta
         return $this->classNames;
     }
 
+    /**
+     * @return array<array-key, string>|null
+     *
+     * @psalm-capabilities read-props
+     */
+    public function getSubscribedServiceIds(string $class): ?array
+    {
+        $locator = $this->classLocators[$class] ?? null;
+
+        return null === $locator ? null : ($this->serviceLocators[$locator] ?? []);
+    }
+
     private function init(array $containerXmlPaths): void
     {
         $this->container = new ContainerBuilder();
-        $xml = new XmlFileLoader($this->container, new FileLocator());
+
+        if (Kernel::MAJOR_VERSION >= 8) {
+            $xmlLoaderClass = XmlFileLoader::class;
+        } else {
+            $xmlLoaderClass = 'Symfony\Component\DependencyInjection\Loader\XmlFileLoader';
+        }
+
+        if (!class_exists($xmlLoaderClass)) {
+            throw new \RuntimeException("The loader class '$xmlLoaderClass' does not exist.");
+        }
+
+        $xml = new $xmlLoaderClass($this->container, new FileLocator());
 
         $containerXmlPath = null;
         foreach ($containerXmlPaths as $filePath) {

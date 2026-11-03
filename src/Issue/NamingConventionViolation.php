@@ -8,8 +8,11 @@ use Psalm\Issue\PluginIssue;
 /**
  * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
  */
-class NamingConventionViolation extends PluginIssue
+final class NamingConventionViolation extends PluginIssue
 {
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(CodeLocation $code_location)
     {
         parent::__construct('Use snake_case for configuration parameter and service names', $code_location);

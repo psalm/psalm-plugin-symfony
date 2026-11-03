@@ -28,9 +28,8 @@ class TwigUtilsTest extends TestCase
      */
     public function testItCanExtractTheTemplateNameFromAnExpression(string $expression)
     {
-        $hasErrors = false;
         $code = '<?php'."\n".$expression;
-        $statements = StatementsProvider::parseStatements($code, PHP_VERSION_ID, $hasErrors);
+        $statements = StatementsProvider::parseStatements($code, PHP_VERSION_ID);
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
             public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
@@ -59,9 +58,8 @@ class TwigUtilsTest extends TestCase
 
     public function testItThrowsAnExceptionWhenTryingToExtractTemplateNameFromAnUnsupportedExpression()
     {
-        $hasErrors = false;
         $code = '<?php'."\n".'dummy(123);';
-        $statements = StatementsProvider::parseStatements($code, PHP_VERSION_ID, $hasErrors);
+        $statements = StatementsProvider::parseStatements($code, PHP_VERSION_ID);
 
         $assertionHook = new class() implements AfterEveryFunctionCallAnalysisInterface {
             public static function afterEveryFunctionCallAnalysis(AfterEveryFunctionCallAnalysisEvent $event): void
@@ -85,7 +83,10 @@ class TwigUtilsTest extends TestCase
         $config = (function () { return new self(); })->bindTo(null, Config::class)();
         $config->eventDispatcher->registerClass(get_class($hook));
 
-        $nullFileAnalyzer = new FileAnalyzer(new ProjectAnalyzer($config, new Providers(new FileProvider())), '', '');
+        $projectAnalyzer = new ProjectAnalyzer($config, new Providers(new FileProvider()));
+        $projectAnalyzer->initProjectFiles();
+
+        $nullFileAnalyzer = new FileAnalyzer($projectAnalyzer, '', '');
         $nullFileAnalyzer->codebase->functions->addGlobalFunction('dummy', new FunctionStorage());
         $nullFileAnalyzer->codebase->file_storage_provider->create('');
 
@@ -94,6 +95,6 @@ class TwigUtilsTest extends TestCase
             $this->node_data = $nodeData;
         })->bindTo($nullFileAnalyzer, $nullFileAnalyzer)();
 
-        return new StatementsAnalyzer($nullFileAnalyzer, $nodeData);
+        return new StatementsAnalyzer($nullFileAnalyzer, $nodeData, true);
     }
 }

@@ -11,7 +11,7 @@ Feature: Constraint
 
       use Symfony\Component\Validator\Constraint;
 
-      class CustomConstraint extends Constraint
+      final class CustomConstraint extends Constraint
       {
         /**
          * @var array<string, string>

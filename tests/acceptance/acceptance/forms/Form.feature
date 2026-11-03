@@ -1,4 +1,4 @@
-@symfony-5, @symfony-6
+@symfony-common
 Feature: Form test
 
   Background:
@@ -8,7 +8,7 @@ Feature: Form test
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\Form;
       use Symfony\Component\Form\FormView;

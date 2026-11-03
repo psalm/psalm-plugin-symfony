@@ -24,7 +24,7 @@ use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 
-class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, BeforeAddIssueInterface
+final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, BeforeAddIssueInterface
 {
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
@@ -51,6 +51,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }, self::$containerMeta->getClassNames());
     }
 
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $declaring_method_id = $event->getDeclaringMethodId();
@@ -58,6 +59,9 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         $expr = $event->getExpr();
         $codebase = $event->getCodebase();
         $context = $event->getContext();
+        if ($expr instanceof \PhpParser\Node\Expr\MethodCall && null !== ServiceLocatorHandler::getServices($statements_source->getNodeTypeProvider()->getType($expr->var))) {
+            return;
+        }
 
         if (!isset($expr->args[0])) {
             return;
@@ -157,6 +161,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
+    #[\Override]
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event): void
     {
         $codebase = $event->getCodebase();
@@ -175,6 +180,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
+    #[\Override]
     public static function afterCodebasePopulated(AfterCodebasePopulatedEvent $event): void
     {
         if (null === self::$containerMeta) {
@@ -188,6 +194,7 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         }
     }
 
+    #[\Override]
     public static function beforeAddIssue(BeforeAddIssueEvent $event): ?bool
     {
         $data = $event->getIssue()->toIssueData('error');
@@ -202,6 +209,9 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         return null;
     }
 
+    /**
+     * @psalm-pure
+     */
     public static function isContainerMethod(string $declaringMethodId, string $methodName): bool
     {
         return in_array(
@@ -216,6 +226,9 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
         );
     }
 
+    /**
+     * @psalm-pure
+     */
     private static function followsParameterNamingConvention(string $name): bool
     {
         if (str_starts_with($name, 'env(')) {
@@ -227,6 +240,8 @@ class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLi
 
     /**
      * @see https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions
+     *
+     * @psalm-pure
      */
     private static function followsNamingConvention(string $name): bool
     {

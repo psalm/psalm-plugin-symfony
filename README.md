@@ -12,19 +12,22 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 
 ### Versions & Dependencies
 
-| Symfony Psalm Plugin | PHP        | Symfony | Psalm |
-|----------------------|------------|---------|-------|
-| 5.x                  | ^8.1       | 5, 6, 7 | 6     |
-| 4.x                  | ^7.4, ^8.0 | 4, 5, 6 | 4     |
-| 3.x                  | ^7.1, ^8.0 | 4, 5, 6 | 4     |
-| 2.x                  | ^7.1, ^8.0 | 4, 5    | 4     |
-| 1.x                  | ^7.1       | 3, 4, 5 | 3     |
+| Symfony Psalm Plugin | PHP        | Symfony    | Psalm   |
+|----------------------|------------|------------|---------|
+| ^5.10                | ^8.2       | 6, 7, 8    | 7       |
+| <=5.9                | ^7.4, ^8.0 | 5, 6, 7, 8 | 5, 6, 7 |
+| 4.x                  | ^7.4, ^8.0 | 4, 5, 6    | 4       |
+| 3.x                  | ^7.1, ^8.0 | 4, 5, 6    | 4       |
+| 2.x                  | ^7.1, ^8.0 | 4, 5       | 4       |
+| 1.x                  | ^7.1       | 3, 4, 5    | 3       |
 
 ### Features
 
 - Detects the `ContainerInterface::get()` result type. Works better if you [configure](#configuration) a compiled container XML file.
 - Detects parameter return types from `ContainerInterface::getParameter()`.
-- Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20). Works only if you [configure](#configuration) a compiled container XML file.
+- Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20) from literal service maps and `#[SubscribedService]` getters. Dynamic maps use the compiled container XML.
+- Infers locator service types from explicit `#[AutowireLocator]` maps, including `SubscribedService` entries, and checks unknown keys.
+- Infers callable signatures from `#[AutowireCallable]`, `#[AutowireMethodOf]`, and `#[AutowireServiceClosure]`. Checks method targets and interface adapters.
 - Detects return types from console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`).
 Enforces to use "InputArgument" and "InputOption" constants as a best practice.
 - Detects Doctrine repository classes associated to entities when configured via annotations.
@@ -139,13 +142,44 @@ When it comes to taint analysis for Twig templates, there are currently two appr
 This approach is more robust since it relies on the official Twig parser and node visitor mechanisms.
 For the moment, it is only able to detect simple tainted paths.
 
-To leverage the real Twig file analyzer, you have to configure a checker for the `.twig` extension as follows:
+To leverage the real Twig file analyzer, you have to configure a checker and a scanner for the `.twig` extension as follows:
 
 ```xml
 <fileExtensions>
    <extension name=".php" />
-   <extension name=".twig" checker="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php"/>
+   <extension name=".twig" checker="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileAnalyzer.php" scanner="/vendor/psalm/plugin-symfony/src/Twig/TemplateFileScanner.php"/>
 </fileExtensions>
+```
+
+Without the scanner, Psalm also parses the templates as PHP, and reports parse errors for those containing `<?php`.
+
+The analyzer follows the calls of `Twig\Environment::render()`, `AbstractController::render()` and `AbstractController::renderView()`, and of the methods overriding them.
+If your application renders templates through methods of its own, add them to the plugin configuration with the arguments (counted from 0, by default 0 and 1) naming the template and giving its variables.
+The calls of the methods overriding them, and of those of the classes implementing them when they are of an interface, are followed as well:
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigRenderMethod>App\View\Renderer::render</twigRenderMethod>
+    <twigRenderMethod templateArgument="1" contextArgument="2">App\View\Mailer::send</twigRenderMethod>
+</pluginClass>
+```
+
+A method naming its template relative to a directory given in another argument, like `fetch(__DIR__, 'page.html.twig', $context)`, takes that argument as `templateDirectoryArgument`.
+The directory must resolve to a literal path in the project: a string, `__DIR__`, a constant or a variable of a literal value, or a concatenation of them.
+The template is then the one at that path, named from the template root or, outside of it, from the project:
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigRenderMethod templateArgument="1" contextArgument="2" templateDirectoryArgument="0">App\View\Templates::fetch</twigRenderMethod>
+</pluginClass>
+```
+
+A constant whose value Psalm does not know, like one defined at run time, takes its value in the template names and directories from a `twigConstant` (or, for a value known only to another plugin, like a path in the analysed project, from `TwigUtils::addConstant()`):
+
+```xml
+<pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+    <twigConstant name="TEMPLATE_DIR">/views</twigConstant>
+</pluginClass>
 ```
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)

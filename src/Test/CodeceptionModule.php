@@ -19,8 +19,13 @@ use Weirdan\Codeception\Psalm\Module;
  * @psalm-suppress UnusedClass
  * This class is to be used in codeception configuration - like in tests/acceptance/acceptance.suite.yml.
  */
-class CodeceptionModule extends BaseModule
+final class CodeceptionModule extends BaseModule
 {
+    /**
+     * The purity annotations Psalm suggests for the code under test, which is not what the tests are about.
+     */
+    private const PURITY_SUGGESTIONS = ['MissingPureAnnotation', 'MissingImmutableAnnotation', 'MissingAbstractPureAnnotation', 'MissingInterfaceImmutableAnnotation'];
+
     private const DEFAULT_TWIG_TEMPLATES_DIR = 'templates';
 
     private string $twigTemplateDir = self::DEFAULT_TWIG_TEMPLATES_DIR;
@@ -34,6 +39,7 @@ class CodeceptionModule extends BaseModule
      */
     private array $suppressedIssueHandlers = [];
 
+    #[\Override]
     public function _initialize(): void
     {
         $this->_setConfig([
@@ -41,6 +47,10 @@ class CodeceptionModule extends BaseModule
         ]);
     }
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    #[\Override]
     public function _after(TestInterface $test): void
     {
         $this->twigCache = $this->lastCachePath = null;
@@ -49,6 +59,8 @@ class CodeceptionModule extends BaseModule
 
     /**
      * @Given the template root directory is :rootDir
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
      */
     public function setTheTemplateRootDirectory(string $rootDir): void
     {
@@ -110,6 +122,10 @@ class CodeceptionModule extends BaseModule
         ));
     }
 
+    /**
+     * @psalm-capabilities read-props|write-this-props|write-refs
+     */
+    #[\Override]
     public function _before(TestInterface $test): void
     {
         $this->suppressedIssueHandlers = ['UnusedVariable'];
@@ -118,6 +134,8 @@ class CodeceptionModule extends BaseModule
     /**
      * @Given I have issue handler :issueHandlers suppressed
      * @Given I have issue handlers :issueHandlers suppressed
+     *
+     * @psalm-capabilities read-props|write-this-props|write-refs
      */
     public function configureIgnoredIssueHandlers(string $issueHandlers): void
     {
@@ -139,7 +157,7 @@ class CodeceptionModule extends BaseModule
     {
         $suppressedIssueHandlers = implode("\n", array_map(function (string $issueHandler) {
             return "<$issueHandler errorLevel=\"info\"/>";
-        }, $this->suppressedIssueHandlers));
+        }, [...$this->suppressedIssueHandlers, ...self::PURITY_SUGGESTIONS]));
 
         $psalmModule = $this->getModule(Module::class);
 

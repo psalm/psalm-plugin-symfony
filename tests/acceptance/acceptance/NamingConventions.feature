@@ -18,7 +18,7 @@ Feature: Naming conventions
   Scenario: There is no service naming convention violation, so no complaint.
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): bool
         {
@@ -32,7 +32,7 @@ Feature: Naming conventions
   Scenario: Detects service naming convention violation
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -49,7 +49,7 @@ Feature: Naming conventions
   Scenario: No service naming convention violation when using FQCNs
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -63,7 +63,7 @@ Feature: Naming conventions
   Scenario: No naming convention violation for parameter
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -77,7 +77,7 @@ Feature: Naming conventions
   Scenario: Detects parameter naming convention violation
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {
@@ -94,7 +94,7 @@ Feature: Naming conventions
   Scenario: No parameter naming convention violation when using environment variables
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function __invoke(ContainerInterface $container): void
         {

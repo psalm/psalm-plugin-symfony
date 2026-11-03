@@ -27,7 +27,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Webmozart\Assert\Assert;
 
-class ConsoleHandler implements AfterMethodCallAnalysisInterface
+final class ConsoleHandler implements AfterMethodCallAnalysisInterface
 {
     /**
      * @var Union[]
@@ -38,6 +38,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      */
     private static array $options = [];
 
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $statements_source = $event->getStatementsSource();
@@ -95,7 +96,7 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
 
                 foreach ($inputItems as $inputItem) {
-                    if ($inputItem instanceof Expr\ArrayItem && $inputItem->value instanceof Expr\New_) {
+                    if ($inputItem->value instanceof Expr\New_) {
                         $args = [];
                         foreach ($inputItem->value->args as $arg) {
                             if ($arg instanceof Arg) {
@@ -234,6 +235,8 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      * @param array<Arg> $args
      *
      * @psalm-return array{name: Arg, shortcut: ?Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     *
+     * @psalm-pure
      */
     private static function normalizeOptionParams(array $args): array
     {
@@ -244,12 +247,17 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
      * @param array<Arg> $args
      *
      * @psalm-return array{name: Arg, mode: ?Arg, description: ?Arg, default: ?Arg}
+     *
+     * @psalm-pure
      */
     private static function normalizeArgumentParams(array $args): array
     {
         return self::normalizeParams(['name', 'mode', 'description', 'default', 'suggestedValues'], $args);
     }
 
+    /**
+     * @psalm-pure
+     */
     private static function normalizeParams(array $params, array $args): array
     {
         $result = array_fill_keys($params, null);
@@ -297,6 +305,9 @@ class ConsoleHandler implements AfterMethodCallAnalysisInterface
         throw new InvalidConsoleModeException();
     }
 
+    /**
+     * @psalm-capabilities read-props
+     */
     private static function getNodeIdentifier(Expr $expr): ?string
     {
         if ($expr instanceof String_) {

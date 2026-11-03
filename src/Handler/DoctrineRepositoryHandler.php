@@ -18,8 +18,9 @@ use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 
-class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
+final class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface
 {
+    #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
         $declaring_method_id = $event->getDeclaringMethodId();
@@ -81,6 +82,7 @@ class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterface, Aft
         }
     }
 
+    #[\Override]
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event): void
     {
         $stmt = $event->getStmt();

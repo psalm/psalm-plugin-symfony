@@ -14,7 +14,7 @@ Feature: Header get
   Scenario: HeaderBag get method return type should return `?string`
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(Request $request): void
         {
@@ -32,7 +32,7 @@ Feature: Header get
   Scenario: HeaderBag get method return type should return `string` if default value is provided with string
     Given I have the following code
       """
-      class App
+      final class App
       {
         public function index(Request $request): void
         {
