@@ -2093,7 +2093,7 @@ final class Context
         $incompleteReads = self::$incompleteReads;
         $attributes = [];
         $seen = [];
-        for ($pending = [$templateName]; null !== ($name = array_pop($pending)); ) {
+        for ($pending = [$templateName]; null !== ($name = array_pop($pending));) {
             if (isset($seen[$name])) {
                 continue;
             }
