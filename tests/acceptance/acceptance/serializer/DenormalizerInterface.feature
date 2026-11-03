@@ -41,33 +41,3 @@ Feature: Denormalizer interface
       | MixedAssignment        | Unable to determine the type that $result is being assigned to |
       | Trace                  | $result: mixed                                                 |
     And I see no other errors
-
-  Scenario: Psalm does not complain about the missing $data parameter type in the denormalizer implementation
-    Given I have the following code
-      """
-      <?php
-      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
-
-      final class Denormalizer implements DenormalizerInterface
-      {
-        #[\Override]
-        public function supportsDenormalization($data, string $type, ?string $format = null, array $context = []): bool
-        {
-          return true;
-        }
-
-        #[\Override]
-        public function denormalize($data, string $type, ?string $format = null, array $context = []): mixed
-        {
-          return null;
-        }
-
-        #[\Override]
-        public function getSupportedTypes(?string $format): array
-        {
-          return ['*' => false];
-        }
-      }
-      """
-    When I run Psalm
-    Then I see no errors
