@@ -222,7 +222,16 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             return null;
         }
         $storage = $codebase->methods->getStorage($codebase->methods->getDeclaringMethodId($id) ?? $id);
-        if (1 !== $storage->visibility) {
+        // A trait method takes the visibility of its `use` adaptation (as in Psalm's MethodVisibilityAnalyzer), and the
+        // class using the trait as `self`
+        $visibility = $storage->visibility;
+        $appearingClass = null;
+        $appearingId = $codebase->methods->getAppearingMethodId($id);
+        if (null !== $appearingId) {
+            $appearingClass = $codebase->classlike_storage_provider->get($appearingId->fq_class_name);
+            $visibility = $appearingClass->trait_visibility_map[$appearingId->method_name] ?? $visibility;
+        }
+        if (1 !== $visibility) {
             IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not public.', $class, $method), $attribute->location));
 
             return null;
@@ -234,6 +243,7 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         }
         $parameter->custom_metadata[self::class.'::reference'] = strtolower((string) $id);
         $declaringClass = $storage->defining_fqcln ?? $class;
+        $selfClass = null !== $appearingClass && $codebase->classlike_storage_provider->get($declaringClass)->is_trait ? $appearingClass->name : $declaringClass;
         if (null !== $storage->template_types || null !== $codebase->classlike_storage_provider->get($declaringClass)->template_types) {
             return null;
         }
@@ -242,11 +252,11 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         foreach ($storage->params as $parameter) {
             $parameter = clone $parameter;
             if (null !== $parameter->type) {
-                $parameter->type = TypeExpander::expandUnion($codebase, $parameter->type, $declaringClass, $class, null);
+                $parameter->type = TypeExpander::expandUnion($codebase, $parameter->type, $selfClass, $class, null);
             }
             $params[] = $parameter;
         }
-        $returnType = null === $storage->return_type ? null : TypeExpander::expandUnion($codebase, $storage->return_type, $declaringClass, $class, null);
+        $returnType = null === $storage->return_type ? null : TypeExpander::expandUnion($codebase, $storage->return_type, $selfClass, $class, null);
 
         return new Union([new TClosure($params, $returnType, $storage->capabilities, callable_id: strtolower((string) $id))]);
     }

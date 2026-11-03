@@ -207,3 +207,44 @@ Feature: Autowired callables
       | Type                  | Message                                   |
       | InvalidScalarArgument | Argument 1 expects string, but 1 provided |
     And I see no other errors
+
+  Scenario: A trait method uses the visibility of its adaptation and the using class as self
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      trait FormatterTrait {
+          private function format(string $value): string { return $value; }
+          public function withPrefix(string $prefix): self { return $this; }
+          public function hidden(string $value): string { return $value; }
+      }
+      final class Formatter {
+          use FormatterTrait {
+              format as public;
+              hidden as private;
+          }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+              #[AutowireCallable(service: Formatter::class, method: 'withPrefix')]
+              private Closure $withPrefix,
+              #[AutowireCallable(service: Formatter::class, method: 'hidden')]
+              public Closure $hidden,
+          ) {}
+
+          public function run(): Formatter {
+              ($this->format)('value');
+
+              return ($this->withPrefix)('prefix');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                    | Message                                  |
+      | InvalidAutowireCallable | Method Formatter::hidden() is not public. |
+    And I see no other errors
