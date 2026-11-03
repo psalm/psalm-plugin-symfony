@@ -3,46 +3,46 @@
 declare(strict_types=1);
 
 /*
- * Fails when an acceptance feature carries no tag that any "Tests" job of integrate.yaml runs.
+ * Fails when an acceptance feature carries no tag that any "Tests" job runs.
  *
- * Codeception turns Gherkin tags into groups, and the workflow runs `-g symfony-common`, `-g symfony-<matrix value>`
- * and `-g symfony-<Symfony major>` for every matrix entry. A feature that has none of those tags is never executed,
- * which is easy to miss: the suite stays green. `@symfony-disabled` is the only way to opt out on purpose.
+ * Codeception turns Gherkin tags into groups, and the workflow runs `-g symfony-common`, `-g symfony-<version>` and
+ * `-g symfony-<major>` for every Symfony version of .github/acceptance-matrix.json. A feature that has none of those
+ * tags is never executed, which is easy to miss: the suite stays green. `@symfony-disabled` is the only way to opt out
+ * on purpose.
  *
  * The run set is derived from the matrix, so adding a Symfony version there needs no change here.
  *
- * Usage: php bin/ci/check-feature-tags.php [features-dir] [workflow-file]
+ * Usage: php bin/ci/check-feature-tags.php [features-dir] [matrix-file]
  */
-
-use Symfony\Component\Yaml\Yaml;
-
-require __DIR__.'/../../vendor/autoload.php';
 
 const OPTED_OUT_TAG = 'symfony-disabled';
 const COMMON_TAG = 'symfony-common';
 
 $root = dirname(__DIR__, 2);
 $featuresDir = $argv[1] ?? $root.'/tests/acceptance/acceptance';
-$workflowFile = $argv[2] ?? $root.'/.github/workflows/integrate.yaml';
+$matrixFile = $argv[2] ?? $root.'/.github/acceptance-matrix.json';
 
 /**
  * @return list<string> groups that the "tests" job runs for at least one matrix entry
  */
-function runGroups(string $workflowFile): array
+function runGroups(string $matrixFile): array
 {
-    $workflow = Yaml::parseFile($workflowFile);
-    $versions = $workflow['jobs']['tests']['strategy']['matrix']['symfony-version'] ?? null;
-
-    if (!is_array($versions) || [] === $versions) {
-        throw new RuntimeException(sprintf('No jobs.tests.strategy.matrix.symfony-version list found in %s.', $workflowFile));
-    }
+    $matrix = json_decode((string) file_get_contents($matrixFile), true, flags: JSON_THROW_ON_ERROR);
 
     $groups = [COMMON_TAG];
-    foreach ($versions as $version) {
-        // GitHub renders unquoted YAML numbers like PHP casts them: 7.0 becomes "7", 7.4 stays "7.4"
-        $rendered = (string) $version;
-        $groups[] = 'symfony-'.$rendered;
-        $groups[] = 'symfony-'.explode('.', $rendered)[0];
+    foreach (['always', 'scheduled-only'] as $key) {
+        foreach ($matrix[$key] ?? [] as $combination) {
+            $version = (string) ($combination['symfony-version'] ?? '');
+            if ('' === $version) {
+                throw new RuntimeException(sprintf('An entry of "%s" in %s has no symfony-version.', $key, $matrixFile));
+            }
+            $groups[] = 'symfony-'.$version;
+            $groups[] = 'symfony-'.explode('.', $version)[0];
+        }
+    }
+
+    if (1 === count($groups)) {
+        throw new RuntimeException(sprintf('No Symfony version found in %s.', $matrixFile));
     }
 
     return array_values(array_unique($groups));
@@ -69,7 +69,7 @@ function featureTags(string $featureFile): array
     throw new RuntimeException(sprintf('%s has no "Feature:" line.', $featureFile));
 }
 
-$groups = runGroups($workflowFile);
+$groups = runGroups($matrixFile);
 $features = new RegexIterator(
     new RecursiveIteratorIterator(new RecursiveDirectoryIterator($featuresDir, FilesystemIterator::SKIP_DOTS)),
     '/\.feature$/',
