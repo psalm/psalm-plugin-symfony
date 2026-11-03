@@ -5,7 +5,11 @@ namespace Symfony\Component\Form\Event;
 use Symfony\Component\Form\FormEvent;
 
 /**
- * @template-extends FormEvent<array<string, mixed>>
+ * The data submitted to the form, before it is transformed: typically an array for a compound form or a multiple
+ * choice, a string or null for a simple field such as `TextType`, an `UploadedFile` for a file, and anything an earlier
+ * listener sets.
+ *
+ * @template-extends FormEvent<mixed>
  */
 class PreSubmitEvent extends FormEvent
 {
