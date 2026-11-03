@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "0 10 * * 6"
 
+env:
+  # Psalm requires this plugin, and the checkout has no tags to guess its version from: without it, Composer installs
+  # an old Psalm release candidate that did not require the plugin.
+  COMPOSER_ROOT_VERSION: 5.x-dev
+
 jobs:
   static-code-analysis:
     name: "Static Code Analysis (PHP: ${{matrix.php-version}}, deps: ${{matrix.dependencies}})"
