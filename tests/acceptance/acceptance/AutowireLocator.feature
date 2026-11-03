@@ -303,3 +303,180 @@ Feature: Autowired locators
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: SubscribedService methods of a trait provide container entries
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Contracts\Service\Attribute\SubscribedService;
+      use Symfony\Contracts\Service\ServiceMethodsSubscriberTrait;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      trait LoggerAware {
+          #[SubscribedService]
+          private function logger(): Logger { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+      }
+      final class Subscriber implements ServiceSubscriberInterface {
+          use ServiceMethodsSubscriberTrait, LoggerAware;
+
+          public function run(): Logger {
+              $this->container->get('missing');
+
+              return $this->logger();
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message   |
+      | ServiceNotFound | /missing/ |
+    And I see no other errors
+
+  Scenario: Only PSR container parameters of a subscriber get its service map
+    Given I have the following code
+      """
+      <?php
+      use Psr\Container\ContainerInterface;
+      use Symfony\Component\DependencyInjection\ContainerInterface as ServiceContainer;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Router {}
+      final class Subscriber implements ServiceSubscriberInterface {
+          public function __construct(private ContainerInterface $locator) {}
+
+          #[\Override]
+          public static function getSubscribedServices(): array { return ['router' => Router::class]; }
+
+          public function run(ServiceContainer $container): void {
+              $container->get('logger');
+              $this->locator->get('logger');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message  |
+      | ServiceNotFound | /logger/ |
+    And I see no other errors
+
+  Scenario: A service map returned from several places is not checked
+    Given I have the following code
+      """
+      <?php
+      use Psr\Container\ContainerInterface;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Mailer {}
+      interface Logger {}
+      final class Subscriber implements ServiceSubscriberInterface {
+          public function __construct(private ContainerInterface $container) {}
+
+          #[\Override]
+          public static function getSubscribedServices(): array {
+              if (interface_exists(Mailer::class)) {
+                  return ['mailer' => Mailer::class, 'logger' => Logger::class];
+              }
+
+              return ['logger' => Logger::class];
+          }
+
+          public function run(): void { $this->container->get('mailer'); }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: An aliased trait SubscribedService method provides both names, and an overriding method replaces it
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Contracts\Service\Attribute\SubscribedService;
+      use Symfony\Contracts\Service\ServiceMethodsSubscriberTrait;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      interface Mailer {}
+      trait Services {
+          #[SubscribedService]
+          private function logger(): Logger { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+
+          #[SubscribedService]
+          private function mailer(): Mailer { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+      }
+      final class Subscriber implements ServiceSubscriberInterface {
+          use ServiceMethodsSubscriberTrait, Services {
+              logger as auditLogger;
+          }
+
+          private function mailer(): Mailer { throw new LogicException(); }
+
+          public function run(): void {
+              $this->container->get(self::class.'::logger');
+              $this->container->get(self::class.'::auditLogger');
+              $this->container->get(self::class.'::mailer');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message                                  |
+      | ServiceNotFound | Service "Subscriber::mailer" not found |
+    And I see no other errors
+
+  Scenario: Returns of closures in getSubscribedServices() do not count as the map
+    Given I have the following code
+      """
+      <?php
+      use Psr\Container\ContainerInterface;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      final class Subscriber implements ServiceSubscriberInterface {
+          public function __construct(private ContainerInterface $container) {}
+
+          #[\Override]
+          public static function getSubscribedServices(): array {
+              $prefix = static function (string $key): string { return 'app.'.$key; };
+
+              return ['logger' => Logger::class];
+          }
+
+          public function run(): void { $this->container->get('missing'); }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message   |
+      | ServiceNotFound | /missing/ |
+    And I see no other errors
+
+  Scenario: A SubscribedService method aliased by a nested trait provides both names
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Contracts\Service\Attribute\SubscribedService;
+      use Symfony\Contracts\Service\ServiceMethodsSubscriberTrait;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      trait LoggerAware {
+          #[SubscribedService]
+          private function logger(): Logger { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+      }
+      trait Services {
+          use LoggerAware {
+              logger as auditLogger;
+          }
+      }
+      final class Subscriber implements ServiceSubscriberInterface {
+          use ServiceMethodsSubscriberTrait, Services;
+
+          public function run(): void {
+              $this->container->get(self::class.'::logger');
+              $this->container->get(self::class.'::auditLogger');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
