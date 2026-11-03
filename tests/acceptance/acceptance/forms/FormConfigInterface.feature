@@ -1,4 +1,4 @@
-@symfony-disabled
+@symfony-common
 Feature: Form config
 
   Background:
@@ -8,14 +8,15 @@ Feature: Form config
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
 
       /** @extends AbstractType<User> */
-      class UserType extends AbstractType
+      final class UserType extends AbstractType
       {
+          #[\Override]
           public function buildForm(FormBuilderInterface $builder, array $options): void
           {
               $data = $builder->getData();

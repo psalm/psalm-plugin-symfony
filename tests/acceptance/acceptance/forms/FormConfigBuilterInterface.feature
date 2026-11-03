@@ -1,4 +1,4 @@
-@symfony-disabled
+@symfony-common
 Feature: Form config builder
 
   Background:
@@ -8,7 +8,7 @@ Feature: Form config builder
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormBuilderInterface;
@@ -16,8 +16,9 @@ Feature: Form config builder
       use Symfony\Component\Form\FormEvents;
 
       /** @extends AbstractType<User> */
-      class UserType extends AbstractType
+      final class UserType extends AbstractType
       {
+          #[\Override]
           public function buildForm(FormBuilderInterface $builder, array $options): void
           {
               $builder->addEventListener(FormEvents::PRE_SET_DATA, function(PreSetDataEvent $event) {

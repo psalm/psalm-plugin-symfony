@@ -1,4 +1,4 @@
-@symfony-disabled
+@symfony-common
 Feature: FormType templates
 
   Background:
@@ -8,7 +8,7 @@ Feature: FormType templates
           """
       <?php
 
-      class User {}
+      final class User {}
 
       use Symfony\Component\Form\AbstractType;
       use Symfony\Component\Form\FormView;
@@ -16,20 +16,23 @@ Feature: FormType templates
       use Symfony\Component\Form\FormBuilderInterface;
 
       /** @extends AbstractType<User> */
-      class UserType extends AbstractType
+      final class UserType extends AbstractType
       {
+          #[\Override]
           public function buildForm(FormBuilderInterface $builder, array $options): void
           {
               $buildFormUser = $builder->getData();
               /** @psalm-trace $buildFormUser */
           }
 
+          #[\Override]
           public function buildView(FormView $view, FormInterface $form, array $options): void
           {
               $buildViewUser = $form->getData();
               /** @psalm-trace $buildViewUser */
           }
 
+          #[\Override]
           public function finishView(FormView $view, FormInterface $form, array $options): void
           {
               $finishViewUser = $form->getData();
