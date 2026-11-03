@@ -3,16 +3,19 @@
 namespace Symfony\Component\HttpFoundation;
 
 /**
- * @template T of string|int|float|bool
+ * @template TInput of string|int|float|bool|null
  */
 final class InputBag extends ParameterBag
 {
     /**
-     * Returns a string input value by name.
+     * Returns a scalar input value by name.
      *
-     * @template D of T|null
-     * @psalm-param D $default
-     * @psalm-return D|T
+     * @template TDefault of string|int|float|bool|null
+     *
+     * @param TDefault $default The default value if the input key does not exist
+     *
+     * @return TDefault|TInput
+     *
      * @psalm-taint-source input
      * @psalm-mutation-free
      */
