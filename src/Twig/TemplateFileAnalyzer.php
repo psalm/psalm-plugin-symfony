@@ -10,8 +10,10 @@ use Psalm\Internal\Analyzer\FileAnalyzer;
 use Twig\Environment;
 use Twig\Error\Error;
 use Twig\Extension\ExtensionInterface;
+use Twig\Loader\ArrayLoader;
 use Twig\Loader\FilesystemLoader;
 use Twig\NodeTraverser;
+use Twig\Source;
 
 /**
  * This class is to be used as a "checker" for the `.twig` files in the psalm configuration.
@@ -21,14 +23,15 @@ final class TemplateFileAnalyzer extends FileAnalyzer
     private static string $rootPath = 'templates';
 
     /**
-     * @var list<class-string>
+     * @var list<array{class-string, ?class-string}>
      */
     private static array $extensionClasses = [];
 
     private static ?Environment $environment = null;
 
     /**
-     * @param list<class-string> $extensionClasses
+     * @param list<array{class-string, ?class-string}> $extensionClasses the class of each extension, and the runtime
+     *                                                                   class an AttributeExtension is built from
      */
     public static function initExtensions(array $extensionClasses): void
     {
@@ -91,10 +94,27 @@ final class TemplateFileAnalyzer extends FileAnalyzer
             'optimizations' => 0,
             'strict_variables' => false,
         ]);
-        foreach (self::$extensionClasses as $extensionClass) {
-            if (class_exists($extensionClass) && is_a($extensionClass, ExtensionInterface::class, true)) {
-                $twig->addExtension((new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor());
+        foreach (self::$extensionClasses as [$extensionClass, $runtimeClass]) {
+            if (!class_exists($extensionClass) || !is_a($extensionClass, ExtensionInterface::class, true)) {
+                continue;
             }
+
+            $extension = \is_string($runtimeClass)
+                ? new $extensionClass($runtimeClass)
+                : (new \ReflectionClass($extensionClass))->newInstanceWithoutConstructor();
+
+            // Twig initializes an extension lazily, an extension built without its constructor may then fail for every template
+            try {
+                $probe = new Environment(new ArrayLoader());
+                $probe->addExtension($extension);
+                $probe->parse($probe->tokenize(new Source('', 'probe')));
+            } catch (\Throwable $error) {
+                $codebase->progress->warning(\sprintf('The Twig extension %s is not used to analyze the templates: %s', $extensionClass, $error->getMessage()));
+
+                continue;
+            }
+
+            $twig->addExtension($extension);
         }
 
         return self::$environment = $twig;
