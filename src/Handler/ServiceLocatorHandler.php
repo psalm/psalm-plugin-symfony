@@ -413,10 +413,13 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
                 }
             }
         }
-        // the methods as the class has them: an overridden trait method is the class's, an aliased one has both names
+        // the methods as the class has them: an overridden trait method is the class's, an aliased one (also by a
+        // trait using another trait) has both names
         $aliases = [];
-        foreach (array_keys($class->trait_alias_map_cased) as $alias) {
-            $aliases[strtolower($alias)] = $alias;
+        foreach ($sources as $source) {
+            foreach (array_keys($source->trait_alias_map_cased) as $alias) {
+                $aliases[strtolower($alias)] = $alias;
+            }
         }
         foreach ($class->declaring_method_ids as $methodName => $declaringId) {
             [$source, $subscriptions] = $subscriptionsBySource[strtolower($declaringId->fq_class_name)] ?? [null, []];

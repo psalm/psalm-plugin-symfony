@@ -450,3 +450,33 @@ Feature: Autowired locators
       | Type            | Message   |
       | ServiceNotFound | /missing/ |
     And I see no other errors
+
+  Scenario: A SubscribedService method aliased by a nested trait provides both names
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Contracts\Service\Attribute\SubscribedService;
+      use Symfony\Contracts\Service\ServiceMethodsSubscriberTrait;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      trait LoggerAware {
+          #[SubscribedService]
+          private function logger(): Logger { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+      }
+      trait Services {
+          use LoggerAware {
+              logger as auditLogger;
+          }
+      }
+      final class Subscriber implements ServiceSubscriberInterface {
+          use ServiceMethodsSubscriberTrait, Services;
+
+          public function run(): void {
+              $this->container->get(self::class.'::logger');
+              $this->container->get(self::class.'::auditLogger');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
