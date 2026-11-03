@@ -1,0 +1,21 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class Request
+{
+    /**
+     * @psalm-var InputBag
+     */
+    public InputBag $request;
+
+    /**
+     * @psalm-var InputBag<string>
+     */
+    public InputBag $query;
+
+    /**
+     * @psalm-var InputBag<string>
+     */
+    public InputBag $cookies;
+}

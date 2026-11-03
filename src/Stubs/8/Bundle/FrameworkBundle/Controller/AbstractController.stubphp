@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Bundle\FrameworkBundle\Controller;
+
+use Symfony\Contracts\Service\ServiceSubscriberInterface;
+use Psr\Container\ContainerInterface;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormTypeInterface;
+
+abstract class AbstractController implements ServiceSubscriberInterface
+{
+    /**
+     * @psalm-suppress PropertyNotSetInConstructor
+     */
+    protected ContainerInterface $container;
+
+    /**
+     * @template TData
+     * @template TFormType of FormTypeInterface<TData>
+     *
+     * @psalm-param class-string<TFormType> $type
+     *
+     * @psalm-return FormInterface<TData>
+     */
+    protected function createForm(string $type, mixed $data = null, array $options = []): FormInterface {}
+}
