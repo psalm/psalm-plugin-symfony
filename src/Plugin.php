@@ -7,6 +7,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\AutowireCallableHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
@@ -40,6 +41,7 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/ServiceLocatorHandler.php';
+        require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $registration->registerHooksFromClass(HeaderBagHandler::class);
@@ -48,6 +50,8 @@ final class Plugin implements PluginEntryPointInterface
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
         $registration->registerHooksFromClass(ServiceLocatorHandler::class);
         ServiceLocatorHandler::init(null);
+        $registration->registerHooksFromClass(AutowireCallableHandler::class);
+        AutowireCallableHandler::init(null);
 
         if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
             require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
@@ -70,19 +74,24 @@ final class Plugin implements PluginEntryPointInterface
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
             ServiceLocatorHandler::init($containerMeta);
+            AutowireCallableHandler::init($containerMeta);
 
             try {
-                /** @psalm-var list<class-string> $extensionClasses */
+                /** @psalm-var list<array{class-string, ?class-string}> $extensionClasses */
                 $extensionClasses = array_filter(array_map(function (array $m) use ($containerMeta) {
                     if ('addExtension' !== $m[0]) {
                         return null;
                     }
 
                     try {
-                        return $containerMeta->get($m[1][0])->getClass();
+                        $definition = $containerMeta->get($m[1][0]);
+                        $class = $definition->getClass();
                     } catch (ServiceNotFoundException $e) {
                         return null;
                     }
+
+                    // Twig >= 3.21: the extension is built from the runtime class given as its argument
+                    return null === $class ? null : [$class, 'Twig\Extension\AttributeExtension' === $class ? ($definition->getArguments()[0] ?? null) : null];
                 }, $containerMeta->get('twig')->getMethodCalls()));
                 TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {

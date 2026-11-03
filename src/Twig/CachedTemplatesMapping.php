@@ -16,9 +16,9 @@ final class CachedTemplatesMapping implements AfterCodebasePopulatedInterface
      * @var string
      */
     public const CACHED_TEMPLATE_HEADER_PATTERN =
-        'use Twig\\\\Template;\n\n'.
+        'use Twig\\\\Template(?:Wrapper)?;\n\n'.
         '\/\* (?<name>@?.+\.twig) \*\/\n'.
-        'class (?<class>__TwigTemplate_[a-z0-9]{64}) extends (\\\\Twig\\\\)?Template';
+        'class (?<class>__TwigTemplate_(?:[a-z0-9]{32}|[a-z0-9]{64})) extends (\\\\Twig\\\\)?Template';
 
     private static ?string $cachePath = null;
 

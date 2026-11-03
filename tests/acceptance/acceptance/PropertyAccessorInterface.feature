@@ -1,4 +1,4 @@
-@symfony-7
+@symfony-common
 Feature: PropertyAccessorInterface
 
   Background:
@@ -11,6 +11,7 @@ Feature: PropertyAccessorInterface
       use Symfony\Component\PropertyAccess\PropertyAccess;
       use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
+      /** @var PropertyAccessorInterface $propertyAccessor createPropertyAccessor() returns the PropertyAccessor class before Symfony 7 */
       $propertyAccessor = PropertyAccess::createPropertyAccessor();
       """
 

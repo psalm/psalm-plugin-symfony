@@ -1,0 +1,17 @@
+{
+  "shards": 4,
+  "always": [
+    { "php-version": "8.2", "symfony-version": "6" },
+    { "php-version": "8.5", "symfony-version": "6" },
+    { "php-version": "8.2", "symfony-version": "7.4" },
+    { "php-version": "8.5", "symfony-version": "7.4" },
+    { "php-version": "8.4", "symfony-version": "8" },
+    { "php-version": "8.5", "symfony-version": "8" }
+  ],
+  "scheduled-only": [
+    { "php-version": "8.3", "symfony-version": "6" },
+    { "php-version": "8.4", "symfony-version": "6" },
+    { "php-version": "8.3", "symfony-version": "7.4" },
+    { "php-version": "8.4", "symfony-version": "7.4" }
+  ]
+}

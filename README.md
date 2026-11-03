@@ -12,13 +12,14 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 
 ### Versions & Dependencies
 
-| Symfony Psalm Plugin | PHP        | Symfony | Psalm |
-|----------------------|------------|---------|-------|
-| 5.x                  | ^8.1       | 5, 6, 7 | 6     |
-| 4.x                  | ^7.4, ^8.0 | 4, 5, 6 | 4     |
-| 3.x                  | ^7.1, ^8.0 | 4, 5, 6 | 4     |
-| 2.x                  | ^7.1, ^8.0 | 4, 5    | 4     |
-| 1.x                  | ^7.1       | 3, 4, 5 | 3     |
+| Symfony Psalm Plugin | PHP        | Symfony    | Psalm   |
+|----------------------|------------|------------|---------|
+| ^5.10                | ^8.2       | 6, 7, 8    | 7       |
+| <=5.9                | ^7.4, ^8.0 | 5, 6, 7, 8 | 5, 6, 7 |
+| 4.x                  | ^7.4, ^8.0 | 4, 5, 6    | 4       |
+| 3.x                  | ^7.1, ^8.0 | 4, 5, 6    | 4       |
+| 2.x                  | ^7.1, ^8.0 | 4, 5       | 4       |
+| 1.x                  | ^7.1       | 3, 4, 5    | 3       |
 
 ### Features
 
@@ -26,6 +27,7 @@ vendor/bin/psalm-plugin enable psalm/plugin-symfony
 - Detects parameter return types from `ContainerInterface::getParameter()`.
 - Supports [Service Subscribers](https://github.com/psalm/psalm-plugin-symfony/issues/20) from literal service maps and `#[SubscribedService]` getters. Dynamic maps use the compiled container XML.
 - Infers locator service types from explicit `#[AutowireLocator]` maps, including `SubscribedService` entries, and checks unknown keys.
+- Infers callable signatures from `#[AutowireCallable]`, `#[AutowireMethodOf]`, and `#[AutowireServiceClosure]`. Checks method targets and interface adapters.
 - Detects return types from console arguments (`InputInterface::getArgument()`) and options (`InputInterface::getOption()`).
 Enforces to use "InputArgument" and "InputOption" constants as a best practice.
 - Detects Doctrine repository classes associated to entities when configured via annotations.

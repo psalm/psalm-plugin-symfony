@@ -1,9 +1,9 @@
-@symfony-5 @symfony-6
+@symfony-6 @symfony-7 @symfony-8
 Feature: Tainting
 
   Background:
-    # Request::get() is internal since Symfony 6.4
-    Given I have issue handlers "UnusedVariable,InternalMethod" suppressed
+    # Request::get() is internal since Symfony 6.4 and deprecated since Symfony 7.4
+    Given I have issue handlers "UnusedVariable,InternalMethod,DeprecatedMethod" suppressed
     And I have Symfony plugin enabled
     And I have the following code preamble
       """
@@ -13,7 +13,7 @@ Feature: Tainting
       use Symfony\Component\HttpFoundation\Response;
       """
 
-  Scenario Outline: One parameter of the Request's request/query/cookies is printed in the body of a Response object
+  Scenario Outline: One parameter of the Request's request/query/cookies/attributes is printed in the body of a Response object
     And I have the following code
       """
       final class MyController
@@ -30,13 +30,14 @@ Feature: Tainting
       | TaintedHtml  | Detected tainted HTML |
     And I see no other errors
     Examples:
-      | property  |
-      |           |
-      | ->request |
-      | ->query   |
-      | ->cookies |
+      | property     |
+      |              |
+      | ->request    |
+      | ->query      |
+      | ->cookies    |
+      | ->attributes |
 
-  Scenario Outline: All parameters of the Request's request/query/cookies are exported in the body of a Response object
+  Scenario Outline: All parameters of the Request's request/query/cookies/attributes are exported in the body of a Response object
     And I have the following code
       """
       final class MyController
@@ -53,10 +54,11 @@ Feature: Tainting
       | Type         | Message               |
       | TaintedHtml  | Detected tainted HTML |
     Examples:
-      | property |
-      | request  |
-      | query    |
-      | cookies  |
+      | property   |
+      | request    |
+      | query      |
+      | cookies    |
+      | attributes |
 
 #  todo: "@psalm-taint-source input" does not work on get() method
 #  Scenario: The user-agent is used in the body of a Response object
