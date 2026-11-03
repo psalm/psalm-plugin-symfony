@@ -42,6 +42,7 @@ The plugin determines the real return type by checking the given argument and ma
   - $container in AbstractController
   - $context in ConstraintValidator classes
   - properties in custom `@Annotation` classes
+  - public typed properties marked with `#[Required]` (setters marked with `#[Required]` are supported too). Reading such a property inside `__construct` is not reported, although it is only injected after construction.
 - And [much more](https://github.com/psalm/psalm-plugin-symfony/tree/master/tests/acceptance/acceptance)!
 
 ### Configuration
