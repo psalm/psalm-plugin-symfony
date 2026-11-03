@@ -26,6 +26,7 @@ jobs:
           - 8.2
           - 8.3
           - 8.4
+          - 8.5
 
         dependencies:
           - highest
@@ -33,6 +34,8 @@ jobs:
 
         exclude:
           - php-version: 8.4
+            dependencies: lowest
+          - php-version: 8.5
             dependencies: lowest
 
     steps:
@@ -77,6 +80,7 @@ jobs:
           - 8.2
           - 8.3
           - 8.4
+          - 8.5
 
         # Every feature must carry a tag from the groups run below (see bin/ci/check-feature-tags.php).
         # Unquoted YAML numbers are rendered without a trailing zero: 7.0 becomes "7" and 8.0 becomes "8".
