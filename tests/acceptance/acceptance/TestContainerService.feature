@@ -1,4 +1,4 @@
-@symfony-5 @symfony-6
+@symfony-common
 Feature: Test Container service
 
   Background:

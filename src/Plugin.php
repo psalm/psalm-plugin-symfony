@@ -72,17 +72,21 @@ final class Plugin implements PluginEntryPointInterface
             AutowireCallableHandler::init($containerMeta);
 
             try {
-                /** @psalm-var list<class-string> $extensionClasses */
+                /** @psalm-var list<array{class-string, ?class-string}> $extensionClasses */
                 $extensionClasses = array_filter(array_map(function (array $m) use ($containerMeta) {
                     if ('addExtension' !== $m[0]) {
                         return null;
                     }
 
                     try {
-                        return $containerMeta->get($m[1][0])->getClass();
+                        $definition = $containerMeta->get($m[1][0]);
+                        $class = $definition->getClass();
                     } catch (ServiceNotFoundException $e) {
                         return null;
                     }
+
+                    // Twig >= 3.21: the extension is built from the runtime class given as its argument
+                    return null === $class ? null : [$class, 'Twig\Extension\AttributeExtension' === $class ? ($definition->getArguments()[0] ?? null) : null];
                 }, $containerMeta->get('twig')->getMethodCalls()));
                 TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {

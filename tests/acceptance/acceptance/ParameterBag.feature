@@ -1,4 +1,4 @@
-@symfony-5 @symfony-6
+@symfony-common
 Feature: ParameterBag return type detection if container.xml is provided
 
   Background:

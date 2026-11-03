@@ -1,4 +1,4 @@
-@symfony-6
+@symfony-common
 Feature: Denormalizer interface
   Detect DenormalizerInterface::denormalize() result type
 

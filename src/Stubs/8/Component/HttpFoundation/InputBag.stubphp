@@ -1,0 +1,37 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+/**
+ * @template TInput of string|int|float|bool|null
+ */
+final class InputBag extends ParameterBag
+{
+    /**
+     * Returns a scalar input value by name.
+     *
+     * @template TDefault of string|int|float|bool|null
+     *
+     * @param TDefault $default The default value if the input key does not exist
+     *
+     * @return TDefault|TInput
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function get(string $key, mixed $default = null): string|int|float|bool|null {}
+
+    /**
+     * Returns the parameters.
+     *
+     * @template TKey of string|null
+     *
+     * @param TKey $key The name of the parameter to return or null to get them all
+     *
+     * @return (TKey is null ? array<string, mixed> : array<mixed>)
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function all(?string $key = null): array {}
+}
