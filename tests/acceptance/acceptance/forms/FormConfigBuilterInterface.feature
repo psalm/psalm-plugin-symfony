@@ -57,7 +57,8 @@ Feature: Form config builder
       | Trace | $config: Symfony\Component\Form\FormConfigInterface<User>       |
       | Trace | $presetData: User\|null                                         |
       | Trace | $postSetData: User\|null                                        |
-      | Trace | $preSubmitData: array<string, mixed>                            |
+      | MixedAssignment | Unable to determine the type that $preSubmitData is being assigned to |
+      | Trace | $preSubmitData: mixed                                           |
       | Trace | $submitData: User\|null                                         |
       | Trace | $postSubmitData: User\|null                                     |
     And I see no other errors
