@@ -26,6 +26,7 @@ jobs:
           - 8.2
           - 8.3
           - 8.4
+          - 8.5
 
         dependencies:
           - highest
@@ -33,6 +34,8 @@ jobs:
 
         exclude:
           - php-version: 8.4
+            dependencies: lowest
+          - php-version: 8.5
             dependencies: lowest
 
     steps:
@@ -77,6 +80,7 @@ jobs:
           - 8.2
           - 8.3
           - 8.4
+          - 8.5
 
         symfony-version:
           - 6
