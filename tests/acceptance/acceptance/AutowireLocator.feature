@@ -386,3 +386,67 @@ Feature: Autowired locators
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: An aliased trait SubscribedService method provides both names, and an overriding method replaces it
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Contracts\Service\Attribute\SubscribedService;
+      use Symfony\Contracts\Service\ServiceMethodsSubscriberTrait;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      interface Mailer {}
+      trait Services {
+          #[SubscribedService]
+          private function logger(): Logger { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+
+          #[SubscribedService]
+          private function mailer(): Mailer { return $this->container->get(__CLASS__.'::'.__FUNCTION__); }
+      }
+      final class Subscriber implements ServiceSubscriberInterface {
+          use ServiceMethodsSubscriberTrait, Services {
+              logger as auditLogger;
+          }
+
+          private function mailer(): Mailer { throw new LogicException(); }
+
+          public function run(): void {
+              $this->container->get(self::class.'::logger');
+              $this->container->get(self::class.'::auditLogger');
+              $this->container->get(self::class.'::mailer');
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message                                  |
+      | ServiceNotFound | Service "Subscriber::mailer" not found |
+    And I see no other errors
+
+  Scenario: Returns of closures in getSubscribedServices() do not count as the map
+    Given I have the following code
+      """
+      <?php
+      use Psr\Container\ContainerInterface;
+      use Symfony\Contracts\Service\ServiceSubscriberInterface;
+
+      interface Logger {}
+      final class Subscriber implements ServiceSubscriberInterface {
+          public function __construct(private ContainerInterface $container) {}
+
+          #[\Override]
+          public static function getSubscribedServices(): array {
+              $prefix = static function (string $key): string { return 'app.'.$key; };
+
+              return ['logger' => Logger::class];
+          }
+
+          public function run(): void { $this->container->get('missing'); }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type            | Message   |
+      | ServiceNotFound | /missing/ |
+    And I see no other errors

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
+use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
@@ -14,15 +15,16 @@ use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\Int_;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
+use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Trait_;
-use PhpParser\NodeFinder;
 use Psalm\Aliases;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
@@ -112,7 +114,7 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
                     }
                 }
             }
-            $returns = 'getsubscribedservices' === $methodName ? (new NodeFinder())->findInstanceOf($method->getStmts() ?? [], Return_::class) : [];
+            $returns = 'getsubscribedservices' === $methodName ? self::returns($method->getStmts() ?? []) : [];
             if ([] !== $returns) {
                 $returned = 1 === \count($returns) ? $returns[0]->expr : null;
                 // a map returned from several places (e.g. depending on a condition) is left to the compiled container
@@ -393,28 +395,14 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
             }
             $sources[] = $trait;
         }
+        $subscriptionsBySource = [];
         foreach ($sources as $source) {
             $sourceData = $source === $class ? $data : ($source->custom_metadata[self::class] ?? null);
             $subscriptions = \is_array($sourceData) ? ($sourceData['subscribed'] ?? []) : [];
             if (!\is_array($subscriptions)) {
                 return null;
             }
-            foreach ($subscriptions as $methodName => $subscription) {
-                if (!\is_array($subscription) || ($class->declaring_method_ids[$methodName] ?? null)?->fq_class_name !== $source->name) {
-                    continue;
-                }
-                $subscriptionName = $subscription['name'] ?? null;
-                $args = $subscription['args'] ?? null;
-                if (!\is_string($subscriptionName) || !\is_array($args)) {
-                    continue;
-                }
-                $storage = $source->methods[$methodName] ?? null;
-                $type = $storage?->signature_return_type;
-                if (null === $storage || $storage->is_static || $storage->abstract || null === $type) {
-                    continue;
-                }
-                $properties = self::addSubscribed($properties, $args, $class->name.'::'.$subscriptionName, $type, $codebase);
-            }
+            $subscriptionsBySource[strtolower($source->name)] = [$source, $subscriptions];
             $propertySubscriptions = \is_array($sourceData) ? ($sourceData['subscribed_properties'] ?? []) : [];
             if (\is_array($propertySubscriptions) && self::usesSubscriberTrait($class, $codebase, true)) {
                 foreach ($propertySubscriptions as $propertyName => $args) {
@@ -425,10 +413,59 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
                 }
             }
         }
+        // the methods as the class has them: an overridden trait method is the class's, an aliased one has both names
+        $aliases = [];
+        foreach (array_keys($class->trait_alias_map_cased) as $alias) {
+            $aliases[strtolower($alias)] = $alias;
+        }
+        foreach ($class->declaring_method_ids as $methodName => $declaringId) {
+            [$source, $subscriptions] = $subscriptionsBySource[strtolower($declaringId->fq_class_name)] ?? [null, []];
+            $subscription = $subscriptions[$declaringId->method_name] ?? null;
+            if (null === $source || !\is_array($subscription)) {
+                continue;
+            }
+            $subscriptionName = $aliases[$methodName] ?? $subscription['name'] ?? null;
+            $args = $subscription['args'] ?? null;
+            if (!\is_string($subscriptionName) || !\is_array($args)) {
+                continue;
+            }
+            $storage = $source->methods[$declaringId->method_name] ?? null;
+            $type = $storage?->signature_return_type;
+            if (null === $storage || $storage->is_static || $storage->abstract || null === $type) {
+                continue;
+            }
+            $properties = self::addSubscribed($properties, $args, $class->name.'::'.$subscriptionName, $type, $codebase);
+        }
 
         $map = [] === $properties ? Type::getEmptyArray() : new Union([TKeyedArray::make($properties)]);
 
         return self::$subscribers[$name] = self::compiledSubscriber($class->name, $map, $codebase);
+    }
+
+    /**
+     * @param array<array-key, mixed> $nodes
+     *
+     * @return list<Return_> the returns of the function the nodes belong to, not those of the closures or classes in it
+     */
+    private static function returns(array $nodes): array
+    {
+        $returns = [];
+        foreach ($nodes as $node) {
+            if (\is_array($node)) {
+                $returns = [...$returns, ...self::returns($node)];
+            }
+            if (!$node instanceof Node || $node instanceof FunctionLike || $node instanceof ClassLike) {
+                continue;
+            }
+            if ($node instanceof Return_) {
+                $returns[] = $node;
+            }
+            foreach ($node->getSubNodeNames() as $name) {
+                $returns = [...$returns, ...self::returns([$node->{$name}])];
+            }
+        }
+
+        return $returns;
     }
 
     /**
