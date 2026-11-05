@@ -36,6 +36,13 @@ final class ContainerMeta
 
     private ContainerBuilder $container;
 
+    private string $containerXmlPath;
+
+    /**
+     * @var array<string, true>
+     */
+    private array $removedServiceIds = [];
+
     public function __construct(array $containerXmlPaths)
     {
         $this->init($containerXmlPaths);
@@ -103,29 +110,17 @@ final class ContainerMeta
         return $this->classNames;
     }
 
-    public function findTaggedServices(string $tagName): array
+    public function getContainerXmlPath(): string
     {
-        return $this->container->findTaggedServiceIds($tagName);
-    }
-
-    /** @return Definition[] */
-    public function getDefinitions(): array
-    {
-        return $this->container->getDefinitions();
+        return $this->containerXmlPath;
     }
 
     /**
-     * @return \Iterator<int, list{string|Reference, string}>
-     *
-     * @psalm-suppress MoreSpecificReturnType
+     * @return array<string, Definition> the definitions of the services that the compiled container can create
      */
-    public function getInstanceClassFactories(): \Iterator
+    public function getDefinitions(): array
     {
-        foreach ($this->container->getDefinitions() as $definition) {
-            if (is_array($factory = $definition->getFactory()) && null !== $factory[0] && 'Closure' !== $factory[0]) {
-                yield $factory;
-            }
-        }
+        return array_diff_key($this->container->getDefinitions(), $this->removedServiceIds);
     }
 
     /**
@@ -168,7 +163,9 @@ final class ContainerMeta
             throw new ConfigException('Container xml file(s) not found!');
         }
 
+        $this->containerXmlPath = $containerXmlPath;
         $xml->load($containerXmlPath);
+        $this->loadRemovedServiceIds($containerXmlPath);
 
         foreach ($this->container->getDefinitions() as $definition) {
             if ($definition->hasTag('container.service_locator')) {
@@ -203,6 +200,23 @@ final class ContainerMeta
                 }
             }
         }
+    }
+
+    /**
+     * The debug container also holds the services that the compiler removed as unused, which only its log tells apart.
+     *
+     * @see Kernel::initializeContainer()
+     */
+    private function loadRemovedServiceIds(string $containerXmlPath): void
+    {
+        $logPath = preg_replace('/\.xml$/', 'Compiler.log', $containerXmlPath);
+        if (null === $logPath || $logPath === $containerXmlPath || !is_file($logPath) || !is_readable($logPath)) {
+            return;
+        }
+
+        $log = (string) file_get_contents($logPath);
+        preg_match_all('/RemoveUnusedDefinitionsPass: Removed service "([^"]+)"; reason: unused\./', $log, $matches);
+        $this->removedServiceIds = array_fill_keys($matches[1], true);
     }
 
     /**

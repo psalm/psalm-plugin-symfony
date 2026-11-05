@@ -13,6 +13,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\FrameworkCallsHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
@@ -44,6 +45,7 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/RequiredPropertyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/RouterHandler.php';
+        require_once __DIR__.'/Handler/FrameworkCallsHandler.php';
         require_once __DIR__.'/Handler/ServiceLocatorHandler.php';
         require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
@@ -54,6 +56,7 @@ final class Plugin implements PluginEntryPointInterface
         $registration->registerHooksFromClass(RequiredPropertyHandler::class);
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
         $registration->registerHooksFromClass(RouterHandler::class);
+        $registration->registerHooksFromClass(FrameworkCallsHandler::class);
         $registration->registerHooksFromClass(ServiceLocatorHandler::class);
         ServiceLocatorHandler::init(null);
         $registration->registerHooksFromClass(AutowireCallableHandler::class);
@@ -79,6 +82,7 @@ final class Plugin implements PluginEntryPointInterface
         if (isset($config->containerXml)) {
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
+            RouterHandler::init($containerMeta);
             ServiceLocatorHandler::init($containerMeta);
             AutowireCallableHandler::init($containerMeta);
 

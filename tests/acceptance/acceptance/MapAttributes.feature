@@ -125,3 +125,35 @@ Feature: MapQueryString and MapRequestPayload
       | PossiblyUnusedMethod | Cannot find any calls to method UserController::unused |
 
     And I see no other errors
+
+  Scenario: DTO of an unused controller method is reported as unused
+    Given I have Symfony plugin enabled
+    And I have the following code
+      """
+      <?php
+      use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
+
+      final class Input
+      {
+        public function __construct(public readonly string $name) {}
+      }
+
+      final class Controller
+      {
+        public function notRouted(#[MapRequestPayload] Input $input): string
+        {
+          return $input->name;
+        }
+      }
+
+      function test(): Controller
+      {
+        return new Controller();
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see these errors
+      | Type                 | Message                                                 |
+      | PossiblyUnusedMethod | Cannot find any calls to method Controller::notRouted   |
+      | UnusedClass          | Class Input is never used                               |
+    And I see no other errors

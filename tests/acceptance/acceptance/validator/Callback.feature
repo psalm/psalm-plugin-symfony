@@ -38,3 +38,32 @@ Feature: Validator callback constraint
       | PossiblyUnusedMethod | Cannot find any calls to method App\Validator\Payload::unused |
     And I see no other errors
 
+
+  Scenario: Validator callback class attribute method is marked as used
+    Given I have Symfony plugin enabled
+    And I have the following code
+      """
+      <?php
+      namespace App\Validator;
+
+      use Symfony\Component\Validator\Constraints as Assert;
+
+      #[Assert\Callback('validate')]
+      #[Assert\Callback(callback: 'validateNamed')]
+      final class Payload
+      {
+        public function validate(): void {}
+        public function validateNamed(): void {}
+        public function unused(): void {}
+      }
+
+      function test(\Symfony\Component\Validator\Validator\ValidatorInterface $validator): void
+      {
+        $validator->validate(new Payload());
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see these errors
+      | Type                 | Message                                                       |
+      | PossiblyUnusedMethod | Cannot find any calls to method App\Validator\Payload::unused |
+    And I see no other errors

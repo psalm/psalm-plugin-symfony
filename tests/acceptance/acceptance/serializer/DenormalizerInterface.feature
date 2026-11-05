@@ -153,3 +153,55 @@ Feature: Denormalizer interface
       """
     When I run Psalm with dead code detection
     Then I see no errors
+
+  Scenario: Constructors of the classes of a deserialized array are not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\SerializerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Item {
+        public function __construct(public string $name) {}
+      }
+
+      /** @return list<Item> */
+      function test(SerializerInterface $serializer, string $json): array
+      {
+        /** @var list<Item> */
+        return $serializer->deserialize($json, Item::class.'[]', 'json');
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Class that only unused code denormalizes is reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      final class Address {
+        public function __construct(public string $street) {}
+      }
+
+      final class Importer {
+        public function __construct(private DenormalizerInterface $denormalizer) {}
+
+        public function import(): Address {
+          return $this->denormalizer->denormalize([], Address::class);
+        }
+      }
+
+      function test(DenormalizerInterface $denormalizer): Importer
+      {
+        return new Importer($denormalizer);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see these errors
+      | Type                 | Message                                                |
+      | PossiblyUnusedMethod | Cannot find any calls to method Importer::import                        |
+      | UnusedProperty       | Cannot find any references to private property Importer::$denormalizer |
+      | UnusedClass          | Class Address is never used                                            |
+    And I see no other errors
