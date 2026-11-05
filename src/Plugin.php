@@ -101,7 +101,7 @@ final class Plugin implements PluginEntryPointInterface
                     }
 
                     // Twig >= 3.21: the extension is built from the runtime class given as its argument
-                    return null === $class ? null : [$class, 'Twig\Extension\AttributeExtension' === $class ? ($definition->getArguments()[0] ?? null) : null];
+                    return null === $class ? null : [$class, \Twig\Extension\AttributeExtension::class === $class ? ($definition->getArguments()[0] ?? null) : null];
                 }, $containerMeta->get('twig')->getMethodCalls()));
                 TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {
