@@ -10,6 +10,9 @@ use Symfony\Component\Form\FormErrorIterator;
 
 final class FormGetErrorsReturnTypeProvider implements \Psalm\Plugin\EventHandler\MethodReturnTypeProviderInterface
 {
+    /**
+     * @psalm-pure
+     */
     #[\Override]
     public static function getClassLikeNames(): array
     {

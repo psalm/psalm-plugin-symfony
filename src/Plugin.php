@@ -7,6 +7,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\AutowireCallableHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerDependencyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ContainerHandler;
@@ -14,14 +15,17 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RouterHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\ServiceLocatorHandler;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
+use Psalm\SymfonyPsalmPlugin\Twig\TwigUtils;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -37,15 +41,23 @@ final class Plugin implements PluginEntryPointInterface
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
+        require_once __DIR__.'/Handler/RequiredPropertyHandler.php';
         require_once __DIR__.'/Handler/RequiredSetterHandler.php';
         require_once __DIR__.'/Handler/RouterHandler.php';
+        require_once __DIR__.'/Handler/ServiceLocatorHandler.php';
+        require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $registration->registerHooksFromClass(HeaderBagHandler::class);
         $registration->registerHooksFromClass(ConsoleHandler::class);
         $registration->registerHooksFromClass(ContainerDependencyHandler::class);
+        $registration->registerHooksFromClass(RequiredPropertyHandler::class);
         $registration->registerHooksFromClass(RequiredSetterHandler::class);
         $registration->registerHooksFromClass(RouterHandler::class);
+        $registration->registerHooksFromClass(ServiceLocatorHandler::class);
+        ServiceLocatorHandler::init(null);
+        $registration->registerHooksFromClass(AutowireCallableHandler::class);
+        AutowireCallableHandler::init(null);
 
         if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
             require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';
@@ -67,19 +79,25 @@ final class Plugin implements PluginEntryPointInterface
         if (isset($config->containerXml)) {
             $containerMeta = new ContainerMeta((array) $config->containerXml);
             ContainerHandler::init($containerMeta);
+            ServiceLocatorHandler::init($containerMeta);
+            AutowireCallableHandler::init($containerMeta);
 
             try {
-                /** @psalm-var list<class-string> $extensionClasses */
+                /** @psalm-var list<array{class-string, ?class-string}> $extensionClasses */
                 $extensionClasses = array_filter(array_map(function (array $m) use ($containerMeta) {
                     if ('addExtension' !== $m[0]) {
                         return null;
                     }
 
                     try {
-                        return $containerMeta->get($m[1][0])->getClass();
+                        $definition = $containerMeta->get($m[1][0]);
+                        $class = $definition->getClass();
                     } catch (ServiceNotFoundException $e) {
                         return null;
                     }
+
+                    // Twig >= 3.21: the extension is built from the runtime class given as its argument
+                    return null === $class ? null : [$class, 'Twig\Extension\AttributeExtension' === $class ? ($definition->getArguments()[0] ?? null) : null];
                 }, $containerMeta->get('twig')->getMethodCalls()));
                 TemplateFileAnalyzer::initExtensions($extensionClasses);
             } catch (ServiceNotFoundException $e) {
@@ -113,7 +131,26 @@ final class Plugin implements PluginEntryPointInterface
         }
 
         require_once __DIR__.'/Twig/AnalyzedTemplatesTainter.php';
+        foreach ($config->twigRenderMethod ?? [] as $renderMethod) {
+            $method = explode('::', trim((string) $renderMethod));
+            $templateArgument = (int) ($renderMethod['templateArgument'] ?? 0);
+            $contextArgument = (int) ($renderMethod['contextArgument'] ?? 1);
+            $templateDirectoryArgument = isset($renderMethod['templateDirectoryArgument']) ? (int) $renderMethod['templateDirectoryArgument'] : null;
+            if (2 !== count($method) || '' === $method[0] || '' === $method[1] || $templateArgument < 0 || $contextArgument < 0 || (null !== $templateDirectoryArgument && $templateDirectoryArgument < 0)) {
+                throw new ConfigException(sprintf('The twig render method %s is not of the form Class::method with arguments counted from 0.', (string) $renderMethod));
+            }
+
+            AnalyzedTemplatesTainter::addRenderMethod($method[0], $method[1], $templateArgument, $contextArgument, $templateDirectoryArgument);
+        }
         $registration->registerHooksFromClass(AnalyzedTemplatesTainter::class);
+        foreach ($config->twigConstant ?? [] as $constant) {
+            $name = trim((string) ($constant['name'] ?? ''));
+            if ('' === $name) {
+                throw new ConfigException('A twig constant has no name.');
+            }
+
+            TwigUtils::addConstant($name, (string) $constant);
+        }
 
         if (isset($config->twigRootPath)) {
             $twig_root_path = trim((string) $config->twigRootPath, DIRECTORY_SEPARATOR);

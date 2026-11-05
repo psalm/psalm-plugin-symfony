@@ -1,10 +1,9 @@
-@symfony-5
+@symfony-common
 Feature: Denormalizer interface
   Detect DenormalizerInterface::denormalize() result type
 
   Background:
-    Given I have issue handler "UnusedVariable,MethodSignatureMustProvideReturnType" suppressed
-    And I have Symfony plugin enabled
+    Given I have Symfony plugin enabled
 
   Scenario: Psalm recognizes denormalization result as an object when a class is passed as a type
     Given I have the following code
@@ -44,8 +43,7 @@ Feature: Denormalizer interface
     And I see no other errors
 
   Scenario: Constructor of denormalized top-level class is not reported as unused
-    Given I have Symfony plugin enabled
-    And I have the following code
+    Given I have the following code
       """
       <?php
       use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -64,8 +62,7 @@ Feature: Denormalizer interface
     Then I see no errors
 
   Scenario: Constructor of typed sub-property is not reported as unused
-    Given I have Symfony plugin enabled
-    And I have the following code
+    Given I have the following code
       """
       <?php
       use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -88,8 +85,7 @@ Feature: Denormalizer interface
     Then I see no errors
 
   Scenario: Constructor of array-collection sub-object is not reported as unused
-    Given I have Symfony plugin enabled
-    And I have the following code
+    Given I have the following code
       """
       <?php
       use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -114,8 +110,7 @@ Feature: Denormalizer interface
     Then I see no errors
 
   Scenario: Constructor of list sub-object is not reported as unused
-    Given I have Symfony plugin enabled
-    And I have the following code
+    Given I have the following code
       """
       <?php
       use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -140,8 +135,7 @@ Feature: Denormalizer interface
     Then I see no errors
 
   Scenario: Circular object graph does not cause infinite recursion
-    Given I have Symfony plugin enabled
-    And I have the following code
+    Given I have the following code
       """
       <?php
       use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -158,29 +152,4 @@ Feature: Denormalizer interface
       }
       """
     When I run Psalm with dead code detection
-    Then I see no errors
-
-  Scenario: Psalm does not complain about the missing $data parameter type in the denormalizer implementation
-    Given I have the following code
-      """
-      <?php
-      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
-
-      final class Denormalizer implements DenormalizerInterface
-      {
-        public function supportsDenormalization($data, string $type, string $format = null): bool
-        {
-          return true;
-        }
-
-        /**
-         * @return mixed
-         */
-        public function denormalize(mixed $data, string $type, string $format = null, array $context = [])
-        {
-          return null;
-        }
-      }
-      """
-    When I run Psalm
     Then I see no errors

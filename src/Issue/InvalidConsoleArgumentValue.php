@@ -7,6 +7,9 @@ use Psalm\Issue\PluginIssue;
 
 final class InvalidConsoleArgumentValue extends PluginIssue
 {
+    /**
+     * @psalm-capabilities read-props
+     */
     public function __construct(CodeLocation $code_location)
     {
         parent::__construct('Use Symfony\Component\Console\Input\InputArgument constants', $code_location);

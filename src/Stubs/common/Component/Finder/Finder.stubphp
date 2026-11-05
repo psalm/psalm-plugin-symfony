@@ -11,6 +11,15 @@ use IteratorAggregate;
 class Finder implements IteratorAggregate, Countable
 {
     /**
+     * @param string|string[] $dirs
+     *
+     * @return $this
+     *
+     * @psalm-taint-sink file $dirs
+     */
+    public function in(string|array $dirs): static {}
+
+    /**
      * @return \Iterator<non-empty-string, SplFileInfo>
      */
     public function getIterator() {}
