@@ -6,25 +6,28 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
+use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\AfterCodebasePopulatedInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
-use Psalm\Plugin\EventHandler\BeforeAddIssueInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
-use Psalm\Plugin\EventHandler\Event\BeforeAddIssueEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\NamingConventionViolation;
 use Psalm\SymfonyPsalmPlugin\Issue\PrivateService;
 use Psalm\SymfonyPsalmPlugin\Issue\ServiceNotFound;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Symfony\FrameworkCalls;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use Symfony\Component\DependencyInjection\Reference;
 
-final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface, BeforeAddIssueInterface
+final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterClassLikeVisitInterface, AfterCodebasePopulatedInterface
 {
     private const GET_CLASSLIKES = [
         'Psr\Container\ContainerInterface',
@@ -35,20 +38,16 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
         'Symfony\Bundle\FrameworkBundle\Test\TestContainer',
     ];
 
-    private static ?ContainerMeta $containerMeta = null;
-
     /**
-     * @var array<string> collection of cower-cased class names that are present in the container
+     * @see \Doctrine\ORM\Events
      */
-    private static array $containerClassNames = [];
+    private const DOCTRINE_LIFECYCLE_EVENTS = ['preRemove', 'postRemove', 'prePersist', 'postPersist', 'preUpdate', 'postUpdate', 'postLoad', 'preFlush'];
+
+    private static ?ContainerMeta $containerMeta = null;
 
     public static function init(ContainerMeta $containerMeta): void
     {
         self::$containerMeta = $containerMeta;
-
-        self::$containerClassNames = array_map(function (string $className): string {
-            return strtolower($className);
-        }, self::$containerMeta->getClassNames());
     }
 
     #[\Override]
@@ -187,26 +186,154 @@ final class ContainerHandler implements AfterMethodCallAnalysisInterface, AfterC
             return;
         }
 
-        foreach ($event->getCodebase()->classlike_storage_provider->getAll() as $name => $storage) {
-            if (in_array($name, self::$containerClassNames, true)) {
-                $storage->suppressed_issues[] = 'UnusedClass';
+        $codebase = $event->getCodebase();
+
+        foreach (self::$containerMeta->getDefinitions() as $definition) {
+            if ($definition->isAbstract() || $definition->hasTag('container.excluded')) {
+                continue;
+            }
+
+            $class = self::getClass($definition);
+            if (null !== $class) {
+                FrameworkCalls::useClass($codebase, $class, FrameworkCalls::CONTAINER);
+                // synthetic services, e.g. the kernel, are created outside of the container
+                if (null === $definition->getFactory() && !$definition->isSynthetic()) {
+                    FrameworkCalls::callMethod($codebase, $class, '__construct', FrameworkCalls::CONTAINER);
+                }
+            }
+
+            foreach ([$definition->getFactory(), $definition->getConfigurator()] as $callable) {
+                if (is_array($callable) && is_string($callable[1] ?? null) && null !== $callableClass = self::getCallableClass($callable[0] ?? null, $class)) {
+                    FrameworkCalls::callMethod($codebase, $callableClass, $callable[1], FrameworkCalls::CONTAINER);
+                }
+            }
+
+            foreach ($definition->getMethodCalls() as [$method, $arguments]) {
+                if (null !== $class) {
+                    FrameworkCalls::callMethod($codebase, $class, $method, FrameworkCalls::CONTAINER);
+                }
+
+                // the listeners that RegisterListenersPass registered, subscribers included, with their method names resolved
+                if ('addListener' === $method && is_array($listener = $arguments[1] ?? null) && is_string($listener[1] ?? null) && null !== $listenerClass = self::getCallableClass($listener[0] ?? null, null)) {
+                    FrameworkCalls::callMethod($codebase, $listenerClass, $listener[1], FrameworkCalls::EVENT_DISPATCHER);
+                }
+            }
+
+            if (null !== $class) {
+                foreach ($definition->getTags() as $name => $tags) {
+                    foreach ($tags as $tag) {
+                        self::callTaggedMethods($codebase, $definition, $class, $name, $tag);
+                    }
+                }
             }
         }
     }
 
-    #[\Override]
-    public static function beforeAddIssue(BeforeAddIssueEvent $event): ?bool
+    /**
+     * Calls the methods that a tag names, or that the pass of the tag picks when the tag names none.
+     */
+    private static function callTaggedMethods(Codebase $codebase, Definition $definition, string $class, string $name, mixed $tag): void
     {
-        $data = $event->getIssue()->toIssueData('error');
-        if ('PossiblyUnusedMethod' === $data->type
-            && '__construct' === $data->selected_text
-            && null !== $data->dupe_key
-            && in_array(preg_replace('/::__construct$/', '', $data->dupe_key), self::$containerClassNames, true)) {
-            // Don't report service constructors as PossiblyUnusedMethod
-            return false;
+        if (!is_array($tag)) {
+            return;
         }
 
-        return null;
+        $method = self::getNonEmptyString($tag['method'] ?? null);
+        $event = self::getNonEmptyString($tag['event'] ?? null);
+
+        switch ($name) {
+            case 'kernel.event_listener':
+                // @see \Symfony\Component\EventDispatcher\DependencyInjection\RegisterListenersPass::process()
+                if (null === $event) {
+                    if ($definition->hasTag('kernel.event_subscriber')) {
+                        return;
+                    }
+                    $method ??= '__invoke';
+                } elseif (null === $method) {
+                    // e.g. onKernelFinishRequest for kernel.finish_request
+                    $method = 'on'.str_replace(' ', '', ucwords((string) preg_replace('/[^a-z0-9]/i', ' ', $event)));
+                    if (!FrameworkCalls::methodExists($codebase, $class, $method)) {
+                        $method = '__invoke';
+                    }
+                }
+                FrameworkCalls::callMethod($codebase, $class, $method, FrameworkCalls::EVENT_DISPATCHER);
+
+                return;
+            case 'messenger.message_handler':
+                FrameworkCalls::callMethod($codebase, $class, $method ?? '__invoke', FrameworkCalls::MESSENGER);
+
+                return;
+            case 'doctrine.orm.entity_listener':
+                // @see \Doctrine\Bundle\DoctrineBundle\DependencyInjection\Compiler\EntityListenerPass::attachToListener()
+                if (null !== $method) {
+                    $methods = [$method];
+                } elseif (null !== $event) {
+                    $methods = [!FrameworkCalls::methodExists($codebase, $class, $event) && FrameworkCalls::methodExists($codebase, $class, '__invoke') ? '__invoke' : $event];
+                } else {
+                    // listeners of #[EntityListeners] mappings: Doctrine calls the methods named after the events
+                    $methods = array_filter(self::DOCTRINE_LIFECYCLE_EVENTS, static fn (string $event): bool => FrameworkCalls::methodExists($codebase, $class, $event));
+                }
+                foreach ($methods as $method) {
+                    FrameworkCalls::callMethod($codebase, $class, $method, FrameworkCalls::DOCTRINE_LISTENERS);
+                }
+
+                return;
+            case 'doctrine.event_listener':
+                // the event manager calls the method named after the event
+                if (null !== $event) {
+                    FrameworkCalls::callMethod($codebase, $class, $event, FrameworkCalls::DOCTRINE_EVENT_MANAGER);
+                }
+
+                return;
+        }
+
+        // other tags that name a method, e.g. kernel.reset
+        if (null !== $method) {
+            FrameworkCalls::callMethod($codebase, $class, $method, FrameworkCalls::CONTAINER);
+        }
+    }
+
+    /**
+     * @psalm-pure
+     */
+    private static function getNonEmptyString(mixed $value): ?string
+    {
+        return is_string($value) && '' !== $value ? $value : null;
+    }
+
+    private static function getClass(Definition $definition): ?string
+    {
+        $class = $definition->getClass();
+
+        return null === $class || str_starts_with($class, '%') ? null : $class;
+    }
+
+    /**
+     * @param string|null $selfClass the class of the service, for a callable of the service itself
+     */
+    private static function getCallableClass(mixed $target, ?string $selfClass): ?string
+    {
+        if ($target instanceof ServiceClosureArgument) {
+            $target = $target->getValues()[0] ?? null;
+        }
+
+        if ($target instanceof Reference) {
+            try {
+                return null === self::$containerMeta ? null : self::getClass(self::$containerMeta->get((string) $target));
+            } catch (ServiceNotFoundException) {
+                return null;
+            }
+        }
+
+        if ($target instanceof Definition) {
+            return self::getClass($target);
+        }
+
+        if (is_string($target) && !str_starts_with($target, '%')) {
+            return $target;
+        }
+
+        return null === $target ? $selfClass : null;
     }
 
     /**

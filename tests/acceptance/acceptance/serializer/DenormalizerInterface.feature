@@ -41,3 +41,167 @@ Feature: Denormalizer interface
       | MixedAssignment        | Unable to determine the type that $result is being assigned to |
       | Trace                  | $result: mixed                                                 |
     And I see no other errors
+
+  Scenario: Constructor of denormalized top-level class is not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      final class Address {
+        public function __construct(public string $street) {}
+      }
+
+      function test(DenormalizerInterface $denormalizer): string
+      {
+        $address = $denormalizer->denormalize([], Address::class);
+        return $address->street;
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Constructor of typed sub-property is not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Street {
+        public function __construct(public string $name) {}
+      }
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Address {
+        public function __construct(public Street $street) {}
+      }
+
+      function test(DenormalizerInterface $denormalizer): void
+      {
+        $denormalizer->denormalize([], Address::class);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Constructor of array-collection sub-object is not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Tag {
+        public function __construct(public string $name) {}
+      }
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Post {
+        /** @var Tag[] */
+        public array $tags = [];
+        public function __construct(public string $title) {}
+      }
+
+      function test(DenormalizerInterface $denormalizer): void
+      {
+        $denormalizer->denormalize([], Post::class);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Constructor of list sub-object is not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Tag {
+        public function __construct(public string $name) {}
+      }
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Post {
+        /** @var list<Tag> */
+        public array $tags = [];
+        public function __construct(public string $title) {}
+      }
+
+      function test(DenormalizerInterface $denormalizer): void
+      {
+        $denormalizer->denormalize([], Post::class);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Circular object graph does not cause infinite recursion
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Node {
+        public ?Node $parent = null;
+        public function __construct(public string $value) {}
+      }
+
+      function test(DenormalizerInterface $denormalizer): void
+      {
+        $denormalizer->denormalize([], Node::class);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Constructors of the classes of a deserialized array are not reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\SerializerInterface;
+
+      /** @psalm-suppress PossiblyUnusedProperty */
+      final class Item {
+        public function __construct(public string $name) {}
+      }
+
+      /** @return list<Item> */
+      function test(SerializerInterface $serializer, string $json): array
+      {
+        /** @var list<Item> */
+        return $serializer->deserialize($json, Item::class.'[]', 'json');
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see no errors
+
+  Scenario: Class that only unused code denormalizes is reported as unused
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
+
+      final class Address {
+        public function __construct(public string $street) {}
+      }
+
+      final class Importer {
+        public function __construct(private DenormalizerInterface $denormalizer) {}
+
+        public function import(): Address {
+          return $this->denormalizer->denormalize([], Address::class);
+        }
+      }
+
+      function test(DenormalizerInterface $denormalizer): Importer
+      {
+        return new Importer($denormalizer);
+      }
+      """
+    When I run Psalm with dead code detection
+    Then I see these errors
+      | Type                 | Message                                                |
+      | PossiblyUnusedMethod | Cannot find any calls to method Importer::import                        |
+      | UnusedProperty       | Cannot find any references to private property Importer::$denormalizer |
+      | UnusedClass          | Class Address is never used                                            |
+    And I see no other errors
