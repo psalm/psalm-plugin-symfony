@@ -140,6 +140,27 @@ final class Context
     /** @var array<string, array<string, MacroNode>> template name => its macros, by name (see getTemplateReads()) */
     private static $templateMacros = [];
 
+    /** @var array<string, array{array<string, string>, array<array-key, ModuleNode>}> template name => the templates its macros import (see getMacroImports()) and the templates embedded in it, by index (see getMacroReads()) */
+    private static $templateScopes = [];
+
+    /** @var array<string, array<string, list<non-empty-list<string>>>|null> template name => macro name => the chains of attributes the macro reads of the objects its parameters hold, null if they can't be told (see getMacroReads()) */
+    private static $macroReads = [];
+
+    /** @var array<string, true> the templates whose reads are being read (see getTemplateReads()) */
+    private static $templateReadsInProgress = [];
+
+    /** @var array<string, true> the templates whose macros' reads are being read (see getMacroReads()) */
+    private static $macroReadsInProgress = [];
+
+    /** @var int how many times a read found what it needed being read, so that it is incomplete (see getMacroReads()) */
+    private static $incompleteReads = 0;
+
+    /** @var array<string, list<string>> template name => the templates whose macros it calls (see getReachableReads()) */
+    private static $calledTemplates = [];
+
+    /** @var array<string, list<non-empty-list<string>>> template name => the chains of attributes the templates reachable by the calls of macros read (see getReachableReads()) */
+    private static $reachableReads = [];
+
     /** @var array<string, DataFlowNode|null> class and chain of attributes => what Twig gives for the chain from an object of the class (see getObjectAttribute()) */
     private static $objectAttributes = [];
 
@@ -1102,7 +1123,8 @@ final class Context
      * position or name (null for arguments unpacked into all of them), and the bases of the attributes of the objects
      * the argument holds (see getObjectsAttributeBases()): the parameter holds them, and `varargs` holds those of the
      * arguments the macro has no parameter for as its items. The parameter prints what the argument prints (see
-     * taintPrintedVariable()), the nodes of the last element of the argument.
+     * taintPrintedVariable()), the nodes of the last element of the argument. Of the attributes of the objects, the
+     * parameter and `varargs` only hold those the macro reads (see getMacroReads()).
      *
      * @param list<array{int|string|null, list<DataFlowNode>, list<string>, list<DataFlowNode>}> $arguments
      *
@@ -1120,7 +1142,8 @@ final class Context
         $names = array_keys($parameters);
         $varargsBase = self::getMacroParameterBase($templateName, $macro, 'varargs');
 
-        $paths = self::getTemplateReads($this->twig, $templateName)['attributes'];
+        $paths = self::getMacroCallReads($this->twig, $templateName, (string) $macro->getAttribute('name'))
+            ?? self::getReachableReads($this->twig, $templateName);
         foreach ($arguments as [$key, $sources, $bases, $printed]) {
             // the parameters the argument gives, which hold its objects
             if (null === $key) {
@@ -1218,8 +1241,7 @@ final class Context
             return null;
         }
 
-        self::getTemplateReads($twig, $template);
-        $macros = self::$templateMacros[$template] ?? [];
+        $macros = self::getTemplateMacros($twig, $template);
         // older Twig versions name the macro called after the method it compiles to (`macro_name`)
         if (!isset($macros[$name]) && str_starts_with($name, 'macro_')) {
             $name = substr($name, \strlen('macro_'));
@@ -1885,37 +1907,48 @@ final class Context
      * if `part` reads `i.name`, and also those of the items of the chain, as the included template may loop over the
      * variable: `[users, name]` and `[users[], name]` for `{% include 'part' with {users: variable.users} %}` if `part`
      * reads `u.name` in `{% for u in users %}`. So are the chains a macro of the template reads of the objects of
-     * the chains its calls give it: `[users, name]` and `[users[], name]` for `{{ _self.list(variable.users) }}` if
-     * `list` reads `u.name` in `{% for u in users %}`. The template is read as a whole: a variable stands for any
-     * chain it is set to, wherever it is read.
+     * the chains its calls give it, which only those the macro reads count (see getMacroReads()): `[users, name]` and
+     * `[users[], name]` for `{{ _self.list(variable.users) }}` if `list` reads `u.name` in `{% for u in users %}`. The
+     * template is read as a whole: a variable stands for any chain it is set to, wherever it is read.
      *
      * @return array{variables: list<string>, attributes: list<non-empty-list<string>>}
      */
     private static function getTemplateReads(Environment $twig, string $templateName): array
     {
         if (isset(self::$templateReads[$templateName])) {
+            if (isset(self::$templateReadsInProgress[$templateName])) {
+                ++self::$incompleteReads;
+            }
+
             return self::$templateReads[$templateName];
         }
 
         // a template including itself reads nothing else
         self::$templateReads[$templateName] = ['variables' => [], 'attributes' => []];
+        self::$templateReadsInProgress[$templateName] = true;
 
+        try {
+            return self::$templateReads[$templateName] = self::readTemplate($twig, $templateName) ?? self::$templateReads[$templateName];
+        } finally {
+            unset(self::$templateReadsInProgress[$templateName]);
+        }
+    }
+
+    /**
+     * The reads of the template $templateName (see getTemplateReads()), null if the analysis cannot load or parse it.
+     * Its macros and what they import are kept as soon as it is parsed (see getTemplateMacros() and getMacroReads()).
+     *
+     * @return array{variables: list<string>, attributes: list<non-empty-list<string>>}|null
+     */
+    private static function readTemplate(Environment $twig, string $templateName): ?array
+    {
         try {
             $tree = $twig->parse($twig->tokenize($twig->getLoader()->getSourceContext($templateName)));
         } catch (Error) {
             // a template the analysis cannot load or parse: its own analysis reports why
-            return self::$templateReads[$templateName];
+            return null;
         }
 
-        $read = [];
-        $attributes = [];
-        /** @var array<string, array<string, non-empty-list<string>>> $chains variable set by the template => the chains of attributes of other variables it is set to or loops over */
-        $chains = [];
-        // the templates embedded in the templates read, by index: each one is read where its `embed` displays it
-        $embeddedTemplates = [];
-        /** @var list<Node> $macroArguments the arguments of the calls of the macros of the template */
-        $macroArguments = [];
-        $imports = self::getMacroImports($tree, $templateName);
         $macros = [];
         foreach ($tree->hasNode('macros') ? $tree->getNode('macros') : [] as $macro) {
             if ($macro instanceof MacroNode) {
@@ -1923,6 +1956,212 @@ final class Context
             }
         }
         self::$templateMacros[$templateName] = $macros;
+
+        $imports = self::getMacroImports($tree, $templateName);
+        $embeddedTemplates = [];
+        foreach ($tree->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
+            $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+        }
+        self::$templateScopes[$templateName] = [$imports, $embeddedTemplates];
+
+        $reads = self::collectReads($twig, $templateName, $tree, $imports, $embeddedTemplates);
+        self::$calledTemplates[$templateName] = array_values(array_unique(array_column($reads['calls'], 1)));
+        $attributes = $reads['attributes'];
+        // a macro reads the chains of the objects of its parameters, which hold those of the arguments its calls give it
+        do {
+            $count = \count($attributes);
+            foreach ($reads['calls'] as [$prefixes, $calledTemplateName, $calledMacroName]) {
+                // a macro the analysis can't tell the reads of (see getMacroReads()) reads any chain of its template
+                $paths = self::getMacroCallReads($twig, $calledTemplateName, $calledMacroName)
+                    ?? ($calledTemplateName === $templateName ? array_values($attributes) : self::getReachableReads($twig, $calledTemplateName));
+                self::addChains($attributes, $prefixes, $paths, true);
+            }
+        } while (\count($attributes) !== $count);
+
+        return [
+            'variables' => array_map('strval', array_keys($reads['read'])),
+            'attributes' => array_values($attributes),
+        ];
+    }
+
+    /**
+     * The macros of the template $templateName, by name.
+     *
+     * @return array<string, MacroNode>
+     */
+    private static function getTemplateMacros(Environment $twig, string $templateName): array
+    {
+        if (!isset(self::$templateMacros[$templateName])) {
+            self::getTemplateReads($twig, $templateName);
+        }
+
+        return self::$templateMacros[$templateName] ?? [];
+    }
+
+    /**
+     * The chains of attributes the macros of the template $templateName read of the objects their parameters, and
+     * `varargs`, hold, by macro name: those they read (see getTemplateReads()), and those the macros they call read of
+     * the objects of the chains they give them. Not those the rest of the template reads, which the macro does not see:
+     * a call of a macro only gives its parameters the chains the macro reads.
+     *
+     * Null if they can't be told: the macros of the template and of the templates it calls (or includes) call each
+     * other, or a template is being read (see getTemplateReads()), so that some of what they read is not known yet.
+     * Such a result is never kept while it may be incomplete, and the callers take every chain the template reads.
+     *
+     * @return array<string, list<non-empty-list<string>>>|null
+     */
+    private static function getMacroReads(Environment $twig, string $templateName): ?array
+    {
+        // reading the template may read the macros' reads, for the calls of its own macros
+        $macros = self::getTemplateMacros($twig, $templateName);
+        if (\array_key_exists($templateName, self::$macroReads)) {
+            return self::$macroReads[$templateName];
+        }
+
+        if (isset(self::$macroReadsInProgress[$templateName])) {
+            ++self::$incompleteReads;
+
+            return null;
+        }
+
+        // what is read within another read, or while a template is, may only be incomplete because of them
+        $isOutermost = [] === self::$macroReadsInProgress && [] === self::$templateReadsInProgress;
+        $incompleteReads = self::$incompleteReads;
+        self::$macroReadsInProgress[$templateName] = true;
+
+        try {
+            [$imports, $embeddedTemplates] = self::$templateScopes[$templateName] ?? [[], []];
+            /** @var array<string, array<string, non-empty-list<string>>> $reads macro name => the chains it reads, by chain */
+            $reads = [];
+            /** @var array<string, list<array{list<list<string>>, string, string}>> $calls macro name => the calls of macros it makes (see collectReads()) */
+            $calls = [];
+            foreach ($macros as $macroName => $macro) {
+                $collected = self::collectReads($twig, $templateName, $macro, $imports, $embeddedTemplates);
+                $reads[$macroName] = $collected['attributes'];
+                $calls[$macroName] = $collected['calls'];
+            }
+
+            // a macro also reads what the macros it calls read, until there are no new chains: a macro may call itself
+            do {
+                $count = array_sum(array_map('count', $reads));
+                foreach ($calls as $macroName => $macroCalls) {
+                    foreach ($macroCalls as [$prefixes, $calledTemplateName, $calledMacroName]) {
+                        $paths = $calledTemplateName === $templateName
+                            ? array_values($reads[$calledMacroName] ?? [])
+                            : self::getMacroCallReads($twig, $calledTemplateName, $calledMacroName) ?? self::getReachableReads($twig, $calledTemplateName);
+                        self::addChains($reads[$macroName], $prefixes, $paths, true);
+                    }
+                }
+            } while (array_sum(array_map('count', $reads)) !== $count);
+        } finally {
+            unset(self::$macroReadsInProgress[$templateName]);
+        }
+
+        $result = $incompleteReads === self::$incompleteReads ? array_map('array_values', $reads) : null;
+        if (null !== $result || $isOutermost) {
+            self::$macroReads[$templateName] = $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * The chains of attributes the macro $macroName of the template $templateName reads of the objects its parameters
+     * hold (see getMacroReads()), null if they can't be told.
+     *
+     * @return list<non-empty-list<string>>|null
+     */
+    private static function getMacroCallReads(Environment $twig, string $templateName, string $macroName): ?array
+    {
+        return self::getMacroReads($twig, $templateName)[$macroName] ?? null;
+    }
+
+    /**
+     * The chains of attributes the template $templateName reads (see getTemplateReads()), and those the templates
+     * whose macros it calls read, and those they call, so on: what a macro of the template may read when
+     * getMacroReads() can't tell, as the macros of the templates call each other. Not kept while a template is being
+     * read, which has no chains yet.
+     *
+     * @return list<non-empty-list<string>>
+     */
+    private static function getReachableReads(Environment $twig, string $templateName): array
+    {
+        if (isset(self::$reachableReads[$templateName])) {
+            return self::$reachableReads[$templateName];
+        }
+
+        $incompleteReads = self::$incompleteReads;
+        $attributes = [];
+        $seen = [];
+        for ($pending = [$templateName]; null !== ($name = array_pop($pending));) {
+            if (isset($seen[$name])) {
+                continue;
+            }
+
+            $seen[$name] = true;
+            foreach (self::getTemplateReads($twig, $name)['attributes'] as $chain) {
+                $attributes[implode('.', $chain)] = $chain;
+            }
+
+            array_push($pending, ...self::$calledTemplates[$name] ?? []);
+        }
+
+        $reads = array_values($attributes);
+        if ($incompleteReads === self::$incompleteReads && [] === self::$templateReadsInProgress) {
+            self::$reachableReads[$templateName] = $reads;
+        }
+
+        return $reads;
+    }
+
+    /**
+     * Reads, in $attributes by chain, the chains $paths of attributes of the objects the chains $prefixes give, of at
+     * most MAX_ATTRIBUTE_DEPTH attributes. If $withItems, also of their items: a template, or a macro, given them may
+     * loop over them (see includeTemplate() and callMacro()).
+     *
+     * @param array<string, non-empty-list<string>> $attributes
+     * @param iterable<list<string>>                $prefixes
+     * @param list<non-empty-list<string>>          $paths
+     */
+    private static function addChains(array &$attributes, iterable $prefixes, array $paths, bool $withItems = false): void
+    {
+        foreach ($prefixes as $prefix) {
+            $objects = [$prefix];
+            if ($withItems && [] !== $prefix) {
+                $prefix[] = array_pop($prefix).'[]';
+                $objects[] = $prefix;
+            }
+
+            foreach ($objects as $object) {
+                foreach ($paths as $path) {
+                    $chain = [...$object, ...$path];
+                    if (\count($chain) <= self::MAX_ATTRIBUTE_DEPTH) {
+                        $attributes[implode('.', $chain)] = $chain;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads $root, a template or one of its macros: the variables read (see getTemplateReads()) and the chains of
+     * attributes of them read, by chain. Also the calls of macros it makes: for each argument of one, the chains
+     * giving its objects, and the template and name of the macro, whose reads they do not include (see
+     * getMacroCallReads()).
+     *
+     * @param array<string, string>        $imports           see getMacroImports()
+     * @param array<array-key, ModuleNode> $embeddedTemplates the templates embedded in the template, by index
+     *
+     * @return array{read: array<string, true>, attributes: array<string, non-empty-list<string>>, calls: list<array{list<list<string>>, string, string}>}
+     */
+    private static function collectReads(Environment $twig, string $templateName, Node $root, array $imports, array $embeddedTemplates): array
+    {
+        $read = [];
+        $attributes = [];
+        /** @var array<string, array<string, non-empty-list<string>>> $chains variable set by the template => the chains of attributes of other variables it is set to or loops over */
+        $chains = [];
+        /** @var list<array{Node, string, string}> $macroCalls the arguments of the calls of macros, with the template and name of the macro */
+        $macroCalls = [];
         /**
          * The chains of attributes of variables of the context giving the objects of $value, a variable or a chain of
          * attributes of one: those giving the objects of the variable, followed by the chain.
@@ -1936,38 +2175,6 @@ final class Context
                 static fn (array $prefix): array => [...$prefix, ...$objects[1]],
                 [[], ...array_values($chains[(string) $objects[0]->getAttribute('name')] ?? [])],
             );
-        };
-        /**
-         * Reads the chains $paths of the objects the chains $prefixes give.
-         *
-         * @param iterable<list<string>>       $prefixes
-         * @param list<non-empty-list<string>> $paths
-         */
-        $addAttributes = static function (iterable $prefixes, array $paths) use (&$attributes): void {
-            foreach ($prefixes as $prefix) {
-                foreach ($paths as $path) {
-                    $chain = [...$prefix, ...$path];
-                    if (\count($chain) <= self::MAX_ATTRIBUTE_DEPTH) {
-                        $attributes[implode('.', $chain)] = $chain;
-                    }
-                }
-            }
-        };
-        /**
-         * Reads the chains $paths an included template reads of the objects the chains $prefixes give, and of their
-         * items: the template may loop over a variable it is given (see includeTemplate()).
-         *
-         * @param iterable<list<string>>       $prefixes
-         * @param list<non-empty-list<string>> $paths
-         */
-        $addIncludedAttributes = static function (iterable $prefixes, array $paths) use ($addAttributes): void {
-            foreach ($prefixes as $prefix) {
-                $addAttributes([$prefix], $paths);
-                if ([] !== $prefix) {
-                    $prefix[] = array_pop($prefix).'[]';
-                    $addAttributes([$prefix], $paths);
-                }
-            }
         };
         $assign = static function (Node $variable, Node $value, bool $isItem) use (&$chains, $getChains): void {
             if (!$variable instanceof NameExpression) {
@@ -1988,7 +2195,7 @@ final class Context
                 $chains[(string) $variable->getAttribute('name')][implode('.', $chain)] = $chain;
             }
         };
-        $collect = static function (Node $node) use (&$collect, &$read, &$chains, &$embeddedTemplates, &$macroArguments, $getChains, $addAttributes, $addIncludedAttributes, $assign, $twig, $imports, $templateName): void {
+        $collect = static function (Node $node) use (&$collect, &$read, &$attributes, &$chains, &$embeddedTemplates, &$macroCalls, $getChains, $assign, $twig, $imports, $templateName): void {
             if ($node instanceof NameExpression && !$node instanceof AssignNameExpression) {
                 $read[(string) $node->getAttribute('name')] = true;
             }
@@ -2018,19 +2225,14 @@ final class Context
                         ? array_column($unpacked->getKeyValuePairs(), 'value')
                         : [$unpacked ?? $value];
                     foreach ($values as $argument) {
-                        if ($called[0] === $templateName) {
-                            $macroArguments[] = $argument;
-                        } else {
-                            // a macro of another template reads what that template reads
-                            $addIncludedAttributes($getChains($argument), self::getTemplateReads($twig, $called[0])['attributes']);
-                        }
+                        $macroCalls[] = [$argument, $called[0], (string) $called[1]->getAttribute('name')];
                     }
                 }
             }
 
             $path = $node instanceof GetAttrExpression ? self::getAttributePath($node) : null;
             if (null !== $path) {
-                $addAttributes($getChains($path[0]), [$path[1]]);
+                self::addChains($attributes, $getChains($path[0]), [$path[1]]);
             }
 
             if ($node instanceof ModuleNode) {
@@ -2055,17 +2257,17 @@ final class Context
                 foreach ($variables instanceof ArrayExpression ? $variables->getKeyValuePairs() : [] as ['key' => $key, 'value' => $value]) {
                     if ($key instanceof ConstantExpression) {
                         $keyed[(string) $key->getAttribute('value')] = true;
-                        $addIncludedAttributes($getChains($value), $includedReads['attributes']);
+                        self::addChains($attributes, $getChains($value), $includedReads['attributes'], true);
                     }
                 }
 
                 if ($withContext) {
                     $read += array_fill_keys($includedReads['variables'], true);
-                    $addAttributes([[]], $includedReads['attributes']);
+                    self::addChains($attributes, [[]], $includedReads['attributes']);
                     // a variable of this template set to a chain, or looping over one, holds the objects of the chain
                     foreach ($includedReads['variables'] as $variableName) {
                         if (!isset($keyed[$variableName])) {
-                            $addIncludedAttributes($chains[$variableName] ?? [], $includedReads['attributes']);
+                            self::addChains($attributes, $chains[$variableName] ?? [], $includedReads['attributes'], true);
                         }
                     }
                 }
@@ -2075,22 +2277,14 @@ final class Context
                 $collect($child);
             }
         };
-        $collect($tree);
+        $collect($root);
 
-        // a parameter of a macro holds the objects of the arguments its calls give it: the chains the template reads
-        // are also read from the objects of the chains of the arguments, until there are no new ones of at most
-        // MAX_ATTRIBUTE_DEPTH attributes
-        do {
-            $count = \count($attributes);
-            foreach ($macroArguments as $value) {
-                $addIncludedAttributes($getChains($value), array_values($attributes));
-            }
-        } while (\count($attributes) !== $count);
+        $calls = [];
+        foreach ($macroCalls as [$argument, $calledTemplateName, $calledMacroName]) {
+            $calls[] = [$getChains($argument), $calledTemplateName, $calledMacroName];
+        }
 
-        return self::$templateReads[$templateName] = [
-            'variables' => array_map('strval', array_keys($read)),
-            'attributes' => array_values($attributes),
-        ];
+        return ['read' => $read, 'attributes' => $attributes, 'calls' => $calls];
     }
 
     /**
