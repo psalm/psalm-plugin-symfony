@@ -16,7 +16,6 @@ use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
-use Psalm\Type;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 
@@ -42,22 +41,11 @@ final class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterfac
                 $issue = new RepositoryStringShortcut(new CodeLocation($statements_source, $entityName));
                 $codebase = $event->getCodebase();
                 $fqcn = str_starts_with($entityName->value, '\\') ? substr($entityName->value, 1) : $entityName->value;
-                $isFixable = 1 === preg_match('/^[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*(?:\\\\[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)*$/D', $fqcn)
-                    && $codebase->classExists($fqcn)
-                    && $codebase->classlike_storage_provider->has($fqcn)
+                $isFixable = $codebase->classlike_storage_provider->has($fqcn)
                     && $codebase->classlike_storage_provider->get($fqcn)->name === $fqcn;
 
                 if ($isFixable && $codebase->shouldFixIssue($issue, $statements_source->getSuppressedIssues())) {
-                    $printed = Type::getStringFromFQCLN(
-                        $fqcn,
-                        $statements_source->getNamespace(),
-                        $statements_source->getAliasedClassesFlipped(),
-                        $statements_source->getFQCLN()
-                    );
-                    // A `use` import can shadow the namespace-relative name; fall back to the absolute name then.
-                    if (Type::getFQCLNFromString($printed, $statements_source->getAliases()) !== $fqcn) {
-                        $printed = '\\'.$fqcn;
-                    }
+                    $printed = ClassNamePrinter::print($fqcn, $statements_source);
 
                     $event->setFileReplacements([
                         ...$event->getFileReplacements(),
