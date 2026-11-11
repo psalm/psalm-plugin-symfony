@@ -353,3 +353,21 @@ Feature: ConsoleArgument
       """
       $this->addArgument('arg', InputArgument::REQUIRED | InputArgument::IS_ARRAY);
       """
+
+  Scenario: Psalter leaves an argument mode it cannot translate unchanged
+    Given I have the following code
+      """
+      final class MyCommand extends Command
+      {
+        #[\Override]
+        public function configure(): void
+        {
+          $this->addArgument('arg', InputArgument::REQUIRED | 4);
+        }
+      }
+      """
+    When I run Psalter fixing "InvalidConsoleArgumentValue"
+    Then I see the fixed code
+      """
+      $this->addArgument('arg', InputArgument::REQUIRED | 4);
+      """
