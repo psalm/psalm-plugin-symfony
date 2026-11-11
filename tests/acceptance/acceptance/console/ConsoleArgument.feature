@@ -336,3 +336,20 @@ Feature: ConsoleArgument
     When I run Psalm
     Then I see no errors
 
+  Scenario: Psalter replaces an integer argument mode with the InputArgument constants
+    Given I have the following code
+      """
+      final class MyCommand extends Command
+      {
+        #[\Override]
+        public function configure(): void
+        {
+          $this->addArgument('arg', 5);
+        }
+      }
+      """
+    When I run Psalter fixing "InvalidConsoleArgumentValue"
+    Then I see the fixed code
+      """
+      $this->addArgument('arg', InputArgument::REQUIRED | InputArgument::IS_ARRAY);
+      """
