@@ -344,3 +344,21 @@ Feature: ConsoleOption
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: Psalter replaces an integer option mode with the InputOption constants
+    Given I have the following code
+      """
+      final class MyCommand extends Command
+      {
+        #[\Override]
+        public function configure(): void
+        {
+          $this->addOption('opt', null, 10);
+        }
+      }
+      """
+    When I run Psalter fixing "InvalidConsoleOptionValue"
+    Then I see the fixed code
+      """
+      $this->addOption('opt', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY);
+      """

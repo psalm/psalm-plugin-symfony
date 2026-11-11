@@ -189,10 +189,10 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
 
                     return new Union($closures);
                 }
-                if (function_exists($function)) {
+                if (function_exists(ltrim($callable->value, '\\'))) {
                     $parameter->custom_metadata[self::class.'::reference'] = $function;
 
-                    return self::closureType($codebase->functions->getStorage(null, strtolower($function)), $function);
+                    return self::closureType($codebase->functions->getStorage(null, $function), $function);
                 }
             }
             if ($callable instanceof TKeyedArray) {

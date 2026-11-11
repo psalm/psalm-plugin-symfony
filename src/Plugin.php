@@ -5,6 +5,7 @@ namespace Psalm\SymfonyPsalmPlugin;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
+use Psalm\Plugin\PluginFixableIssuesInterface;
 use Psalm\Plugin\RegistrationInterface;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\AutowireCallableHandler;
@@ -20,6 +21,9 @@ use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RouterHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ServiceLocatorHandler;
+use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleArgumentValue;
+use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleOptionValue;
+use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
@@ -33,8 +37,18 @@ use Symfony\Component\HttpKernel\Kernel;
 /**
  * @psalm-suppress UnusedClass
  */
-final class Plugin implements PluginEntryPointInterface
+final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInterface
 {
+    #[\Override]
+    public function getFixableIssues(?\SimpleXMLElement $config = null): array
+    {
+        return [
+            InvalidConsoleArgumentValue::class,
+            InvalidConsoleOptionValue::class,
+            RepositoryStringShortcut::class,
+        ];
+    }
+
     #[\Override]
     public function __invoke(RegistrationInterface $registration, ?\SimpleXMLElement $config = null): void
     {

@@ -9,12 +9,14 @@ use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
 use Psalm\DocComment;
 use Psalm\Exception\DocblockParseException;
+use Psalm\FileManipulation;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterClassLikeVisitInterface;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
+use Psalm\Type;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Union;
 
@@ -37,10 +39,37 @@ final class DoctrineRepositoryHandler implements AfterMethodCallAnalysisInterfac
         if (!$entityName instanceof Expr\ClassConstFetch) {
             if ($entityName instanceof String_) {
                 $statements_source = $event->getStatementsSource();
-                IssueBuffer::accepts(
-                    new RepositoryStringShortcut(new CodeLocation($statements_source, $entityName)),
-                    $statements_source->getSuppressedIssues()
-                );
+                $issue = new RepositoryStringShortcut(new CodeLocation($statements_source, $entityName));
+                $codebase = $event->getCodebase();
+                $fqcn = str_starts_with($entityName->value, '\\') ? substr($entityName->value, 1) : $entityName->value;
+                $isFixable = 1 === preg_match('/^[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*(?:\\\\[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)*$/D', $fqcn)
+                    && $codebase->classExists($fqcn)
+                    && $codebase->classlike_storage_provider->has($fqcn)
+                    && $codebase->classlike_storage_provider->get($fqcn)->name === $fqcn;
+
+                if ($isFixable && $codebase->shouldFixIssue($issue, $statements_source->getSuppressedIssues())) {
+                    $printed = Type::getStringFromFQCLN(
+                        $fqcn,
+                        $statements_source->getNamespace(),
+                        $statements_source->getAliasedClassesFlipped(),
+                        $statements_source->getFQCLN()
+                    );
+                    // A `use` import can shadow the namespace-relative name; fall back to the absolute name then.
+                    if (Type::getFQCLNFromString($printed, $statements_source->getAliases()) !== $fqcn) {
+                        $printed = '\\'.$fqcn;
+                    }
+
+                    $event->setFileReplacements([
+                        ...$event->getFileReplacements(),
+                        new FileManipulation(
+                            $entityName->getStartFilePos(),
+                            $entityName->getEndFilePos() + 1,
+                            $printed.'::class'
+                        ),
+                    ]);
+                } else {
+                    IssueBuffer::accepts($issue, $statements_source->getSuppressedIssues(), $isFixable);
+                }
             }
 
             return;

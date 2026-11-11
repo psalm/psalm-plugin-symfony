@@ -7,7 +7,9 @@ namespace Psalm\SymfonyPsalmPlugin\Test;
 use Behat\Gherkin\Node\PyStringNode;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Module as BaseModule;
+use Codeception\Module\Cli;
 use Codeception\TestInterface;
+use PHPUnit\Framework\Assert;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Twig\Cache\FilesystemCache;
 use Twig\Environment;
@@ -38,6 +40,8 @@ final class CodeceptionModule extends BaseModule
      * @var list<string>
      */
     private array $suppressedIssueHandlers = [];
+
+    private string $psalmConfig = '';
 
     #[\Override]
     public function _initialize(): void
@@ -175,13 +179,9 @@ final class CodeceptionModule extends BaseModule
             return "<$issueHandler errorLevel=\"info\"/>";
         }, [...$this->suppressedIssueHandlers, ...self::PURITY_SUGGESTIONS]));
 
-        $psalmModule = $this->getModule(Module::class);
+        $psalmModule = $this->getPsalmModule();
 
-        if (!$psalmModule instanceof Module) {
-            throw new ModuleRequireException($this, sprintf('Needs "%s" module', Module::class));
-        }
-
-        $psalmModule->haveTheFollowingConfig(<<<XML
+        $this->psalmConfig = <<<XML
 <?xml version="1.0"?>
   <psalm errorLevel="1" findUnusedCode="false">
     <projectFiles>
@@ -198,8 +198,69 @@ final class CodeceptionModule extends BaseModule
       $suppressedIssueHandlers
     </issueHandlers>
   </psalm>
-XML
-        );
+XML;
+        $psalmModule->haveTheFollowingConfig($this->psalmConfig);
+    }
+
+    /**
+     * @When I run Psalter fixing :issues
+     */
+    public function runPsalterFixing(string $issues): void
+    {
+        $psalmModule = $this->getPsalmModule();
+        $directory = $this->getPsalmDefaultDirectory($psalmModule);
+        $psalterPath = dirname((string) $psalmModule->_getConfig('psalm_path')).DIRECTORY_SEPARATOR.'psalter';
+
+        // Psalter rejects the "--output-format" option that the Psalm module always adds, so it cannot go through runPsalmOn().
+        file_put_contents(rtrim($directory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'psalm.xml', $this->psalmConfig);
+
+        $cli = $this->getModule('Cli');
+        if (!$cli instanceof Cli) {
+            throw new ModuleRequireException($this, 'Needs "Cli" module');
+        }
+
+        $cli->runShellCommand(sprintf(
+            'cd %s && %s --no-progress %s 2>&1',
+            escapeshellarg($directory),
+            escapeshellarg($psalterPath),
+            escapeshellarg('--issues='.$issues)
+        ), false);
+    }
+
+    /**
+     * @Then I see the fixed code :code
+     */
+    public function seeTheFixedCode(PyStringNode $code): void
+    {
+        $files = glob(rtrim($this->getPsalmDefaultDirectory($this->getPsalmModule()), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'*.php');
+
+        if (false === $files || 1 !== count($files)) {
+            throw new \RuntimeException('Expected exactly one analyzed file to inspect.');
+        }
+
+        Assert::assertStringContainsString(trim((string) $code), (string) file_get_contents($files[0]));
+    }
+
+    private function getPsalmModule(): Module
+    {
+        $psalmModule = $this->getModule(Module::class);
+
+        if (!$psalmModule instanceof Module) {
+            throw new ModuleRequireException($this, sprintf('Needs "%s" module', Module::class));
+        }
+
+        return $psalmModule;
+    }
+
+    private function getPsalmDefaultDirectory(Module $psalmModule): string
+    {
+        $directory = $psalmModule->_getConfig('default_dir');
+
+        if (!is_string($directory)) {
+            throw new \RuntimeException('The Psalm module "default_dir" config must be a string.');
+        }
+
+        return $directory;
     }
 
     private function loadTemplate(string $templateName, string $rootDirectory, string $cacheDirectory): void

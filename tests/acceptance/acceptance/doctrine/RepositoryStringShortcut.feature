@@ -62,3 +62,20 @@ Feature: RepositoryStringShortcut
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: Psalter replaces a fully qualified class name string with the ::class notation
+    Given I have the following code
+      """
+      final class SomeService
+      {
+        public function __construct(EntityManagerInterface $entityManager, Foo $foo)
+        {
+          $entityManager->getRepository('Psalm\\SymfonyPsalmPlugin\\Tests\\Fixture\\Doctrine\\Foo');
+        }
+      }
+      """
+    When I run Psalter fixing "RepositoryStringShortcut"
+    Then I see the fixed code
+      """
+      $entityManager->getRepository(Foo::class);
+      """

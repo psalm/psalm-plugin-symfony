@@ -7,8 +7,11 @@ namespace Psalm\SymfonyPsalmPlugin\Handler;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\Scalar\Int_;
 use PhpParser\Node\Scalar\String_;
 use Psalm\CodeLocation;
+use Psalm\FileManipulation;
+use Psalm\Issue\CodeIssue;
 use Psalm\IssueBuffer;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
@@ -16,6 +19,7 @@ use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\InvalidConsoleModeException;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleArgumentValue;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleOptionValue;
+use Psalm\Type;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TBool;
 use Psalm\Type\Atomic\TInt;
@@ -41,7 +45,6 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
     #[\Override]
     public static function afterMethodCallAnalysis(AfterMethodCallAnalysisEvent $event): void
     {
-        $statements_source = $event->getStatementsSource();
         $expr = $event->getExpr();
         $declaring_method_id = $event->getDeclaringMethodId();
 
@@ -54,7 +57,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         switch ($declaring_method_id) {
             case 'Symfony\Component\Console\Command\Command::addargument':
-                self::analyseArgument($args, $statements_source);
+                self::analyseArgument($args, $event);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getargument':
                 $identifier = self::getNodeIdentifier($args[0]->value);
@@ -67,7 +70,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
                 }
                 break;
             case 'Symfony\Component\Console\Command\Command::addoption':
-                self::analyseOption($args, $statements_source);
+                self::analyseOption($args, $event);
                 break;
             case 'Symfony\Component\Console\Input\InputInterface::getoption':
                 $identifier = self::getNodeIdentifier($args[0]->value);
@@ -106,10 +109,10 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
                         switch ($inputItem->value->class->getAttribute('resolvedName')) {
                             case InputArgument::class:
-                                self::analyseArgument($args, $statements_source);
+                                self::analyseArgument($args, $event);
                                 break;
                             case InputOption::class:
-                                self::analyseOption($args, $statements_source);
+                                self::analyseOption($args, $event);
                                 break;
                         }
                     }
@@ -122,8 +125,9 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @param Arg[] $args
      */
-    private static function analyseArgument(array $args, StatementsSource $statements_source): void
+    private static function analyseArgument(array $args, AfterMethodCallAnalysisEvent $event): void
     {
+        $statements_source = $event->getStatementsSource();
         $normalizedParams = self::normalizeArgumentParams($args);
 
         $identifier = self::getNodeIdentifier($normalizedParams['name']->value);
@@ -136,9 +140,12 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
             try {
                 $mode = self::getModeValue($modeParam->value);
             } catch (InvalidConsoleModeException $e) {
-                IssueBuffer::accepts(
+                self::reportInvalidMode(
+                    $event,
+                    $modeParam->value,
                     new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $modeParam->value)),
-                    $statements_source->getSuppressedIssues()
+                    InputArgument::class,
+                    ['REQUIRED', 'OPTIONAL', 'IS_ARRAY'],
                 );
 
                 return;
@@ -166,8 +173,9 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
     /**
      * @param Arg[] $args
      */
-    private static function analyseOption(array $args, StatementsSource $statements_source): void
+    private static function analyseOption(array $args, AfterMethodCallAnalysisEvent $event): void
     {
+        $statements_source = $event->getStatementsSource();
         $normalizedParams = self::normalizeOptionParams($args);
 
         $identifier = self::getNodeIdentifier($normalizedParams['name']->value);
@@ -184,9 +192,12 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
             try {
                 $mode = self::getModeValue($modeOption->value);
             } catch (InvalidConsoleModeException $e) {
-                IssueBuffer::accepts(
+                self::reportInvalidMode(
+                    $event,
+                    $modeOption->value,
                     new InvalidConsoleOptionValue(new CodeLocation($statements_source, $modeOption->value)),
-                    $statements_source->getSuppressedIssues()
+                    InputOption::class,
+                    ['VALUE_NONE', 'VALUE_REQUIRED', 'VALUE_OPTIONAL', 'VALUE_IS_ARRAY', 'VALUE_NEGATABLE'],
                 );
 
                 return;
@@ -229,6 +240,89 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
         }
 
         self::$options[$identifier] = $returnTypes->freeze();
+    }
+
+    /**
+     * Reports the invalid mode; when it is a plain integer literal made only of known constant bits,
+     * Psalter can rewrite it to the equivalent constant expression.
+     *
+     * @param class-string $constantsClass
+     * @param list<string> $constantNames
+     */
+    private static function reportInvalidMode(
+        AfterMethodCallAnalysisEvent $event,
+        Expr $modeValue,
+        CodeIssue $issue,
+        string $constantsClass,
+        array $constantNames,
+    ): void {
+        $statements_source = $event->getStatementsSource();
+        $suppressedIssues = $statements_source->getSuppressedIssues();
+
+        $replacement = $modeValue instanceof Int_
+            ? self::buildModeReplacement($modeValue->value, $constantsClass, $constantNames, $statements_source)
+            : null;
+
+        if (null !== $replacement && $event->getCodebase()->shouldFixIssue($issue, $suppressedIssues)) {
+            $event->setFileReplacements([
+                ...$event->getFileReplacements(),
+                new FileManipulation($modeValue->getStartFilePos(), $modeValue->getEndFilePos() + 1, $replacement),
+            ]);
+
+            return;
+        }
+
+        IssueBuffer::accepts($issue, $suppressedIssues, null !== $replacement);
+    }
+
+    /**
+     * @param class-string $constantsClass
+     * @param list<string> $constantNames
+     */
+    private static function buildModeReplacement(
+        int $literal,
+        string $constantsClass,
+        array $constantNames,
+        StatementsSource $statements_source,
+    ): ?string {
+        if ($literal <= 0) {
+            return null;
+        }
+
+        $covered = 0;
+        $parts = [];
+        foreach ($constantNames as $name) {
+            $constant = $constantsClass.'::'.$name;
+            if (!defined($constant)) {
+                continue;
+            }
+
+            $value = constant($constant);
+            if (!is_int($value) || 0 === ($literal & $value)) {
+                continue;
+            }
+
+            $covered |= $value;
+            $parts[$value] = $name;
+        }
+
+        if ($covered !== $literal) {
+            return null;
+        }
+
+        ksort($parts);
+        $class = Type::getStringFromFQCLN(
+            $constantsClass,
+            $statements_source->getNamespace(),
+            $statements_source->getAliasedClassesFlipped(),
+            $statements_source->getFQCLN(),
+        );
+        // A `use` import can shadow the namespace-relative name; fall back to the absolute name then.
+        if (Type::getFQCLNFromString($class, $statements_source->getAliases()) !== $constantsClass) {
+            $class = '\\'.$constantsClass;
+        }
+
+        return implode(' | ', array_map(static fn (string $name): string => $class.'::'.$name, $parts));
     }
 
     /**
