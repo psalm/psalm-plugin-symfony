@@ -1,0 +1,27 @@
+changelog:
+  categories:
+    - title: Removed
+      labels:
+        - 'release:removed'
+    - title: Deprecations
+      labels:
+        - 'release:deprecation'
+    - title: Features
+      labels:
+        - 'release:feature'
+    - title: Fixes
+      labels:
+        - 'release:fix'
+    - title: Docs
+      labels:
+        - 'release:docs'
+        - 'documentation'
+    - title: Internal changes
+      labels:
+        - 'release:internal'
+    - title: Typos
+      labels:
+        - 'release:typo'
+    - title: Other changes
+      labels:
+        - "*"
