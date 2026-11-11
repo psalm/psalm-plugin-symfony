@@ -207,6 +207,10 @@ XML;
      */
     public function runPsalterFixing(string $issues): void
     {
+        if ('' === $this->psalmConfig) {
+            throw new \RuntimeException('Psalter needs a Psalm config: run the "I have Symfony plugin enabled" step first.');
+        }
+
         $psalmModule = $this->getPsalmModule();
         $directory = $this->getPsalmDefaultDirectory($psalmModule);
         $psalterPath = dirname((string) $psalmModule->_getConfig('psalm_path')).DIRECTORY_SEPARATOR.'psalter';

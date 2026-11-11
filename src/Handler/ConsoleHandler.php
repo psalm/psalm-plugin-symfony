@@ -19,7 +19,6 @@ use Psalm\StatementsSource;
 use Psalm\SymfonyPsalmPlugin\Exception\InvalidConsoleModeException;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleArgumentValue;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleOptionValue;
-use Psalm\Type;
 use Psalm\Type\Atomic\TArray;
 use Psalm\Type\Atomic\TBool;
 use Psalm\Type\Atomic\TInt;
@@ -145,7 +144,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
                     $modeParam->value,
                     new InvalidConsoleArgumentValue(new CodeLocation($statements_source, $modeParam->value)),
                     InputArgument::class,
-                    ['REQUIRED', 'OPTIONAL', 'IS_ARRAY'],
+                    [1 => 'REQUIRED', 2 => 'OPTIONAL', 4 => 'IS_ARRAY'],
                 );
 
                 return;
@@ -197,7 +196,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
                     $modeOption->value,
                     new InvalidConsoleOptionValue(new CodeLocation($statements_source, $modeOption->value)),
                     InputOption::class,
-                    ['VALUE_NONE', 'VALUE_REQUIRED', 'VALUE_OPTIONAL', 'VALUE_IS_ARRAY', 'VALUE_NEGATABLE'],
+                    [1 => 'VALUE_NONE', 2 => 'VALUE_REQUIRED', 4 => 'VALUE_OPTIONAL', 8 => 'VALUE_IS_ARRAY', 16 => 'VALUE_NEGATABLE'],
                 );
 
                 return;
@@ -246,8 +245,8 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
      * Reports the invalid mode; when it is a plain integer literal made only of known constant bits,
      * Psalter can rewrite it to the equivalent constant expression.
      *
-     * @param class-string $constantsClass
-     * @param list<string> $constantNames
+     * @param class-string       $constantsClass
+     * @param array<int, string> $constantNames  bit value => constant name
      */
     private static function reportInvalidMode(
         AfterMethodCallAnalysisEvent $event,
@@ -276,8 +275,8 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
     }
 
     /**
-     * @param class-string $constantsClass
-     * @param list<string> $constantNames
+     * @param class-string       $constantsClass
+     * @param array<int, string> $constantNames  bit value => constant name, ascending
      */
     private static function buildModeReplacement(
         int $literal,
@@ -291,36 +290,21 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
 
         $covered = 0;
         $parts = [];
-        foreach ($constantNames as $name) {
-            $constant = $constantsClass.'::'.$name;
-            if (!defined($constant)) {
-                continue;
-            }
-
-            $value = constant($constant);
-            if (!is_int($value) || 0 === ($literal & $value)) {
+        foreach ($constantNames as $value => $name) {
+            // Some constants only exist in newer Symfony versions (e.g. VALUE_NEGATABLE since 5.3).
+            if (0 === ($literal & $value) || !defined($constantsClass.'::'.$name)) {
                 continue;
             }
 
             $covered |= $value;
-            $parts[$value] = $name;
+            $parts[] = $name;
         }
 
         if ($covered !== $literal) {
             return null;
         }
 
-        ksort($parts);
-        $class = Type::getStringFromFQCLN(
-            $constantsClass,
-            $statements_source->getNamespace(),
-            $statements_source->getAliasedClassesFlipped(),
-            $statements_source->getFQCLN(),
-        );
-        // A `use` import can shadow the namespace-relative name; fall back to the absolute name then.
-        if (Type::getFQCLNFromString($class, $statements_source->getAliases()) !== $constantsClass) {
-            $class = '\\'.$constantsClass;
-        }
+        $class = ClassNamePrinter::print($constantsClass, $statements_source);
 
         return implode(' | ', array_map(static fn (string $name): string => $class.'::'.$name, $parts));
     }
