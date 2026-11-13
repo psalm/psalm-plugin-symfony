@@ -197,8 +197,26 @@ Twig gives the callable the arguments of the call, after those the `needs_charse
 A closure callable is found by its file and line, as is the body of a first-class callable (`$this->filter(...)`).
 Where Psalm doesn't analyze the body of the callable (one of a library, of Twig itself, a builtin, a closure the analysis can't find), or the analysis can't tell which parameters the arguments go to, what the call returns also comes from all of its arguments, without the taints the callable says it escapes and its return type cannot hold: taints are not lost through a body that isn't followed.
 
-Not followed yet: the arrow functions given to `map`, `filter`, `reduce` and `sort` (what the filter returns comes from the array and from what the arrow function reads, without going through it), `attribute()`, the custom escapers of the `escape` filter (escaping with any strategy removes all taints), and the taints `AddTaintsInterface` and `RemoveTaintsInterface` handlers add to or remove from a PHP call.
+The arrow functions a template gives a call are analyzed as template expressions, their parameters holding what the call gives them, and their bodies reaching the sinks of the calls they make:
+
+- `map`, `filter` and `find` give them each item and key of the array, `sort` two items, and `reduce` what it returned before (at first the initial value), each item and key; `map` returns what they return under the keys of the array, `reduce` what they return or the initial value, and `filter`, `sort` and `find` items of the array;
+- the arrow functions given to any other filter, function, test or method may be given any of its other arguments (and the object of a method), and what they return may come out of the call;
+- an arrow function the analysis doesn't see given to a call (given to a macro, or set to a variable) is analyzed with parameters holding nothing.
+
+`attribute(item, 'name', arguments)` gives what `item.name` gives, and what `item.name(arguments)` gives through the method's body.
+`attribute(item, name)`, whose name is only known when rendering, gives any public property or method of the classes of the values the template is given for `item`, and the taints of `item` and of the arguments, which the methods it may call aren't given.
+
+Escaping removes only the taints its strategy encodes: `html`, `html_attr`, `js` and `css` encode `<`, `>`, `&`, `"` and `'`, and remove Psalm's `html` and `has_quotes` taints (like `htmlspecialchars()` with `ENT_QUOTES`), and `url` also `url_component` and `header` (like `rawurlencode()`).
+The escaped value keeps its other taints (SQL, shell, secrets...).
+A custom strategy goes through the PHP callable of its escaper, registered by a call of `setEscaper()` in the PHP files Psalm scans (`EscaperRuntime::setEscaper('csv', ...)`) with a closure, a callable array or string, or a first-class callable.
+A strategy whose escaper the analysis can't find, or whose name is only known when rendering, removes nothing.
+Like `htmlspecialchars()`, a strategy used in the wrong context (`html` in a `<script>`) isn't reported, nor are the items of an array escaping returns as is.
+
+A PHP callable needing the context in an included (or embedded, or extended) template is given the whole context the including template gives it, unless `only`, and the variables of `with`.
+
+Not followed yet: the taints `AddTaintsInterface` and `RemoveTaintsInterface` handlers add to or remove from a PHP call.
 [See the cases of the PHP callables.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigCallableBodies.feature)
+[See the cases of the arrow functions, `attribute()`, the escaping strategies and the included contexts.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigArrowsAttributesEscapers.feature)
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
