@@ -16,6 +16,7 @@ use Twig\Node\Expression\MacroReferenceExpression;
 use Twig\Node\Expression\NameExpression;
 use Twig\Node\Expression\ReturnBoolInterface;
 use Twig\Node\Expression\ReturnNumberInterface;
+use Twig\Node\Expression\TestExpression;
 use Twig\Node\Expression\Unary\SpreadUnary;
 use Twig\Node\Expression\Variable\LocalVariable;
 use Twig\Node\Node;
@@ -63,10 +64,12 @@ final class PrintNodeAnalyzer
         }
 
         if ($expression instanceof FilterExpression && 'raw' === Context::getFilterName($expression)) {
-            return array_map(
-                fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
-                $this->getPrintedTaintSources($expression->getNode('node')),
-            );
+            $value = $expression->getNode('node');
+
+            return [$this->context->getCallTaintDestination(
+                $expression,
+                fn (Node $argument): array => $argument === $value ? $this->getPrintedTaintSources($argument) : $this->getTaintSources($argument),
+            )];
         }
 
         return $this->getTaintSources($expression);
@@ -90,16 +93,9 @@ final class PrintNodeAnalyzer
                 return self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : [];
             }
 
-            // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...)
-            $sources = $this->getTaintSources($expression->getNode('node'));
-            if ($expression->hasNode('arguments')) {
-                $sources = [...$sources, ...$this->getTaintSources($expression->getNode('arguments'))];
-            }
-
-            return array_map(
-                fn (DataFlowNode $source): DataFlowNode => $this->context->getTaintDestination($source, $expression),
-                $sources,
-            );
+            // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...),
+            // through what its PHP callable does with them
+            return [$this->context->getCallTaintDestination($expression, $this->getTaintSources(...))];
         }
 
         if ($expression instanceof FunctionExpression && 'include' === $expression->getAttribute('name')
@@ -113,15 +109,7 @@ final class PrintNodeAnalyzer
 
         if ($expression instanceof FunctionExpression) {
             // what a function returns comes from its arguments, through what its PHP callable does with them
-            $sources = [];
-            foreach ($expression->getNode('arguments') as $argument) {
-                $sources = [...$sources, ...$this->getTaintSources($argument)];
-            }
-
-            return array_map(
-                fn (DataFlowNode $source): DataFlowNode => $this->context->getFunctionTaintDestination($source, $expression),
-                $sources,
-            );
+            return [$this->context->getCallTaintDestination($expression, $this->getTaintSources(...))];
         }
 
         if ($expression instanceof GetAttrExpression) {
@@ -133,15 +121,35 @@ final class PrintNodeAnalyzer
         }
 
         if ($expression instanceof ConditionalExpression) {
-            // the condition chooses the branch that is output, but isn't output itself
+            // the condition chooses the branch that is output, but isn't output itself: only the calls it is made of
+            // still run
+            if ($expression->hasNode('expr1')) {
+                $this->getTaintSources($expression->getNode('expr1'));
+            }
+
             return [
                 ...$this->getTaintSources($expression->getNode('expr2')),
                 ...$this->getTaintSources($expression->getNode('expr3')),
             ];
         }
 
+        if ($expression instanceof TestExpression && 'defined' !== $expression->getAttribute('name')) {
+            // a test gives a boolean, which holds no markup, but its PHP callable is still called with its arguments
+            // (`defined` reads its value without calling it)
+            $this->context->getCallTaintDestination($expression, $this->getTaintSources(...));
+
+            return [];
+        }
+
         if ($expression instanceof ReturnBoolInterface || $expression instanceof ReturnNumberInterface) {
-            // a comparison, a test or an arithmetic operation gives a boolean or a number, which holds no markup
+            // a comparison, a test or an arithmetic operation gives a boolean or a number, which holds no markup, but
+            // the calls it is made of still run, but for `defined`, which reads its value without calling it
+            if (!$expression instanceof TestExpression) {
+                foreach ($expression as $child) {
+                    $this->getTaintSources($child);
+                }
+            }
+
             return [];
         }
 
