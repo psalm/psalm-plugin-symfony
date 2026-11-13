@@ -184,6 +184,22 @@ A constant whose value Psalm does not know, like one defined at run time, takes 
 </pluginClass>
 ```
 
+The filters, functions and tests a template calls, and the methods it calls on its variables (`item.name(...)`), go through their PHP callables as PHP calls do.
+To find the callables of the filters, functions and tests, the analyzer needs the extensions declaring them: those the `twig` service of the `containerXml` adds, loaded by the `autoloader` of the Psalm configuration.
+Twig gives the callable the arguments of the call, after those the `needs_charset`, `needs_environment` and `needs_context` options prepend and the parts of a name matching a pattern (`*_escape`), and with arguments given by name (on Twig 3.12 and later) in their places:
+
+- each argument flows into the parameter of the callable taking it: the body of a callable of the project takes it, and a parameter annotated with `@psalm-taint-sink` (or a conditional sink, resolved with the literal arguments of the call) reports it;
+- the context `needs_context` gives holds the variables the template is rendered with, those it reads from its context, and those it sets;
+- what the callable returns comes out of the call: what its body returns, its `@psalm-flow` from its parameters and its keyed stores, its `@psalm-taint-source`, without the taints it escapes (`@psalm-taint-escape`, also conditionally, resolved with the literal arguments of the call) or its return type cannot hold;
+- a callable annotated with `@psalm-taint-specialize` (or whose calls Psalm specializes, like a pure one) returns to each call only what that call gives it;
+- the calls in conditions (`{% if x is test %}`, `{% if x|filter == 'a' %}`) and in `{% do %}` are followed too, though their values are not output.
+
+A closure callable is found by its file and line, as is the body of a first-class callable (`$this->filter(...)`).
+Where Psalm doesn't analyze the body of the callable (one of a library, of Twig itself, a builtin, a closure the analysis can't find), or the analysis can't tell which parameters the arguments go to, what the call returns also comes from all of its arguments, without the taints the callable says it escapes and its return type cannot hold: taints are not lost through a body that isn't followed.
+
+Not followed yet: the arrow functions given to `map`, `filter`, `reduce` and `sort` (what the filter returns comes from the array and from what the arrow function reads, without going through it), `attribute()`, the custom escapers of the `escape` filter (escaping with any strategy removes all taints), and the taints `AddTaintsInterface` and `RemoveTaintsInterface` handlers add to or remove from a PHP call.
+[See the cases of the PHP callables.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigCallableBodies.feature)
+
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
 #### Cache Analyzer
