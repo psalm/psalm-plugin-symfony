@@ -4248,3 +4248,215 @@ Feature: Twig tainting with analyzer
       | TaintedHtml           | Detected tainted HTML                      |
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
+
+  Scenario Outline: A tainted parameter goes through a safe filter whose PHP callable escapes it, called with or without arguments
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true" autoloader="autoload.php">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <containerXml>container.xml</containerXml>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code in "container.xml"
+      """
+      <?xml version="1.0" encoding="utf-8"?>
+      <container xmlns="http://symfony.com/schema/dic/services">
+        <services>
+          <service id="twig" class="Twig\Environment" public="true">
+            <call method="addExtension"><argument type="service" id="app.twig_extension"/></call>
+          </service>
+          <service id="app.twig_extension" class="App\TwigExtension"/>
+        </services>
+      </container>
+      """
+    And I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      final class TwigExtension extends AbstractExtension
+      {
+          #[\Override]
+          public function getFilters(): array
+          {
+              return [
+                  new TwigFilter('app_json', [self::class, 'json'], ['is_safe' => ['html']]),
+                  new TwigFilter('app_unescaped_json', [self::class, 'unescapedJson'], ['is_safe' => ['html']]),
+              ];
+          }
+
+          /**
+           * Whatever the flags, the characters HTML gives a meaning to are escaped
+           *
+           * @psalm-pure
+           * @psalm-taint-escape html
+           * @psalm-taint-escape has_quotes
+           */
+          public static function json(mixed $value, int $flags = 0): string
+          {
+              $json = json_encode($value, $flags | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
+              return false === $json ? 'null' : $json;
+          }
+
+          /**
+           * @psalm-pure
+           */
+          public static function unescapedJson(mixed $value, int $flags = 0): string
+          {
+              $json = json_encode($value, $flags);
+
+              return false === $json ? 'null' : $json;
+          }
+      }
+      """
+    And I have the following code in "autoload.php"
+      """
+      <?php
+
+      require_once __DIR__.'/TwigExtension.php';
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted'], 'flags' => $_GET['flags']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <script>const data = {{ untrusted|<filter> }};</script>
+      """
+    When I run Psalm with taint analysis
+    And I see no errors
+    Examples:
+      | filter |
+      | app_json |
+      | app_json(constant('JSON_FORCE_OBJECT')) |
+      | app_json(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE')) |
+      | app_json(flags) |
+
+  Scenario Outline: A tainted parameter goes through a safe filter whose PHP callable does not escape it, called with or without arguments
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true" autoloader="autoload.php">
+        <projectFiles>
+          <directory name="."/>
+          <directory name="templates"/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin">
+            <containerXml>container.xml</containerXml>
+          </pluginClass>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code in "container.xml"
+      """
+      <?xml version="1.0" encoding="utf-8"?>
+      <container xmlns="http://symfony.com/schema/dic/services">
+        <services>
+          <service id="twig" class="Twig\Environment" public="true">
+            <call method="addExtension"><argument type="service" id="app.twig_extension"/></call>
+          </service>
+          <service id="app.twig_extension" class="App\TwigExtension"/>
+        </services>
+      </container>
+      """
+    And I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      final class TwigExtension extends AbstractExtension
+      {
+          #[\Override]
+          public function getFilters(): array
+          {
+              return [
+                  new TwigFilter('app_json', [self::class, 'json'], ['is_safe' => ['html']]),
+                  new TwigFilter('app_unescaped_json', [self::class, 'unescapedJson'], ['is_safe' => ['html']]),
+              ];
+          }
+
+          /**
+           * Whatever the flags, the characters HTML gives a meaning to are escaped
+           *
+           * @psalm-pure
+           * @psalm-taint-escape html
+           * @psalm-taint-escape has_quotes
+           */
+          public static function json(mixed $value, int $flags = 0): string
+          {
+              $json = json_encode($value, $flags | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
+              return false === $json ? 'null' : $json;
+          }
+
+          /**
+           * @psalm-pure
+           */
+          public static function unescapedJson(mixed $value, int $flags = 0): string
+          {
+              $json = json_encode($value, $flags);
+
+              return false === $json ? 'null' : $json;
+          }
+      }
+      """
+    And I have the following code in "autoload.php"
+      """
+      <?php
+
+      require_once __DIR__.'/TwigExtension.php';
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted'], 'flags' => $_GET['flags']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <script>const data = {{ untrusted|<filter> }};</script>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+    Examples:
+      | filter |
+      | app_unescaped_json |
+      | app_unescaped_json(constant('JSON_FORCE_OBJECT')) |
+      | app_unescaped_json(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE')) |
+      | app_unescaped_json(flags) |
