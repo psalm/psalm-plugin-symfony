@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
+use PhpParser\Node as PhpNode;
+use PhpParser\NodeTraverser as PhpNodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\NodeVisitorAbstract;
+use PhpParser\ParserFactory;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
@@ -31,12 +36,15 @@ use Psalm\Type\Atomic\TKeyedArray;
 use Psalm\Type\Atomic\TLiteralString;
 use Psalm\Type\Atomic\TNamedObject;
 use Psalm\Type\Atomic\TTemplateParam;
+use Psalm\Type\TaintKind;
 use Psalm\Type\Union;
 use Twig\Environment;
 use Twig\Error\Error;
+use Twig\Extension\CoreExtension;
 use Twig\Node\EmbedNode;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ArrayExpression;
+use Twig\Node\Expression\ArrowFunctionExpression;
 use Twig\Node\Expression\AssignNameExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
@@ -88,8 +96,32 @@ final class Context
     /** the most attributes of a chain, `variable.a.b.c`, whose objects the analysis resolves (see getAttributePath()), also through the variables set to a chain or looping over one (see getTemplateReads()) */
     private const MAX_ATTRIBUTE_DEPTH = 3;
 
+    /** the attribute of a chain whose name is only known when rendering: any public property or method (see getAttributePath()) */
+    private const ANY_ATTRIBUTE = '*';
+
     /** the filters returning an item of the array they are given */
     private const ITEM_FILTERS = ['first', 'last'];
+
+    /**
+     * The taints the builtin strategies of the `escape` filter remove (see getEscapeTaintDestination()). `html`,
+     * `html_attr`, `html_attr_relaxed`, `js` and `css` encode every `<`, `>`, `&`, `"` and `'`: what they give can't
+     * open a tag nor leave a quoted attribute, which is what Psalm's `html` and `has_quotes` stand for, and what it
+     * removes for htmlspecialchars() with ENT_QUOTES. `url` is rawurlencode(), which Psalm says removes these and
+     * `url_component` and `header`. None of them removes any other taint: the escaped value is still SQL, a shell
+     * argument, a secret... Like for htmlspecialchars(), Psalm doesn't tell in which context the value is printed: a
+     * strategy used in the wrong one (`html` in a `<script>`) isn't reported.
+     */
+    private const ESCAPING_STRATEGIES = [
+        'html' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES,
+        'html_attr' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES,
+        'html_attr_relaxed' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES,
+        'js' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES,
+        'css' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES,
+        'url' => TaintKind::INPUT_HTML | TaintKind::INPUT_HAS_QUOTES | TaintKind::INPUT_URL_COMPONENT | TaintKind::INPUT_HEADER,
+    ];
+
+    /** @var array<string, list<list<array{string, FunctionLikeStorage}>|null>>|null strategy ('' for a strategy whose name the analysis can't tell) => the PHP callables of each escaper registered for it, null for one the analysis can't find (see getEscapers()) */
+    private static $escapers;
 
     /** @var array<string, DataFlowNode> the node of the first read of each variable of the context of the template */
     private $unassignedVariables = [];
@@ -309,9 +341,10 @@ final class Context
 
     /**
      * The variable whose objects $expression, `variable.a.b(...)`, reads a chain of attributes of, and that chain:
-     * `a`, then `b()` of what `a` gives (`()` for a method call). Null for an attribute of something else than a
-     * variable, for a key read like `variable['a']`, which an object doesn't have, for an attribute whose name is only
-     * known when rendering, or for a chain of more than MAX_ATTRIBUTE_DEPTH attributes.
+     * `a`, then `b()` of what `a` gives (`()` for a method call). An attribute whose name is only known when rendering,
+     * `attribute(variable, name)`, is `*`: any of them (see getObjectAttribute()). Null for an attribute of something
+     * else than a variable, for a key read like `variable['a']`, which an object doesn't have, or for a chain of more
+     * than MAX_ATTRIBUTE_DEPTH attributes.
      *
      * @return array{NameExpression, non-empty-list<string>}|null
      */
@@ -321,12 +354,13 @@ final class Context
         $node = $expression;
         while ($node instanceof GetAttrExpression) {
             $attribute = $node->getNode('attribute');
-            if ('array' === $node->getAttribute('type') || !$attribute instanceof ConstantExpression) {
+            if ('array' === $node->getAttribute('type')) {
                 return null;
             }
 
             // from the last attribute to the first
-            $path[] = ((string) $attribute->getAttribute('value')).('method' === $node->getAttribute('type') ? '()' : '');
+            $name = $attribute instanceof ConstantExpression ? (string) $attribute->getAttribute('value') : self::ANY_ATTRIBUTE;
+            $path[] = $name.('method' === $node->getAttribute('type') ? '()' : '');
             $node = $node->getNode('node');
         }
 
@@ -365,13 +399,21 @@ final class Context
      * Where Psalm doesn't analyze the body of the callable (a library, a builtin, a stub, a callable the analysis
      * can't find), or the analysis can't tell which parameters the arguments are given to, what the call returns also
      * comes from each of the arguments of the template, without the taints the callable removes (see
-     * getCallableRemovedTaints()): what a body that isn't followed returns isn't lost.
+     * getRemovedTaints()): what a body that isn't followed returns isn't lost.
+     *
+     * An arrow function among the arguments is analyzed as called by the callable (see callArrowArguments()), or as
+     * the filters of Twig call it (see getArrowFilterTaintDestination()).
      *
      * @param \Closure(Node): list<DataFlowNode> $getSources the nodes the taints of an expression of the template come from
      */
     public function getCallTaintDestination(FilterExpression|FunctionExpression|TestExpression $expression, \Closure $getSources): DataFlowNode
     {
         $twigCallable = $this->getTwigCallable($expression);
+        $arrowCall = null === $twigCallable ? null : $this->getArrowFilterTaintDestination($expression, $twigCallable, $getSources);
+        if (null !== $arrowCall) {
+            return $arrowCall;
+        }
+
         $pathType = 'arg';
         if ($expression instanceof FilterExpression) {
             $name = self::getFilterName($expression);
@@ -383,6 +425,12 @@ final class Context
         }
 
         $taintDestination = $this->getNode($expression, $label);
+        // the arrow functions the call is given, called with its other arguments
+        [$getSources, $arrowResults] = $this->callArrowArguments(self::getTemplateArguments($expression), $getSources);
+        foreach ($arrowResults as $arrowResult) {
+            $this->taint->addPath($arrowResult, $taintDestination, 'arg');
+        }
+
         $codebase = $this->codebase;
         $targets = null === $codebase || null === $twigCallable ? [] : self::getCallableTargets($codebase, $twigCallable->getCallable());
         $arguments = null === $codebase || null === $twigCallable || [] === $targets ? null : $this->getCallArguments($expression, $twigCallable, $getSources);
@@ -425,6 +473,421 @@ final class Context
         }
 
         return $taintDestination;
+    }
+
+    /**
+     * Calls the arrow functions among $arguments, those of a call of a PHP callable, as the callable may call them: with
+     * any of the other arguments, the taints of $receiver, and the objects these hold, and their items (see
+     * callArrow()). What they return may be returned by the callable: Psalm doesn't follow the calls of a closure
+     * given to a body, so the caller links it to what the call returns. The arrow functions given to the filters of
+     * Twig are called as they call them (see getArrowFilterTaintDestination()).
+     *
+     * @param list<Node>                         $arguments
+     * @param \Closure(Node): list<DataFlowNode> $getSources
+     * @param list<DataFlowNode>                 $receiver
+     *
+     * @return array{\Closure(Node): list<DataFlowNode>, list<DataFlowNode>} what gives the nodes of the arguments, of an
+     *                                                                       arrow function what it returns, and these
+     */
+    public function callArrowArguments(array $arguments, \Closure $getSources, array $receiver = [], ?Node $receiverExpression = null): array
+    {
+        $arrows = array_values(array_filter($arguments, static fn (Node $argument): bool => $argument instanceof ArrowFunctionExpression));
+        if ([] === $arrows) {
+            return [$getSources, []];
+        }
+
+        $sources = [];
+        $given = array_map(static fn (DataFlowNode $source): array => [$source, 'arg'], $receiver);
+        $bases = null === $receiverExpression ? [] : [...$this->getObjectsAttributeBases($receiverExpression), ...$this->getObjectsAttributeBases($receiverExpression, true)];
+        foreach ($arguments as $argument) {
+            if (!$argument instanceof ArrowFunctionExpression) {
+                $sources[spl_object_id($argument)] = $argumentSources = $getSources($argument);
+                foreach ($argumentSources as $source) {
+                    $given[] = [$source, 'arg'];
+                }
+                $bases = [...$bases, ...$this->getObjectsAttributeBases($argument), ...$this->getObjectsAttributeBases($argument, true)];
+            }
+        }
+
+        $results = [];
+        foreach ($arrows as $arrow) {
+            $parameters = array_fill(0, \count($arrow->getNode('names')), $given);
+            $results[] = $result = $this->callArrow($arrow, $parameters, array_values(array_unique($bases)), $getSources)[0];
+            $sources[spl_object_id($arrow)] = [$result];
+        }
+
+        return [
+            static fn (Node $node): array => $sources[spl_object_id($node)] ?? $getSources($node),
+            $results,
+        ];
+    }
+
+    /**
+     * Calls the arrow function $arrow, a template expression Twig compiles to a closure: its parameters take the nodes
+     * $parameters gives each of them by position, through their paths, and hold the objects of $bases (see
+     * getAttributeBases()), in its body only, which sees the variables of the template too. Its body is analyzed as an
+     * expression of the template: the calls it makes go through their PHP callables, and their sinks are reached.
+     *
+     * @param list<list<array{DataFlowNode, string}>> $parameters
+     * @param list<string>                            $bases
+     * @param \Closure(Node): list<DataFlowNode>      $getSources
+     *
+     * @return array{DataFlowNode, list<DataFlowNode>} the node of what it returns, and those of its parameters
+     */
+    public function callArrow(ArrowFunctionExpression $arrow, array $parameters, array $bases, \Closure $getSources): array
+    {
+        $scope = [$this->localVariables, $this->localAttributes, $this->localStrings];
+        $parameterNodes = [];
+        foreach (iterator_to_array($arrow->getNode('names'), false) as $position => $name) {
+            $parameterName = (string) $name->getAttribute('name');
+            $parameterNodes[] = $parameterNode = $this->getNode($name, $parameterName, 'arrow parameter');
+            foreach ($parameters[$position] ?? [] as [$source, $pathType]) {
+                $this->taint->addPath($source, $parameterNode, $pathType);
+            }
+
+            $this->localVariables[$parameterName] = [$parameterNode];
+            $this->localAttributes[$parameterName] = $bases;
+            unset($this->localStrings[$parameterName]);
+        }
+
+        $result = $this->getNode($arrow, 'arrow');
+        foreach ($getSources($arrow->getNode('expr')) as $source) {
+            $this->taint->addPath($source, $result, 'arg');
+        }
+
+        // the closure is given a copy of the context: what it sets doesn't outlive it
+        [$this->localVariables, $this->localAttributes, $this->localStrings] = $scope;
+
+        return [$result, $parameterNodes];
+    }
+
+    /**
+     * The node of what the call $expression of a filter of Twig calling the arrow function it is given, `map`,
+     * `filter`, `find`, `sort` or `reduce`, returns, as Twig's CoreExtension calls it (see callArrow()):
+     *  - `map` calls it with each item and key of the array it is given, and returns an array of what it returns,
+     *    under the keys of the array;
+     *  - `filter` and `find` call it with each item and key, `sort` with two items, and return items of the array;
+     *  - `reduce` calls it with what it returned before (at first its initial value), each item and key, and returns
+     *    what it returns last, or its initial value.
+     * Null for another call, or one not given an arrow function: see getCallTaintDestination().
+     *
+     * @param \Closure(Node): list<DataFlowNode> $getSources
+     */
+    private function getArrowFilterTaintDestination(FilterExpression|FunctionExpression|TestExpression $expression, TwigFilter|TwigFunction|TwigTest $twigCallable, \Closure $getSources): ?DataFlowNode
+    {
+        $callable = $twigCallable->getCallable();
+        // Twig < 3.9 names them as functions
+        $filter = match (true) {
+            \is_array($callable) && CoreExtension::class === $callable[0] && \is_string($callable[1]) => $callable[1],
+            \is_string($callable) && str_starts_with($callable, 'twig_') => preg_replace('/^twig_(array_)?|_filter$/', '', $callable),
+            default => null,
+        };
+        $arrow = self::getArgument($expression, 0, 'arrow');
+        if (!$expression instanceof FilterExpression || !\in_array($filter, ['map', 'filter', 'find', 'sort', 'reduce'], true) || !$arrow instanceof ArrowFunctionExpression) {
+            return null;
+        }
+
+        $taintDestination = $this->getNode($expression, 'filter_'.self::getFilterName($expression));
+        $array = $expression->getNode('node');
+        $arraySources = $getSources($array);
+        $items = array_map(static fn (DataFlowNode $source): array => [$source, 'arrayvalue-fetch'], $arraySources);
+        $keys = array_map(static fn (DataFlowNode $source): array => [$source, 'arraykey-fetch'], $arraySources);
+        $bases = [...$this->getObjectsAttributeBases($array, true), ...$this->getObjectsAttributeBases($array)];
+
+        $initial = 'reduce' === $filter ? self::getArgument($expression, 1, 'initial') : null;
+        $initialSources = null === $initial ? [] : $getSources($initial);
+        $parameters = match ($filter) {
+            'sort' => [$items, $items],
+            'reduce' => [array_map(static fn (DataFlowNode $source): array => [$source, 'arg'], $initialSources), $items, $keys],
+            default => [$items, $keys],
+        };
+
+        [$result, $parameterNodes] = $this->callArrow($arrow, $parameters, $bases, $getSources);
+
+        if ('map' === $filter) {
+            $keyNode = $this->getNode($expression, 'filter_map', 'keys');
+            foreach ($arraySources as $source) {
+                $this->taint->addPath($source, $keyNode, 'arraykey-fetch');
+            }
+            $this->taint->addPath($keyNode, $taintDestination, 'arraykey-assignment');
+            $this->taint->addPath($result, $taintDestination, 'arrayvalue-assignment');
+        } elseif ('reduce' === $filter) {
+            // what it returns is given back to it
+            if (isset($parameterNodes[0])) {
+                $this->taint->addPath($result, $parameterNodes[0], 'arg');
+            }
+            $this->taint->addPath($result, $taintDestination, 'arg');
+            foreach ($initialSources as $source) {
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+        } else {
+            foreach ($arraySources as $source) {
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+        }
+
+        return $taintDestination;
+    }
+
+    /**
+     * The node of what the `escape` (or `e`) filter $expression returns: what it escapes, without the taints its
+     * strategy removes.
+     *
+     * A builtin strategy removes the taints it encodes the characters of (see ESCAPING_STRATEGIES). A custom one calls
+     * the escaper registered for it (`EscaperRuntime::setEscaper()`, or `EscaperExtension::setEscaper()` before Twig
+     * 3.10), which the analysis finds in the PHP files Psalm scans (see getEscapers()): what it escapes and its other
+     * arguments go into every parameter of the PHP callable, as Twig gives it the value, the charset and before 3.10
+     * the environment, and come out through its body (see addCall()), or, for a callable whose body Psalm doesn't
+     * analyze, as is, without the taints it says it escapes. A strategy whose escaper the analysis can't find, or
+     * whose name is only known when rendering, removes nothing.
+     *
+     * @param \Closure(Node): list<DataFlowNode> $getSources
+     */
+    public function getEscapeTaintDestination(FilterExpression $expression, \Closure $getSources): DataFlowNode
+    {
+        $label = 'filter_'.self::getFilterName($expression);
+        $taintDestination = $this->getNode($expression, $label);
+        $strategy = self::getArgument($expression, 0, 'strategy');
+        $strategyName = null === $strategy ? 'html' : ($strategy instanceof ConstantExpression ? $strategy->getAttribute('value') : null);
+
+        $value = $expression->getNode('node');
+        $valueSources = $getSources($value);
+        // the charset, ... a custom escaper is also given
+        $sources = $valueSources;
+        foreach (self::getTemplateArguments($expression) as $argument) {
+            if ($argument !== $strategy && $argument !== $value) {
+                $sources = [...$sources, ...$getSources($argument)];
+            }
+        }
+
+        $removedTaints = \is_string($strategyName) ? self::ESCAPING_STRATEGIES[$strategyName] ?? null : null;
+        if (null !== $removedTaints) {
+            foreach ($valueSources as $source) {
+                $this->taint->addPath($source, $taintDestination, 'arg', 0, $removedTaints);
+            }
+
+            return $taintDestination;
+        }
+
+        // what goes through the PHP callables of the escapers, or as is
+        $codebase = $this->codebase;
+        $registered = [];
+        if (null !== $codebase && \is_string($strategyName)) {
+            $escapers = self::getEscapers($codebase);
+            $registered = [...$escapers[$strategyName] ?? [], ...$escapers[''] ?? []];
+            $location = $this->getLineLocation($expression->getTemplateLine());
+            foreach ($registered as $targets) {
+                foreach ($targets ?? [] as [$casedId, $storage]) {
+                    $arguments = array_fill(0, max(1, \count($storage->params)), [$sources, null, null]);
+                    $storageRemovedTaints = self::getRemovedTaints($codebase, $storage);
+                    $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
+                    $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization);
+                    if (!self::isBodyAnalyzed($codebase, $storage)) {
+                        foreach ($sources as $source) {
+                            $this->taint->addPath($source, $taintDestination, 'arg', 0, $storageRemovedTaints);
+                        }
+                    }
+                }
+            }
+        }
+
+        $isFollowed = [] !== $registered && !\in_array(null, $registered, true);
+        if (!$isFollowed) {
+            foreach ($sources as $source) {
+                $this->taint->addPath($source, $taintDestination, 'arg');
+            }
+        }
+
+        return $taintDestination;
+    }
+
+    /**
+     * The escapers registered by the PHP files Psalm scans, of the project or of its libraries: by the name of their
+     * strategy, or '' for a name the analysis can't tell, which may be any strategy, the function-likes of each
+     * escaper (see getEscaperTargets()), null for one the analysis can't find. The calls of a method `setEscaper`
+     * register them: the analysis doesn't tell the class of the object it is called on, so it takes those of any
+     * class.
+     *
+     * @return array<string, list<list<array{string, FunctionLikeStorage}>|null>>
+     */
+    private static function getEscapers(Codebase $codebase): array
+    {
+        if (null !== self::$escapers) {
+            return self::$escapers;
+        }
+
+        self::$escapers = [];
+        $parser = (new ParserFactory())->createForHostVersion();
+        foreach ($codebase->scanner->getScannedFiles() as $file => $_) {
+            if (!str_ends_with(strtolower($file), '.php') || false === stripos($codebase->file_provider->getContents($file), 'setEscaper')) {
+                continue;
+            }
+
+            try {
+                $statements = $parser->parse($codebase->file_provider->getContents($file)) ?? [];
+            } catch (\PhpParser\Error) {
+                continue;
+            }
+
+            $visitor = new class extends NodeVisitorAbstract {
+                /** @var list<array{PhpNode\Expr\MethodCall|PhpNode\Expr\NullsafeMethodCall|PhpNode\Expr\StaticCall, string|null}> the calls of `setEscaper`, and the class they are made in */
+                public array $calls = [];
+
+                /** @var list<string|null> the classes the visitor is in */
+                private array $classes = [];
+
+                /** @var int how many methods `setEscaper` the visitor is in */
+                private int $forwarders = 0;
+
+                #[\Override]
+                public function enterNode(PhpNode $node): null
+                {
+                    if ($node instanceof PhpNode\Stmt\ClassLike) {
+                        $this->classes[] = $node->namespacedName?->toString();
+                    }
+
+                    if ($node instanceof PhpNode\Stmt\ClassMethod && 'setescaper' === $node->name->toLowerString()) {
+                        ++$this->forwarders;
+                    }
+
+                    // a method `setEscaper` forwarding what it is given registers what its own calls give it
+                    if (0 === $this->forwarders
+                        && ($node instanceof PhpNode\Expr\MethodCall || $node instanceof PhpNode\Expr\NullsafeMethodCall || $node instanceof PhpNode\Expr\StaticCall)
+                        && $node->name instanceof PhpNode\Identifier && 'setescaper' === $node->name->toLowerString()
+                    ) {
+                        $this->calls[] = [$node, [] === $this->classes ? null : $this->classes[\count($this->classes) - 1]];
+                    }
+
+                    return null;
+                }
+
+                #[\Override]
+                public function leaveNode(PhpNode $node): null
+                {
+                    if ($node instanceof PhpNode\Stmt\ClassLike) {
+                        array_pop($this->classes);
+                    }
+
+                    if ($node instanceof PhpNode\Stmt\ClassMethod && 'setescaper' === $node->name->toLowerString()) {
+                        --$this->forwarders;
+                    }
+
+                    return null;
+                }
+            };
+            (new PhpNodeTraverser(new NameResolver(), $visitor))->traverse($statements);
+
+            foreach ($visitor->calls as [$call, $class]) {
+                $strategy = self::getCallArgumentValue($call, 0, 'strategy');
+                $callable = self::getCallArgumentValue($call, 1, 'callable');
+                if (null === $strategy || null === $callable) {
+                    continue;
+                }
+
+                $strategyName = $strategy instanceof PhpNode\Scalar\String_ ? $strategy->value : '';
+                self::$escapers[$strategyName][] = self::getEscaperTargets($codebase, $file, $callable, $class);
+            }
+        }
+
+        return self::$escapers;
+    }
+
+    /**
+     * The value of the argument of the PHP call $call at $position, or named $name, null if it is unpacked.
+     */
+    private static function getCallArgumentValue(PhpNode\Expr\MethodCall|PhpNode\Expr\NullsafeMethodCall|PhpNode\Expr\StaticCall $call, int $position, string $name): ?PhpNode\Expr
+    {
+        if ($call->isFirstClassCallable()) {
+            return null;
+        }
+
+        foreach ($call->getArgs() as $offset => $argument) {
+            if ($argument->unpack) {
+                return null;
+            }
+
+            if (null === $argument->name ? $offset === $position : $argument->name->toString() === $name) {
+                return $argument->value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The function-likes of the PHP callable $callable, an expression of the file $file in the class $class, with the
+     * id their bodies key their nodes by (see getCallableTargets()): a closure, a first-class callable, a callable
+     * array or string, or an invokable object it creates. Null if the analysis can't tell which.
+     *
+     * @return list<array{string, FunctionLikeStorage}>|null
+     */
+    private static function getEscaperTargets(Codebase $codebase, string $file, PhpNode\Expr $callable, ?string $class): ?array
+    {
+        if ($callable instanceof PhpNode\Expr\Closure || $callable instanceof PhpNode\Expr\ArrowFunction) {
+            // the id Psalm gives the closure (see FunctionLikeNodeScanner)
+            $id = strtolower($file).':'.$callable->getStartLine().':'.(int) $callable->getAttribute('startFilePos').':-:closure';
+            try {
+                $storage = $codebase->file_storage_provider->get($file)->functions[$id] ?? null;
+            } catch (\InvalidArgumentException) {
+                return null;
+            }
+
+            return null === $storage ? null : [[$id, $storage]];
+        }
+
+        $className = static fn (PhpNode $node): ?string => match (true) {
+            $node instanceof PhpNode\Name => \in_array($node->toLowerString(), ['self', 'static'], true) ? $class : ('parent' === $node->toLowerString() ? null : $node->toString()),
+            $node instanceof PhpNode\Expr\ClassConstFetch && $node->name instanceof PhpNode\Identifier && 'class' === $node->name->toLowerString() && $node->class instanceof PhpNode\Name => \in_array($node->class->toLowerString(), ['self', 'static'], true) ? $class : $node->class->toString(),
+            $node instanceof PhpNode\Scalar\String_ => $node->value,
+            $node instanceof PhpNode\Expr\Variable => 'this' === $node->name ? $class : null,
+            $node instanceof PhpNode\Expr\New_ && $node->class instanceof PhpNode\Name => $node->class->toString(),
+            default => null,
+        };
+
+        $function = null;
+        $method = null;
+        if ($callable instanceof PhpNode\Scalar\String_) {
+            $method = str_contains($callable->value, '::') ? $callable->value : null;
+            $function = null === $method ? $callable->value : null;
+        } elseif ($callable instanceof PhpNode\Expr\Array_ && 2 === \count($callable->items)) {
+            $methodName = $callable->items[1]->value;
+            $callableClass = $className($callable->items[0]->value);
+            $method = null === $callableClass || !$methodName instanceof PhpNode\Scalar\String_ ? null : $callableClass.'::'.$methodName->value;
+        } elseif ($callable instanceof PhpNode\Expr\New_) {
+            $callableClass = $className($callable);
+            $method = null === $callableClass ? null : $callableClass.'::__invoke';
+        } elseif ($callable instanceof PhpNode\Expr\FuncCall && $callable->isFirstClassCallable() && $callable->name instanceof PhpNode\Name) {
+            // an unqualified name of a namespace may also be that of a global function
+            $function = [$callable->name->getAttribute('namespacedName')?->toString() ?? $callable->name->toString(), $callable->name->toString()];
+        } elseif (($callable instanceof PhpNode\Expr\StaticCall || $callable instanceof PhpNode\Expr\MethodCall || $callable instanceof PhpNode\Expr\NullsafeMethodCall)
+            && $callable->isFirstClassCallable() && $callable->name instanceof PhpNode\Identifier
+        ) {
+            $callableClass = $className($callable instanceof PhpNode\Expr\StaticCall ? $callable->class : $callable->var);
+            $method = null === $callableClass ? null : $callableClass.'::'.$callable->name->toString();
+        }
+
+        if (null !== $method) {
+            $targets = self::getCallableTargets($codebase, $method);
+
+            return [] === $targets ? null : $targets;
+        }
+
+        foreach (\is_string($function) ? [$function] : $function ?? [] as $functionName) {
+            $functionId = strtolower(ltrim($functionName, '\\'));
+            if ('' === $functionId) {
+                continue;
+            }
+
+            try {
+                $storage = $codebase->functions->getStorage(null, $functionId, $file, $file);
+
+                return [[$storage->cased_name ?? ltrim($functionName, '\\'), $storage]];
+            } catch (\UnexpectedValueException|\InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -517,8 +980,9 @@ final class Context
 
     /**
      * The nodes of the context of the template a PHP callable is given (`needs_context`): the variables the template
-     * is rendered with (see getForTemplateContext()), those it reads from its context, and those it sets, each under
-     * the key of its name. In a macro, the variables the macro sees.
+     * is rendered with (see getForTemplateContext()), the context the templates including it give it (see
+     * getForTemplateIncludedContext()), the variables it reads from its context, and those it sets, each under the key
+     * of its name. In a macro, the variables the macro sees.
      *
      * @return list<DataFlowNode>
      */
@@ -528,9 +992,10 @@ final class Context
         $sources = [$variables];
         if (null === $this->templateScope) {
             $templateName = $this->sourceContext->getName();
-            $context = self::getForTemplateContext($templateName);
-            $this->taint->addNode($context);
-            $sources[] = $context;
+            foreach ([self::getForTemplateContext($templateName), self::getForTemplateIncludedContext($templateName)] as $context) {
+                $this->taint->addNode($context);
+                $sources[] = $context;
+            }
 
             foreach (self::getTemplateReads($this->twig, $templateName)['variables'] as $variableName) {
                 $variable = self::getForTemplateVariable($templateName, $variableName);
@@ -1661,6 +2126,10 @@ final class Context
      * objects of the variable have the attributes the included template reads: those of the objects of the value of
      * the key of `with` it is given, or of the variable of this template, whose chains getTemplateReads() reads.
      *
+     * The PHP callables needing the context in the included template are given the whole of it, whatever variables
+     * the template reads (see getForTemplateIncludedContext()): if $withContext, the context of this template, as they
+     * are given it here (see getContextSources()), and the variables of `with`.
+     *
      * @param IncludedVariables $variables
      *
      * @return DataFlowNode the node of what the included template outputs
@@ -1705,6 +2174,28 @@ final class Context
             }
 
             $this->linkAttributes($bases, self::getAttributeBase($includedTemplateName, $variableName), $includedReads['attributes']);
+        }
+
+        // the whole context, which the PHP callables needing it are given: that of this template unless `only`, with
+        // the variables of `with`, under the keys of their names
+        $includedContext = self::getForTemplateIncludedContext($includedTemplateName);
+        $this->taint->addNode($includedContext);
+        foreach ($withContext ? $this->getContextSources($includeNode) : [] as $source) {
+            $this->taint->addPath($source, $includedContext, 'arg');
+        }
+
+        foreach ($variables['keyed'] as $variableName => $sources) {
+            foreach ([...$sources, ...$variables['printed'][$variableName] ?? []] as $source) {
+                $this->taint->addPath($source, $includedContext, "arrayvalue-assignment-'".$variableName."'");
+            }
+        }
+
+        foreach ($variables['unkeyed'] as $source) {
+            $this->taint->addPath($source, $includedContext, 'arrayvalue-assignment');
+        }
+
+        foreach ($variables['whole'] as $source) {
+            $this->taint->addPath($source, $includedContext, 'arg');
         }
 
         $includedOutput = self::getForTemplate($includedTemplateName);
@@ -1941,6 +2432,14 @@ final class Context
                     $sources[] = $source;
                 }
             }
+        } elseif (self::ANY_ATTRIBUTE === $attribute || self::ANY_ATTRIBUTE.'()' === $attribute) {
+            // any of its public properties and methods
+            foreach (self::getPublicAttributes($codebase, $storage) as $publicAttribute) {
+                $source = self::getObjectAttribute($codebase, $graph, $storage->name, [$publicAttribute]);
+                if (null !== $source) {
+                    $sources[] = $source;
+                }
+            }
         } else {
             $isMethodCall = str_ends_with($attribute, '()');
             $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
@@ -1977,6 +2476,35 @@ final class Context
         }
 
         return self::$objectAttributes[$key] = $node;
+    }
+
+    /**
+     * The attributes Twig may give for an attribute of an object of the class of $storage whose name is only known
+     * when rendering (see getObjectAttribute()): `name` for each public property and magic property, `name()` for
+     * each public method.
+     *
+     * @return list<string>
+     */
+    private static function getPublicAttributes(Codebase $codebase, ClassLikeStorage $storage): array
+    {
+        $attributes = [];
+        foreach ($storage->declaring_property_ids as $name => $_) {
+            if (null !== self::getPublicProperty($codebase, $storage, $name)) {
+                $attributes[] = $name;
+            }
+        }
+
+        foreach ($storage->pseudo_property_get_types as $name => $_) {
+            $attributes[] = ltrim($name, '$');
+        }
+
+        foreach ($storage->declaring_method_ids as $methodName => $declaringMethodId) {
+            if (ClassLikeAnalyzer::VISIBILITY_PUBLIC === $codebase->methods->getStorage($declaringMethodId)->visibility) {
+                $attributes[] = $methodName.'()';
+            }
+        }
+
+        return array_values(array_unique($attributes));
     }
 
     /**
@@ -2042,6 +2570,17 @@ final class Context
         $attribute = $isItem ? substr($attribute, 0, -2) : $attribute;
         $isMethodCall = str_ends_with($attribute, '()');
         $name = $isMethodCall ? substr($attribute, 0, -2) : $attribute;
+
+        if (self::ANY_ATTRIBUTE === $name) {
+            // those of any of its public properties and methods
+            $classes = [];
+            foreach (self::getPublicAttributes($codebase, $storage) as $publicAttribute) {
+                $classes = [...$classes, ...self::getAttributeClasses($codebase, $storage, $publicAttribute.($isItem ? '[]' : ''))];
+            }
+            $classes = array_values(array_unique($classes));
+
+            return self::$attributeClasses[$key] = self::MAX_CALLED_METHODS < \count($classes) ? [] : $classes;
+        }
 
         $property = $isMethodCall ? null : self::getPublicProperty($codebase, $storage, $name);
         if (null !== $property) {
@@ -2232,6 +2771,17 @@ final class Context
     }
 
     /**
+     * The node of the contexts the templates including the template give it (see includeTemplate()), which the PHP
+     * callables needing the context are given, whatever variables it reads.
+     *
+     * @psalm-pure
+     */
+    private static function getForTemplateIncludedContext(string $templateName): DataFlowNode
+    {
+        return DataFlowNode::getForPropertyFetch(strtolower($templateName).'#_context#included');
+    }
+
+    /**
      * The variables a template reads from the context it is rendered with: those it reads, and those the templates it
      * gives its context to read (by `include`, `embed`, `extends` or `include()`). A variable it also sets is one of
      * them, as it may read it before. Also the chains of attributes of variables these templates read (see
@@ -2365,6 +2915,31 @@ final class Context
 
             if ($node instanceof ForNode) {
                 $assign($node->getNode('value_target'), $node->getNode('seq'), true);
+            }
+
+            // the parameters of an arrow function given to a call hold the objects of the other arguments of the call,
+            // of the value it filters or tests or of the object it is a method of, and of their items (see
+            // callArrowArguments())
+            $arrows = [];
+            $given = [];
+            foreach (['node', 'left', 'right', 'arguments'] as $name) {
+                $child = $node->hasNode($name) ? $node->getNode($name) : null;
+                foreach (null === $child ? [] : ('arguments' === $name ? $child : [$child]) as $value) {
+                    if ($value instanceof ArrowFunctionExpression) {
+                        $arrows[] = $value;
+                    } else {
+                        $given[] = $value;
+                    }
+                }
+            }
+
+            foreach ($arrows as $arrow) {
+                foreach ($arrow->getNode('names') as $parameter) {
+                    foreach ($given as $value) {
+                        $assign($parameter, $value, true);
+                        $assign($parameter, $value, false);
+                    }
+                }
             }
 
             $called = $node instanceof MacroReferenceExpression ? self::getCalledMacro($twig, $node, $imports, $templateName) : null;
@@ -2510,8 +3085,12 @@ final class Context
     /**
      * The argument of $expression at $position, or named $name.
      */
-    public static function getArgument(FunctionExpression $expression, int $position, string $name): ?Node
+    public static function getArgument(FilterExpression|FunctionExpression|TestExpression $expression, int $position, string $name): ?Node
     {
+        if (!$expression->hasNode('arguments')) {
+            return null;
+        }
+
         $arguments = $expression->getNode('arguments');
         foreach ([(string) $position, $name] as $key) {
             if ($arguments->hasNode($key)) {

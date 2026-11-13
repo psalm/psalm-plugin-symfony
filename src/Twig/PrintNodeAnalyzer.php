@@ -7,6 +7,9 @@ namespace Psalm\SymfonyPsalmPlugin\Twig;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ArrayExpression;
+use Twig\Node\Expression\ArrowFunctionExpression;
+use Twig\Node\Expression\Binary\HasEveryBinary;
+use Twig\Node\Expression\Binary\HasSomeBinary;
 use Twig\Node\Expression\ConditionalExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
@@ -85,12 +88,12 @@ final class PrintNodeAnalyzer
     {
         if ($expression instanceof FilterExpression) {
             if (self::isEscapingFilter($expression)) {
-                // the escaped value is safe to print, but the calls it is made of still run: what they give the methods
-                // they call (sinks of their parameters, keyed stores) is still followed
-                $this->getTaintSources($expression->getNode('node'));
-
-                // autoescaping outputs the markup of a macro as is
-                return self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : [];
+                // the escaped value without the taints its strategy removes; autoescaping outputs the markup of a macro
+                // as is
+                return [
+                    $this->context->getEscapeTaintDestination($expression, $this->getTaintSources(...)),
+                    ...(self::isAutoescaping($expression) ? $this->getMarkupSources($expression->getNode('node')) : []),
+                ];
             }
 
             // what a filter returns comes from what it filters and from its arguments (`format`, `replace`, ...),
@@ -141,6 +144,30 @@ final class PrintNodeAnalyzer
             return [];
         }
 
+        if ($expression instanceof ArrowFunctionExpression) {
+            // an arrow function the analysis doesn't know the calls of: its parameters are given nothing
+            return [$this->context->callArrow($expression, [], [], $this->getTaintSources(...))[0]];
+        }
+
+        $arrow = $expression instanceof HasSomeBinary || $expression instanceof HasEveryBinary ? $expression->getNode('right') : null;
+        if ($arrow instanceof ArrowFunctionExpression) {
+            // `array has some x => ...` calls the arrow function with each item and key of the array, and gives a
+            // boolean
+            $array = $expression->getNode('left');
+            $sources = $this->getTaintSources($array);
+            $this->context->callArrow(
+                $arrow,
+                [
+                    array_map(static fn (DataFlowNode $source): array => [$source, 'arrayvalue-fetch'], $sources),
+                    array_map(static fn (DataFlowNode $source): array => [$source, 'arraykey-fetch'], $sources),
+                ],
+                [...$this->context->getObjectsAttributeBases($array, true), ...$this->context->getObjectsAttributeBases($array)],
+                $this->getTaintSources(...),
+            );
+
+            return [];
+        }
+
         if ($expression instanceof ReturnBoolInterface || $expression instanceof ReturnNumberInterface) {
             // a comparison, a test or an arithmetic operation gives a boolean or a number, which holds no markup, but
             // the calls it is made of still run, but for `defined`, which reads its value without calling it
@@ -173,6 +200,14 @@ final class PrintNodeAnalyzer
      * classes of the values given to the template for `item` (see Context::getObjectAttributeSources()). So do the
      * chains of them, `item.name.next`, from the classes `item.name` is declared to give.
      *
+     * `attribute(item, 'name')` is `item.name`, and `attribute(item, 'name', arguments)` also gives what
+     * `item.name(arguments)` gives. `attribute(item, name)`, whose name is only known when rendering, gives any public
+     * property or method of the classes of `item` (see Context::getAttributePath()), and the taints of the whole of
+     * `item` and of its arguments: the methods it may call aren't given them.
+     *
+     * The arrow functions given to a method are called with its object and its other arguments, and what they return
+     * comes out of the call (see Context::callArrowArguments()).
+     *
      * @return list<DataFlowNode>
      */
     private function getAttributeTaintSources(GetAttrExpression $expression): array
@@ -187,32 +222,46 @@ final class PrintNodeAnalyzer
         $path = Context::getAttributePath($expression);
         $objectSources = null === $path ? [] : $this->context->getObjectAttributeSources($path[0], $path[1]);
 
+        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $fetched = [];
         if ('method' !== $type && $attribute instanceof ConstantExpression) {
             $key = (string) $attribute->getAttribute('value');
-
-            return [
-                ...array_map(
-                    fn (DataFlowNode $source): DataFlowNode => $this->context->getFetchDestination(
-                        $source,
-                        $expression,
-                        $key,
-                        "arrayvalue-fetch-'".$key."'",
-                    ),
-                    $sources,
+            $fetched = array_map(
+                fn (DataFlowNode $source): DataFlowNode => $this->context->getFetchDestination(
+                    $source,
+                    $expression,
+                    $key,
+                    "arrayvalue-fetch-'".$key."'",
                 ),
-                ...$objectSources,
-            ];
+                $sources,
+            );
+
+            // but for `attribute(item, 'name', arguments)`, which gives the key or the property `name`, else calls the
+            // method `name` with the arguments, as `item.name(arguments)` does
+            if ('array' === $type || null === $arguments || ($arguments instanceof ArrayExpression && [] === $arguments->getKeyValuePairs())) {
+                return [...$fetched, ...$objectSources];
+            }
+        } elseif (!$attribute instanceof ConstantExpression) {
+            // `attribute(item, name)`: the calls the name is made of still run
+            $this->getTaintSources($attribute);
         }
 
-        $arguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
-        $argumentSources = 'method' === $type && $attribute instanceof ConstantExpression
-            ? $this->getArgumentTaintSources($arguments)
+        // the arrow functions given to the method, which it may call with its object and its other arguments, and
+        // whose returns it may return
+        [$getArgumentSources, $arrowResults] = $this->context->callArrowArguments(
+            $arguments instanceof ArrayExpression ? array_column($arguments->getKeyValuePairs(), 'value') : [],
+            $this->getTaintSources(...),
+            $sources,
+            $node,
+        );
+        $argumentSources = 'array' !== $type && $attribute instanceof ConstantExpression
+            ? $this->getArgumentTaintSources($arguments, $getArgumentSources)
             : null;
         if (null !== $argumentSources) {
             $name = (string) $attribute->getAttribute('value');
             $call = $this->context->getMethodCallTaintDestination($expression, $name, $argumentSources, $sources);
             if (null !== $call) {
-                return [...$objectSources, $call];
+                return [...$fetched, ...$objectSources, $call, ...$arrowResults];
             }
 
             if ($node instanceof NameExpression) {
@@ -226,15 +275,18 @@ final class PrintNodeAnalyzer
             $sources = [...$sources, ...$this->getTaintSources($arguments)];
         }
 
-        return [...$sources, ...$objectSources];
+        return [...$fetched, ...$sources, ...$objectSources, ...$arrowResults];
     }
 
     /**
-     * The nodes of each argument of a method call, by position. Null if the analysis can't tell their positions.
+     * The nodes of each argument of a method call, by position, those $getSources gives. Null if the analysis can't
+     * tell their positions.
+     *
+     * @param \Closure(Node): list<DataFlowNode> $getSources
      *
      * @return list<list<DataFlowNode>>|null
      */
-    private function getArgumentTaintSources(?Node $arguments): ?array
+    private function getArgumentTaintSources(?Node $arguments, \Closure $getSources): ?array
     {
         if (null === $arguments) {
             return [];
@@ -257,7 +309,7 @@ final class PrintNodeAnalyzer
                 return null;
             }
 
-            $argumentSources[] = $this->getTaintSources($value);
+            $argumentSources[] = $getSources($value);
         }
 
         return $argumentSources;
