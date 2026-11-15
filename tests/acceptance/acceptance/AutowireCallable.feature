@@ -249,6 +249,70 @@ Feature: Autowired callables
       | InvalidAutowireCallable | Method Formatter::hidden() is not public. |
     And I see no other errors
 
+  Scenario: Invalid bindings honour the suppressions of the method and of the class
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" findUnusedPsalmSuppress="true">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+          private function hidden(string $value): string { return $value; }
+      }
+      interface Converter { public function convert(int $value): int; }
+
+      final class MethodSuppression {
+          /** @psalm-suppress InvalidAutowireCallable */
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+              #[AutowireCallable(service: Formatter::class, method: 'hidden')]
+              public Closure $hidden,
+              #[AutowireCallable(callable: [Formatter::class, 'format'])]
+              public Closure $notStatic,
+          ) {}
+      }
+
+      /** @psalm-suppress InvalidAutowireCallable */
+      final class ClassSuppression {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+              #[AutowireCallable(service: Formatter::class, method: 'hidden')]
+              public Closure $hidden,
+              #[AutowireCallable(callable: [Formatter::class, 'format'])]
+              public Closure $notStatic,
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public Converter $incompatible,
+          ) {}
+      }
+
+      final class NoSuppression {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+          ) {}
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                    | Message                                    |
+      | InvalidAutowireCallable | Method Formatter::missing() does not exist. |
+    And I see no other errors
+
   Scenario: A static return type is the target class
     Given I have the following code
       """

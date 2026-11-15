@@ -76,13 +76,14 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
                 continue;
             }
             foreach ($class->methods as $methodName => $method) {
+                $suppressedIssues = $method->suppressed_issues + $class->suppressed_issues;
                 foreach ($method->params as $parameter) {
                     unset($parameter->custom_metadata[self::class.'::reference']);
-                    $type = self::resolve($codebase, $parameter, $class->name.'::'.$methodName);
+                    $type = self::resolve($codebase, $parameter, $class->name.'::'.$methodName, $suppressedIssues);
                     if (null === $type) {
                         continue;
                     }
-                    self::checkType($codebase, $parameter, $type, array_merge($method->suppressed_issues, $class->suppressed_issues));
+                    self::checkType($codebase, $parameter, $type, $suppressedIssues);
                     if (!self::isUnspecifiedCallable($parameter->type) && true !== ($parameter->custom_metadata[self::class] ?? false)) {
                         continue;
                     }
@@ -138,7 +139,8 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         }
     }
 
-    private static function resolve(Codebase $codebase, FunctionLikeParameter $parameter, string $caller): ?Union
+    /** @param array<int, string> $suppressedIssues */
+    private static function resolve(Codebase $codebase, FunctionLikeParameter $parameter, string $caller, array $suppressedIssues): ?Union
     {
         foreach ($parameter->attributes as $attribute) {
             $name = $attribute->fq_class_name;
@@ -150,21 +152,21 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             if ('Symfony\Component\DependencyInjection\Attribute\AutowireMethodOf' === $name) {
                 $service = self::serviceClass($codebase, self::getString($codebase, $attribute, 'service', 0));
 
-                return null !== $service ? self::methodType($codebase, $service, $parameter->name, $caller, $attribute, false, $parameter) : null;
+                return null !== $service ? self::methodType($codebase, $service, $parameter->name, $caller, $attribute, false, $parameter, $suppressedIssues) : null;
             }
             if ('Symfony\Component\DependencyInjection\Attribute\AutowireCallable' !== $name) {
                 continue;
             }
             $service = self::serviceClass($codebase, self::getString($codebase, $attribute, 'service', 1));
             if (null !== $service) {
-                return self::methodType($codebase, $service, self::getString($codebase, $attribute, 'method', 2) ?? '__invoke', $caller, $attribute, false, $parameter);
+                return self::methodType($codebase, $service, self::getString($codebase, $attribute, 'method', 2) ?? '__invoke', $caller, $attribute, false, $parameter, $suppressedIssues);
             }
             $callable = self::getArgumentType($codebase, $attribute, 'callable', 0);
             if ($callable instanceof TLiteralString) {
                 if (str_contains($callable->value, '::')) {
                     [$service, $method] = explode('::', $callable->value, 2) + [1 => ''];
 
-                    return self::methodType($codebase, $service, $method, $caller, $attribute, true, $parameter);
+                    return self::methodType($codebase, $service, $method, $caller, $attribute, true, $parameter, $suppressedIssues);
                 }
                 $function = strtolower(ltrim($callable->value, '\\'));
                 if ('' === $function) {
@@ -199,7 +201,7 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
                 $classType = $callable->properties[0] ?? null;
                 $methodType = $callable->properties[1] ?? null;
                 if ($classType?->isSingleStringLiteral() && $methodType?->isSingleStringLiteral()) {
-                    return self::methodType($codebase, $classType->getSingleStringLiteral()->value, $methodType->getSingleStringLiteral()->value, $caller, $attribute, true, $parameter);
+                    return self::methodType($codebase, $classType->getSingleStringLiteral()->value, $methodType->getSingleStringLiteral()->value, $caller, $attribute, true, $parameter, $suppressedIssues);
                 }
             }
         }
@@ -207,7 +209,8 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         return null;
     }
 
-    private static function methodType(Codebase $codebase, string $class, string $method, string $caller, AttributeStorage $attribute, bool $static, FunctionLikeParameter $parameter): ?Union
+    /** @param array<int, string> $suppressedIssues */
+    private static function methodType(Codebase $codebase, string $class, string $method, string $caller, AttributeStorage $attribute, bool $static, FunctionLikeParameter $parameter, array $suppressedIssues): ?Union
     {
         if (!$codebase->classlike_storage_provider->has($class)) {
             return null;
@@ -217,7 +220,7 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             if ($codebase->methodExists(new MethodIdentifier($class, $static ? '__callstatic' : '__call'))) {
                 return null;
             }
-            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() does not exist.', $class, $method), $attribute->location));
+            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() does not exist.', $class, $method), $attribute->location), $suppressedIssues);
 
             return null;
         }
@@ -232,12 +235,12 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             $visibility = $appearingClass->trait_visibility_map[$appearingId->method_name] ?? $visibility;
         }
         if (1 !== $visibility) {
-            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not public.', $class, $method), $attribute->location));
+            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not public.', $class, $method), $attribute->location), $suppressedIssues);
 
             return null;
         }
         if ($static && !$storage->is_static) {
-            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not static.', $class, $method), $attribute->location));
+            IssueBuffer::maybeAdd(new InvalidAutowireCallable(sprintf('Method %s::%s() is not static.', $class, $method), $attribute->location), $suppressedIssues);
 
             return null;
         }

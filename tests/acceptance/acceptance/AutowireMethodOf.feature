@@ -119,6 +119,24 @@ Feature: Autowired method adapters
       | InvalidAutowireCallable  | Method Formatter::missing() does not exist.      |
     And I see no other errors
 
+  Scenario: A missing target method honours the suppressions of the class
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireMethodOf;
+
+      final class Formatter {}
+      /** @psalm-suppress InvalidAutowireCallable */
+      final class Consumer {
+          public function __construct(
+              #[AutowireMethodOf(Formatter::class)]
+              public Closure $missing,
+          ) {}
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
   Scenario: Direct constructor calls must accept the inferred signature
     Given I have the following code
       """
