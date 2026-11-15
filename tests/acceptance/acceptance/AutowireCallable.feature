@@ -160,6 +160,184 @@ Feature: Autowired callables
     When I run Psalm
     Then I see no errors
 
+  Scenario: A property written elsewhere keeps its declared type
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Wither {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function withFormat(Closure $format): self {
+              $clone = clone $this;
+              $clone->format = $format;
+
+              return $clone;
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class Setter {
+          private Closure $format;
+
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              Closure $format,
+          ) {
+              $this->format = $format;
+          }
+
+          public function setFormat(Closure $format): void {
+              $this->format = $format;
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      trait FormatWither {
+          public function withFormat(Closure $format): static {
+              $clone = clone $this;
+              $clone->format = $format;
+
+              return $clone;
+          }
+      }
+
+      final class TraitWither {
+          use FormatWither;
+
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class PublicProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public Closure $format,
+          ) {}
+      }
+
+      function replace(PublicProperty $consumer, Closure $format): void {
+          $consumer->format = $format;
+      }
+
+      class ProtectedProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              protected Closure $format,
+          ) {}
+      }
+
+      final class ChildProperty extends ProtectedProperty {
+          public function setFormat(Closure $format): void {
+              $this->format = $format;
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property written by a clone with properties keeps its declared type
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" phpVersion="8.5">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private readonly Closure $format,
+          ) {}
+
+          public function withLength(): self {
+              return clone($this, ['format' => static fn (string $value): int => \strlen($value)]);
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property that only the attribute writes keeps the inferred signature
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      class PrivateProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function run(): string {
+              return ($this->format)(1);
+          }
+      }
+
+      final class ChildOfPrivateProperty extends PrivateProperty {}
+
+      final class ReadonlyProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public readonly Closure $format,
+          ) {}
+      }
+
+      function run(ReadonlyProperty $consumer): string {
+          return ($consumer->format)(2);
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                  | Message                                   |
+      | InvalidScalarArgument | Argument 1 expects string, but 1 provided |
+      | InvalidScalarArgument | Argument 1 expects string, but 2 provided |
+    And I see no other errors
+
   Scenario: Magic methods keep their declared types
     Given I have the following code
       """

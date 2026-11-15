@@ -4,14 +4,34 @@ declare(strict_types=1);
 
 namespace Psalm\SymfonyPsalmPlugin\Handler;
 
+use PhpParser\Node;
+use PhpParser\Node\Arg;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\AssignOp;
+use PhpParser\Node\Expr\AssignRef;
+use PhpParser\Node\Expr\ConstFetch;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\List_;
+use PhpParser\Node\Expr\PostDec;
+use PhpParser\Node\Expr\PostInc;
+use PhpParser\Node\Expr\PreDec;
+use PhpParser\Node\Expr\PreInc;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
+use PhpParser\Node\Param;
+use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Expression;
+use PhpParser\Node\Stmt\Foreach_;
+use PhpParser\Node\Stmt\Trait_;
+use PhpParser\NodeFinder;
 use Psalm\Codebase;
 use Psalm\Context;
+use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Internal\Codebase\ConstantTypeResolver;
 use Psalm\Internal\Codebase\InternalCallMapHandler;
 use Psalm\Internal\MethodIdentifier;
@@ -24,8 +44,10 @@ use Psalm\Plugin\EventHandler\Event\AfterClassLikeVisitEvent;
 use Psalm\Plugin\EventHandler\Event\AfterCodebasePopulatedEvent;
 use Psalm\Plugin\EventHandler\Event\AfterFileAnalysisEvent;
 use Psalm\Storage\AttributeStorage;
+use Psalm\Storage\ClassLikeStorage;
 use Psalm\Storage\FunctionLikeParameter;
 use Psalm\Storage\FunctionLikeStorage;
+use Psalm\Storage\PropertyStorage;
 use Psalm\SymfonyPsalmPlugin\Issue\InvalidAutowireCallable;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\Type;
@@ -50,21 +72,78 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
     public static function afterClassLikeVisit(AfterClassLikeVisitEvent $event): void
     {
         $node = $event->getStmt();
-        $constructor = $node instanceof Class_ ? $node->getMethod('__construct') : null;
-        if (null === $constructor) {
+        $constructor = $node->getMethod('__construct');
+        if ($node instanceof Class_) {
+            // only the parameters of the constructor that have attributes can be copied to properties
+            if ([] === array_filter($constructor?->params ?? [], static fn (Param $parameter): bool => [] !== $parameter->attrGroups)) {
+                return;
+            }
+        } elseif (!$node instanceof Trait_) {
             return;
         }
         $assignments = [];
-        foreach ($constructor->getStmts() ?? [] as $statement) {
+        $copies = [];
+        foreach ($constructor?->getStmts() ?? [] as $statement) {
             if (!$statement instanceof Expression || !$statement->expr instanceof Assign) {
                 continue;
             }
             $assign = $statement->expr;
             if ($assign->var instanceof PropertyFetch && $assign->var->var instanceof Variable && 'this' === $assign->var->var->name && $assign->var->name instanceof Identifier && $assign->expr instanceof Variable && \is_string($assign->expr->name)) {
-                $assignments[$assign->var->name->name] = $assign->expr->name;
+                $assignments[$assign->var->name->name][] = $assign->expr->name;
+                $copies[spl_object_id($assign)] = true;
             }
         }
-        $event->getStorage()->custom_metadata[self::class] = $assignments;
+
+        // Collect the other writes to properties, on any object: a property gets the inferred signature only when the
+        // parameter is the only value written to it
+        $targets = [];
+        $writes = [];
+        $dynamic = false;
+        $isWrite = static fn (Node $node): bool => $node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp || $node instanceof PreInc || $node instanceof PreDec || $node instanceof PostInc || $node instanceof PostDec || $node instanceof Foreach_ || $node instanceof FuncCall;
+        foreach ((new NodeFinder())->find($node->stmts, $isWrite) as $write) {
+            if ($write instanceof Assign) {
+                if (!isset($copies[spl_object_id($write)]) && !self::isNull($write->expr)) {
+                    $targets[] = $write->var;
+                }
+            } elseif ($write instanceof AssignRef) {
+                $targets[] = $write->var;
+                $targets[] = $write->expr;
+            } elseif ($write instanceof AssignOp || $write instanceof PreInc || $write instanceof PreDec || $write instanceof PostInc || $write instanceof PostDec) {
+                $targets[] = $write->var;
+            } elseif ($write instanceof Foreach_) {
+                $targets[] = $write->valueVar;
+                if (null !== $write->keyVar) {
+                    $targets[] = $write->keyVar;
+                }
+            } elseif ($write instanceof FuncCall && $write->name instanceof Name && 'clone' === $write->name->toLowerString()) {
+                $cloned = self::getClonedProperties($write);
+                $dynamic = $dynamic || null === $cloned;
+                $writes += array_fill_keys($cloned ?? [], true);
+            }
+        }
+        while ([] !== $targets) {
+            $target = array_pop($targets);
+            if ($target instanceof List_ || $target instanceof Array_) {
+                foreach ($target->items as $item) {
+                    if (null !== $item) {
+                        $targets[] = $item->value;
+                    }
+                }
+            } elseif ($target instanceof PropertyFetch) {
+                if ($target->name instanceof Identifier) {
+                    $writes[$target->name->name] = true;
+                } elseif ($target->name instanceof String_) {
+                    $writes[$target->name->value] = true;
+                } else {
+                    $dynamic = true;
+                }
+            }
+        }
+
+        $storage = $event->getStorage();
+        $storage->custom_metadata[self::class] = $assignments;
+        $storage->custom_metadata[self::class.'::writes'] = $writes;
+        $storage->custom_metadata[self::class.'::dynamic_writes'] = $dynamic;
     }
 
     #[\Override]
@@ -95,17 +174,10 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
                     if ('__construct' !== $methodName) {
                         continue;
                     }
-                    $properties = $class->custom_metadata[self::class] ?? [];
-                    if (!\is_array($properties)) {
-                        continue;
-                    }
-                    if ($parameter->promoted_property) {
-                        $properties[$parameter->name] = $parameter->name;
-                    }
-                    foreach ($properties as $property => $name) {
-                        if ($name === $parameter->name && isset($class->properties[$property]) && (self::isUnspecifiedCallable($class->properties[$property]->type) || true === ($class->properties[$property]->custom_metadata[self::class] ?? false))) {
-                            $class->properties[$property]->type = $class->properties[$property]->type?->isNullable() ? Type::combineUnionTypes($type, Type::getNull()) : $type;
-                            $class->properties[$property]->custom_metadata[self::class] = true;
+                    foreach (self::getCopies($codebase, $class, $parameter) as $property) {
+                        if (self::isUnspecifiedCallable($property->type) || true === ($property->custom_metadata[self::class] ?? false)) {
+                            $property->type = $property->type?->isNullable() ? Type::combineUnionTypes($type, Type::getNull()) : $type;
+                            $property->custom_metadata[self::class] = true;
                         }
                     }
                 }
@@ -137,6 +209,109 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
                 }
             }
         }
+    }
+
+    /**
+     * Returns the properties that a PHP 8.5 `clone($object, ['property' => $value])` call writes.
+     *
+     * @return list<string>|null null when the call can write any property
+     */
+    private static function getClonedProperties(FuncCall $call): ?array
+    {
+        $properties = null;
+        foreach ($call->args as $i => $argument) {
+            if (!$argument instanceof Arg || $argument->unpack) {
+                return null;
+            }
+            if ('withProperties' === $argument->name?->name || (null === $argument->name && 1 === $i)) {
+                $properties = $argument->value;
+            }
+        }
+        if (null === $properties) {
+            return [];
+        }
+        if (!$properties instanceof Array_) {
+            return null;
+        }
+        $names = [];
+        foreach ($properties->items as $item) {
+            if (!$item->key instanceof String_) {
+                return null;
+            }
+            if (!self::isNull($item->value)) {
+                $names[] = $item->key->value;
+            }
+        }
+
+        return $names;
+    }
+
+    private static function isNull(Expr $expr): bool
+    {
+        return $expr instanceof ConstFetch && 'null' === $expr->name->toLowerString();
+    }
+
+    /**
+     * Returns the properties of the class that the constructor parameter is the only value written to.
+     *
+     * @return list<PropertyStorage>
+     */
+    private static function getCopies(Codebase $codebase, ClassLikeStorage $class, FunctionLikeParameter $parameter): array
+    {
+        $assignments = $class->custom_metadata[self::class] ?? null;
+        if (!\is_array($assignments) || !isset($class->custom_metadata[self::class.'::writes'])) {
+            return [];
+        }
+        $writes = [];
+        $classes = [$class];
+        $visited = [];
+        while ([] !== $classes) {
+            $storage = array_pop($classes);
+            if (isset($visited[$storage->name])) {
+                continue;
+            }
+            $visited[$storage->name] = true;
+            if (true === ($storage->custom_metadata[self::class.'::dynamic_writes'] ?? false)) {
+                return [];
+            }
+            $traitWrites = $storage->custom_metadata[self::class.'::writes'] ?? [];
+            $writes += \is_array($traitWrites) ? $traitWrites : [];
+            foreach ($storage->used_traits as $trait) {
+                if ($codebase->classlike_storage_provider->has($trait)) {
+                    $classes[] = $codebase->classlike_storage_provider->get($trait);
+                }
+            }
+        }
+
+        $copies = [];
+        foreach ($class->properties as $name => $property) {
+            $variables = $assignments[$name] ?? [];
+            if (!\is_array($variables) || isset($writes[$name])) {
+                continue;
+            }
+            if ($parameter->promoted_property && $parameter->name === $name) {
+                $variables[] = $parameter->name;
+            }
+            if ([$parameter->name] === array_unique($variables) && self::isOnlyWrittenByItsClass($class, $property)) {
+                $copies[] = $property;
+            }
+        }
+
+        return $copies;
+    }
+
+    private static function isOnlyWrittenByItsClass(ClassLikeStorage $class, PropertyStorage $property): bool
+    {
+        // a hook can read or write another value than the parameter
+        if (null !== $property->hook_get || null !== $property->hook_set) {
+            return false;
+        }
+        if (ClassLikeAnalyzer::VISIBILITY_PRIVATE === $property->set_visibility) {
+            return true;
+        }
+
+        // subclasses can write the properties that are not private, and any code the public ones that are not readonly
+        return $class->final && ($property->readonly || ClassLikeAnalyzer::VISIBILITY_PUBLIC !== $property->set_visibility);
     }
 
     /** @param array<int, string> $suppressedIssues */
