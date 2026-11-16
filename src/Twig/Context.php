@@ -65,7 +65,6 @@ use Twig\Node\Nodes;
 use Twig\Node\PrintNode;
 use Twig\Node\SetNode;
 use Twig\Source;
-use Twig\TwigCallableInterface;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
 use Twig\TwigTest;
@@ -925,8 +924,8 @@ final class Context
     {
         // Twig >= 3.15 deprecates instantiating Node
         $templateArguments = $expression->hasNode('arguments') ? $expression->getNode('arguments') : (class_exists(Nodes::class) ? new Nodes() : new Node());
-        /** @psalm-suppress RedundantCondition Twig < 3.12 has neither */
-        if (class_exists(CallableArgumentsExtractor::class) && $twigCallable instanceof TwigCallableInterface) {
+        // Twig >= 3.12, whose TwigFilter, TwigFunction and TwigTest implement TwigCallableInterface
+        if (class_exists(CallableArgumentsExtractor::class)) {
             try {
                 /** @psalm-suppress InternalClass, InternalMethod Twig maps the arguments to the parameters with it */
                 $templateArguments = (new CallableArgumentsExtractor($expression, $twigCallable))->extractArguments($templateArguments);
