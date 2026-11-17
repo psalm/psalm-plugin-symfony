@@ -23,3 +23,22 @@ Feature: CacheInterface
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: CacheInterface::get accepts a callback taking $save by value
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Contracts\Cache\CacheInterface;
+      use Symfony\Contracts\Cache\ItemInterface;
+
+      function test(CacheInterface $cache): stdClass
+      {
+        return $cache->get('key', function (ItemInterface $item, bool $save): stdClass {
+          return new stdClass();
+        });
+      }
+
+      """
+    When I run Psalm
+    Then I see no errors

@@ -152,7 +152,8 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
                 }
             }
         }
-        $storage->custom_metadata[self::class] = $data;
+        // the metadata of a class holds scalars only: the description of the class is nested deeper, and holds nulls
+        $storage->custom_metadata[self::class] = serialize($data);
     }
 
     #[\Override]
@@ -166,8 +167,8 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
             $container->template_defaults['TServices'] = Type::getMixed();
         }
         foreach ($codebase->classlike_storage_provider->getAll() as $class) {
-            $data = $class->custom_metadata[self::class] ?? null;
-            if (!\is_array($data)) {
+            $data = self::metadata($class);
+            if (null === $data) {
                 continue;
             }
             $methods = $data['parameters'] ?? [];
@@ -215,8 +216,8 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
             if (null === $map) {
                 continue;
             }
-            $data = $class->custom_metadata[self::class] ?? null;
-            $assignments = \is_array($data) ? ($data['assignments'] ?? []) : [];
+            $data = self::metadata($class);
+            $assignments = null !== $data ? ($data['assignments'] ?? []) : [];
             foreach ($class->methods as $methodName => $method) {
                 foreach ($method->params as $parameter) {
                     $id = strtolower($class->name.'::'.$methodName).'$'.$parameter->name;
@@ -362,8 +363,8 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
             return self::$subscribers[$name];
         }
         self::$subscribers[$name] = null;
-        $data = $class->custom_metadata[self::class] ?? null;
-        if (!\is_array($data)) {
+        $data = self::metadata($class);
+        if (null === $data) {
             return self::$subscribers[$name] = self::compiledSubscriber($class->name, null, $codebase);
         }
         if (isset($data['declared'])) {
@@ -397,7 +398,7 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
         }
         $subscriptionsBySource = [];
         foreach ($sources as $source) {
-            $sourceData = $source === $class ? $data : ($source->custom_metadata[self::class] ?? null);
+            $sourceData = $source === $class ? $data : self::metadata($source);
             $subscriptions = \is_array($sourceData) ? ($sourceData['subscribed'] ?? []) : [];
             if (!\is_array($subscriptions)) {
                 return null;
@@ -684,6 +685,14 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
         }
 
         return ['kind' => 'unknown'];
+    }
+
+    private static function metadata(ClassLikeStorage $class): ?array
+    {
+        $data = $class->custom_metadata[self::class] ?? null;
+        $data = \is_string($data) ? unserialize($data, ['allowed_classes' => false]) : null;
+
+        return \is_array($data) ? $data : null;
     }
 
     private static function className(Name $name, Aliases $aliases, string $class): string

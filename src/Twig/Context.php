@@ -2035,7 +2035,9 @@ final class Context
 
             if ($node instanceof ModuleNode) {
                 foreach ($node->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
-                    $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                    if ($embeddedTemplate instanceof ModuleNode) {
+                        $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                    }
                 }
             }
 
