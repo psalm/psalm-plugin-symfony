@@ -1644,7 +1644,7 @@ final class Context
      * of an invokable object, or the closures declared at the line of a closure. None if the analysis can't find it.
      *
      * @param callable|array{0: class-string|object, 1: string}|string|null $callable
-     * @param string|null $scannedFile a file Psalm scanned, in which a builtin without a stub is looked up
+     * @param string|null                                                   $scannedFile a file Psalm scanned, in which a builtin without a stub is looked up
      *
      * @return list<array{string, FunctionLikeStorage}>
      */
@@ -1700,7 +1700,7 @@ final class Context
 
     /**
      * The storage of the function, looked up in $file: a builtin without a stub has the one of its call map entry,
-     * which gives its sinks and flows
+     * which gives its sinks and flows.
      *
      * @param non-empty-lowercase-string $functionId
      */
