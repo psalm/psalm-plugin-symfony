@@ -221,18 +221,18 @@ final class AppExtension extends AbstractExtension
 {{ name|bold|raw }} {# safe #}
 {{ names|map(n => n|trimmed)|join(', ')|raw }} {# TaintedHtml #}
 {{ names|map(n => n|bold)|join(', ')|raw }} {# safe #}
-{{ name|upper|raw }} {# TaintedHtml: a callable Psalm doesn't analyze returns what it is given #}
+{{ name|upper|raw }} {# TaintedHtml: a callable Psalm doesn't analyze returns its arguments #}
 <script>var name = '{{ name|e('js') }}';</script> {# safe #}
 {{ name|e('url')|raw }} {# safe #}
-{{ name|e('csv')|raw }} {# TaintedHtml: an escaper the analysis can't find removes nothing #}
-<script>var name = '{{ name }}';</script> {# not reported: like htmlspecialchars(), a strategy isn't checked against its context #}
+{{ name|e('csv')|raw }} {# TaintedHtml: no escaper registered for 'csv' #}
+<script>var name = '{{ name }}';</script> {# no issue: a strategy isn't checked against its context #}
 ```
 
-- The annotations of a callable work as in PHP calls: `@psalm-taint-escape` and `@psalm-taint-sink` (also conditional ones, resolved with the literal arguments of the call), `@psalm-flow`, `@psalm-taint-source` and `@psalm-taint-specialize`.
-- The `html`, `html_attr`, `js` and `css` strategies remove the `html` and `has_quotes` taints, and `url` also removes `url_component` and `header`. A custom strategy goes through the escaper that a `setEscaper()` call of the scanned PHP files registers.
+- A callable's `@psalm-taint-escape`, `@psalm-taint-sink` (conditional ones too, resolved with the call's literal arguments), `@psalm-flow`, `@psalm-taint-source` and `@psalm-taint-specialize` work as in PHP calls.
+- `html`, `html_attr`, `js` and `css` remove `html` and `has_quotes`; `url` also removes `url_component` and `header`. A custom strategy goes through the escaper a `setEscaper()` call in the scanned PHP files registers.
 - `attribute(item, name)` with a name only known when rendering may call any public method of `item`.
-- A callable needing the context in an included template is given the context of the including template (unless `only`) and the variables of `with`.
-- Not followed yet: the taints that `AddTaintsInterface` and `RemoveTaintsInterface` handlers add to or remove from a PHP call.
+- In an included template, a `needs_context` callable gets the including template's context (unless `only`) and the `with` variables.
+- Not followed yet: `AddTaintsInterface` and `RemoveTaintsInterface` handlers.
 
 [See the cases of the PHP callables.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigCallableBodies.feature)
 [See the cases of the arrow functions, `attribute()`, the escaping strategies and the included contexts.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigArrowsAttributesEscapers.feature)
