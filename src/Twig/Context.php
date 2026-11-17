@@ -14,6 +14,7 @@ use Psalm\CodeLocation;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Internal\Analyzer\FunctionLikeAnalyzer;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\FunctionCallReturnTypeFetcher;
+use Psalm\Internal\Codebase\InternalCallMapHandler;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\Codebase\TaintStore;
 use Psalm\Internal\DataFlow\DataFlowNode;
@@ -166,6 +167,12 @@ final class Context
 
     /** @var list<int>|null the offset at which each line of the template starts */
     private $lineOffsets;
+
+    /** @var \WeakMap<Node, int>|null the offset in its line of each call specialized to its location */
+    private ?\WeakMap $callOffsets = null;
+
+    /** @var array<int, int> the number of calls given an offset on each line */
+    private array $callsOnLine = [];
 
     /** @var array<string, string> the templates whose macros the template imports, by the variable it imports them as (see getMacroImports()) */
     private $macroImports = [];
@@ -431,7 +438,7 @@ final class Context
         }
 
         $codebase = $this->codebase;
-        $targets = null === $codebase || null === $twigCallable ? [] : self::getCallableTargets($codebase, $twigCallable->getCallable());
+        $targets = null === $codebase || null === $twigCallable ? [] : self::getCallableTargets($codebase, $twigCallable->getCallable(), $this->sourceContext->getPath());
         $arguments = null === $codebase || null === $twigCallable || [] === $targets ? null : $this->getCallArguments($expression, $twigCallable, $getSources);
 
         $isFollowed = null !== $arguments;
@@ -444,7 +451,7 @@ final class Context
                 $isFollowed = $isFollowed && self::isBodyAnalyzed($codebase, $storage);
 
                 if (null !== $arguments) {
-                    $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $this->getLineLocation($expression->getTemplateLine()));
+                    $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $this->getCallLocation($expression));
                     $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization);
                 }
             }
@@ -674,7 +681,7 @@ final class Context
         if (null !== $codebase && \is_string($strategyName)) {
             $escapers = self::getEscapers($codebase);
             $registered = [...$escapers[$strategyName] ?? [], ...$escapers[''] ?? []];
-            $location = $this->getLineLocation($expression->getTemplateLine());
+            $location = $this->getCallLocation($expression);
             foreach ($registered as $targets) {
                 foreach ($targets ?? [] as [$casedId, $storage]) {
                     $arguments = array_fill(0, max(1, \count($storage->params)), [$sources, null, null]);
@@ -877,12 +884,9 @@ final class Context
                 continue;
             }
 
-            try {
-                $storage = $codebase->functions->getStorage(null, $functionId, $file, $file);
-
+            $storage = self::getFunctionStorage($codebase, $functionId, $file);
+            if (null !== $storage) {
                 return [[$storage->cased_name ?? ltrim($functionName, '\\'), $storage]];
-            } catch (\UnexpectedValueException|\InvalidArgumentException) {
-                continue;
             }
         }
 
@@ -1070,9 +1074,13 @@ final class Context
                 $this->taint->addSink($parameterNode);
             }
 
+            // a node of the call's own, as for a PHP call: the sinks of the parameter see the argument once, however
+            // many nodes it comes from (a variable is both an object and a string)
+            $argumentNode = $this->getNode($expression, $label, 'argument '.$casedId.'#'.($offset + 1));
             foreach ($argumentSources as $source) {
-                $this->taint->addPath($source, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
+                $this->taint->addPath($source, $argumentNode, 'arg');
             }
+            $this->taint->addPath($argumentNode, $parameterNode, $isMagic ? 'arrayvalue-assignment' : 'arg');
         }
 
         foreach ($storage->conditional_taint_sinks as $sink) {
@@ -1199,7 +1207,7 @@ final class Context
         }
 
         $taintDestination = $this->getNode($expression, 'method_'.$name);
-        $location = $this->getLineLocation($expression->getTemplateLine());
+        $location = $this->getCallLocation($expression);
 
         // the expressions of the arguments, by position, which give their literal types and store keys
         $callArguments = [];
@@ -1385,7 +1393,7 @@ final class Context
         }
 
         $sources = [];
-        $location = $this->getLineLocation($expression->getTemplateLine());
+        $location = $this->getCallLocation($expression);
         foreach ($methods as [$methodId, $method, $className]) {
             if ($this->addReceiverToBody($this->codebase, $className, $method, $receiver, $location)) {
                 // what the body of the call specialized to its location returns of its own object
@@ -1636,10 +1644,11 @@ final class Context
      * of an invokable object, or the closures declared at the line of a closure. None if the analysis can't find it.
      *
      * @param callable|array{0: class-string|object, 1: string}|string|null $callable
+     * @param string|null $scannedFile a file Psalm scanned, in which a builtin without a stub is looked up
      *
      * @return list<array{string, FunctionLikeStorage}>
      */
-    private static function getCallableTargets(Codebase $codebase, $callable): array
+    private static function getCallableTargets(Codebase $codebase, $callable, ?string $scannedFile = null): array
     {
         if ($callable instanceof \Closure) {
             $reflection = new \ReflectionFunction($callable);
@@ -1684,16 +1693,35 @@ final class Context
 
         $reflection = new \ReflectionFunction($callable);
         $file = $reflection->getFileName();
+        $storage = self::getFunctionStorage($codebase, strtolower($callable), false === $file ? $scannedFile : $file);
 
+        return null === $storage ? [] : [[$reflection->getName(), $storage]];
+    }
+
+    /**
+     * The storage of the function, looked up in $file: a builtin without a stub has the one of its call map entry,
+     * which gives its sinks and flows
+     *
+     * @param non-empty-lowercase-string $functionId
+     */
+    private static function getFunctionStorage(Codebase $codebase, string $functionId, ?string $file): ?FunctionLikeStorage
+    {
         try {
-            $storage = false === $file
-                ? $codebase->functions->getStorage(null, strtolower($callable))
-                : $codebase->functions->getStorage(null, strtolower($callable), $file, $file);
-        } catch (\UnexpectedValueException) {
-            return [];
+            return null === $file
+                ? $codebase->functions->getStorage(null, $functionId)
+                : $codebase->functions->getStorage(null, $functionId, $file, $file);
+        } catch (\UnexpectedValueException|\InvalidArgumentException) {
         }
 
-        return [[$reflection->getName(), $storage]];
+        if (null === $file || !InternalCallMapHandler::inCallMap($functionId)) {
+            return null;
+        }
+
+        try {
+            return $codebase->functions->getStorageForSymbolLookup($functionId, $file);
+        } catch (\UnexpectedValueException|\InvalidArgumentException) {
+            return null;
+        }
     }
 
     /**
@@ -3132,6 +3160,29 @@ final class Context
     /**
      * @psalm-capabilities read-props|write-this-props|write-refs
      */
+    /**
+     * The location the call of $expression is specialized to (see getCallSpecialization()). A Twig node only knows
+     * its line, so each call of a line starts at an offset of its own in it: the calls of a line don't share their
+     * specialized nodes.
+     */
+    private function getCallLocation(Node $expression): CodeLocation
+    {
+        $line = $expression->getTemplateLine();
+        if (null === $this->callOffsets) {
+            /** @var \WeakMap<Node, int> $callOffsets */
+            $callOffsets = new \WeakMap();
+            $this->callOffsets = $callOffsets;
+        }
+        if (!isset($this->callOffsets[$expression])) {
+            $this->callOffsets[$expression] = $this->callsOnLine[$line] = ($this->callsOnLine[$line] ?? -1) + 1;
+        }
+
+        $location = $this->getLineLocation($line);
+        $start = min($location->raw_file_start + $this->callOffsets[$expression], max($location->raw_file_start, $location->raw_file_end - 1));
+
+        return new CodeLocation\Raw($this->sourceContext->getCode(), $this->sourceContext->getPath(), $this->sourceContext->getName(), $start, $location->raw_file_end);
+    }
+
     private function getLineLocation(int $line): CodeLocation
     {
         $code = $this->sourceContext->getCode();

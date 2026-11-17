@@ -596,6 +596,39 @@ Feature: Twig callable bodies
     When I run Psalm with taint analysis
     Then I see no errors
 
+  Scenario: A tainted value given to a filter whose PHP callable is a builtin without a stub reaches its sinks
+    Given I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      final class TwigExtension extends AbstractExtension
+      {
+          #[\Override]
+          public function getFilters(): array
+          {
+              return [new TwigFilter('app_shell', 'shell_exec')];
+          }
+      }
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted']]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      {% do untrusted|app_shell %}
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message                     |
+      | TaintedShell | Detected tainted shell code |
+    And I see no other errors
+
   Scenario: The calls of a filter whose PHP callable is specialized to its calls give each call what it is given only
     Given I have the following code in "TwigExtension.php"
       """
@@ -638,6 +671,51 @@ Feature: Twig callable bodies
       """
       <h1>{{ untrusted|app_count }}</h1>
       <h2>{{ trusted|app_count|raw }}</h2>
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
+
+  Scenario: The calls of a filter whose PHP callable is specialized to its calls give each call what it is given only, on one line too
+    Given I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+      use Twig\TwigFilter;
+
+      /**
+       * @psalm-api
+       */
+      class TwigExtension extends AbstractExtension
+      {
+          public static int $calls = 0;
+
+          #[\Override]
+          public function getFilters(): array
+          {
+              return [new TwigFilter('app_count', [self::class, 'appCount'])];
+          }
+
+          /**
+           * @psalm-taint-specialize
+           */
+          public static function appCount(string $value): string
+          {
+              ++self::$calls;
+
+              return $value;
+          }
+      }
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted'], 'trusted' => 'trusted']);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ untrusted|app_count }}</h1><h2>{{ trusted|app_count|raw }}</h2>
       """
     When I run Psalm with taint analysis
     Then I see no errors
