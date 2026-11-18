@@ -2058,7 +2058,6 @@ Feature: Twig tainting with analyzer
     Then I see these errors
       | Type         | Message                     |
       | TaintedShell | Detected tainted shell code |
-      | TaintedShell | Detected tainted shell code |
     And I see no other errors
 
   Scenario: What a variable holds besides an object is not displayed through a method of the object returning something else

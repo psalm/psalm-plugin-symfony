@@ -114,16 +114,12 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
         }
 
         $parameterNames = [];
-        $hasUnknownParameters = false;
         foreach ($parameters->getAtomicTypes() as $atomic) {
             if ($atomic instanceof TKeyedArray) {
                 $parameterNames = [...$parameterNames, ...array_map('strval', array_keys($atomic->properties))];
-                $hasUnknownParameters = $hasUnknownParameters || null !== $atomic->fallback_params;
                 foreach ($atomic->properties as $parameterName => $parameterType) {
                     Context::taintTemplateVariableAttributes($codebase, $templateName, (string) $parameterName, $parameterType);
                 }
-            } else {
-                $hasUnknownParameters = true;
             }
         }
 
@@ -136,9 +132,9 @@ final class AnalyzedTemplatesTainter implements AfterMethodCallAnalysisInterface
                 );
             }
 
-            if ($hasUnknownParameters) {
-                $codebase->taint_flow_graph->addPath($parameterNode, Context::getForTemplateContext($templateName), '=');
-            }
+            // the context as a whole, which the PHP callables of the filters, functions and tests needing it are
+            // given, and whose keys are the variables if the analysis can't tell them
+            $codebase->taint_flow_graph->addPath($parameterNode, Context::getForTemplateContext($templateName), '=');
         }
 
         // Taints going _out_ of the template. Psalm gives a static call the taints of its return after this event.
