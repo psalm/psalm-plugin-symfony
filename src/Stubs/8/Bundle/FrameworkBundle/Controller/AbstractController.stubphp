@@ -25,4 +25,13 @@ abstract class AbstractController implements ServiceSubscriberInterface
      * @psalm-return (TFormType is FormFlowTypeInterface ? FormFlowInterface : FormInterface<TData>)
      */
     protected function createForm(string $type, mixed $data = null, array $options = []): FormInterface {}
+
+    /**
+     * Returns a RedirectResponse to the given URL.
+     *
+     * @param int $status The HTTP status code (302 "Found" by default)
+     *
+     * @psalm-taint-sink redirect $url
+     */
+    protected function redirect(string $url, int $status = 302): \Symfony\Component\HttpFoundation\RedirectResponse {}
 }

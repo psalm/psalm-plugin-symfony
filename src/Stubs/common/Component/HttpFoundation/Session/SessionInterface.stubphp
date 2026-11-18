@@ -1,0 +1,13 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation\Session;
+
+interface SessionInterface
+{
+    /**
+     * Sets an attribute.
+     *
+     * @psalm-taint-sink session $value
+     */
+    public function set(string $name, mixed $value): void;
+}
