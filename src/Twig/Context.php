@@ -1681,6 +1681,11 @@ final class Context
 
         $methodsByName = [];
         foreach ($codebase->classlike_storage_provider::getAll() as $classStorage) {
+            if ($classStorage->is_trait) {
+                // Psalm analyzes the body of a method of a trait as one of each class using it
+                continue;
+            }
+
             foreach ($classStorage->methods as $methodName => $methodStorage) {
                 if ($methodStorage->abstract) {
                     // its implementations are methods of other classes
@@ -1688,6 +1693,24 @@ final class Context
                 }
 
                 $methodsByName[$methodName][] = [$classStorage->name.'::'.($methodStorage->cased_name ?? $methodName), $methodStorage, $classStorage->name];
+            }
+
+            // the methods of the traits it uses, whose bodies it analyzes, keyed by the class (see
+            // FunctionLikeAnalyzer::getBodyMethodId()), and not those of the traits its parents use
+            foreach ($classStorage->declaring_method_ids as $methodName => $declaringMethodId) {
+                if (isset($classStorage->methods[$methodName])
+                    || !$codebase->classlike_storage_provider->get($declaringMethodId->fq_class_name)->is_trait
+                ) {
+                    continue;
+                }
+
+                $methodStorage = $codebase->methods->getStorage($declaringMethodId);
+                $methodId = new MethodIdentifier($classStorage->name, $methodName);
+                if ($methodStorage->abstract || FunctionLikeAnalyzer::getBodyMethodId($codebase, $methodId)->fq_class_name !== $classStorage->name) {
+                    continue;
+                }
+
+                $methodsByName[$methodName][] = [FunctionLikeAnalyzer::getCasedBodyMethodId($codebase, $methodId), $methodStorage, $classStorage->name];
             }
         }
 

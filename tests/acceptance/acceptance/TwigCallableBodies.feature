@@ -1339,3 +1339,106 @@ Feature: Twig callable bodies
       """
     When I run Psalm with taint analysis
     Then I see no errors
+
+  Scenario Outline: A tainted argument of a method declared by a trait goes through its body, analyzed as one of the class using it
+    Given I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+
+      final class TwigExtension extends AbstractExtension
+      {
+      }
+
+      trait HelperTrait
+      {
+          public function traitPass(string $value): string
+          {
+              $passed = trim($value);
+
+              return $passed;
+          }
+
+          public function traitEscape(string $value): string
+          {
+              return htmlspecialchars($value, ENT_QUOTES);
+          }
+
+          public function traitEcho(string $value): string
+          {
+              echo $value;
+
+              return '';
+          }
+      }
+
+      /**
+       * @psalm-api
+       */
+      final class Helper
+      {
+          use HelperTrait;
+      }
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted'], 'helper' => new App\Helper()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ <expression>|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
+    Examples:
+      | expression                    |
+      | helper.traitPass(untrusted)   |
+      | helper.traitEcho(untrusted)   |
+
+  Scenario: A tainted argument of a method declared by a trait whose body escapes it is not displayed with the raw filter
+    Given I have the following code in "TwigExtension.php"
+      """
+      <?php
+
+      namespace App;
+
+      use Twig\Extension\AbstractExtension;
+
+      final class TwigExtension extends AbstractExtension
+      {
+      }
+
+      trait HelperTrait
+      {
+          public function traitEscape(string $value): string
+          {
+              return htmlspecialchars($value, ENT_QUOTES);
+          }
+      }
+
+      /**
+       * @psalm-api
+       */
+      final class Helper
+      {
+          use HelperTrait;
+      }
+      """
+    And I have the following code
+      """
+      echo twig()->render('index.html.twig', ['untrusted' => $_GET['untrusted'], 'helper' => new App\Helper()]);
+      """
+    And I have the following "index.html.twig" template
+      """
+      <h1>{{ helper.traitEscape(untrusted)|raw }}</h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
