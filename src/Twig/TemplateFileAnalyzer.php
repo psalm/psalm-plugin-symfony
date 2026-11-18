@@ -86,7 +86,8 @@ final class TemplateFileAnalyzer extends FileAnalyzer
         }
 
         // a template outside of the root is named after its path in the project
-        $loader = new FilesystemLoader([self::$rootPath, '.'], $codebase->config->base_dir);
+        $paths = is_dir($codebase->config->base_dir.DIRECTORY_SEPARATOR.self::$rootPath) ? [self::$rootPath, '.'] : ['.'];
+        $loader = new FilesystemLoader($paths, $codebase->config->base_dir);
         $twig = new Environment($loader, [
             'cache' => false,
             'auto_reload' => true,

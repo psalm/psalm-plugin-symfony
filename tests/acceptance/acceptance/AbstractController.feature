@@ -46,3 +46,24 @@ Feature: AbstractController
       | Type  | Message                                          |
       | Trace | $form: Symfony\Component\Form\FormInterface<Order> |
     And I see no other errors
+
+  Scenario: render() is analyzed in a project without the templates directory
+    Given I have the following code
+      """
+      <?php
+
+      use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+      use Symfony\Component\HttpFoundation\Response;
+
+      final class Page {}
+
+      final class MyController extends AbstractController
+      {
+          public function __invoke(Page $page): Response
+          {
+              return $this->render('page.html.twig', ['page' => $page]);
+          }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
