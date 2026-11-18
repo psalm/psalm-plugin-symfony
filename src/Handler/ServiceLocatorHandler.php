@@ -152,6 +152,12 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
                 }
             }
         }
+        /**
+         * The description nests deeper than, and holds the nulls, the type Psalm >= 7.10 gives custom metadata says it
+         * holds, which nothing checks: the readers check what they read.
+         *
+         * @psalm-suppress InvalidPropertyAssignmentValue
+         */
         $storage->custom_metadata[self::class] = $data;
     }
 
