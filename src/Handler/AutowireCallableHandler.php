@@ -14,11 +14,15 @@ use PhpParser\Node\Expr\AssignRef;
 use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\List_;
+use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\New_;
+use PhpParser\Node\Expr\NullsafeMethodCall;
 use PhpParser\Node\Expr\PostDec;
 use PhpParser\Node\Expr\PostInc;
 use PhpParser\Node\Expr\PreDec;
 use PhpParser\Node\Expr\PreInc;
 use PhpParser\Node\Expr\PropertyFetch;
+use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -98,8 +102,9 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         // parameter is the only value written to it
         $targets = [];
         $writes = [];
+        $references = [];
         $dynamic = false;
-        $isWrite = static fn (Node $node): bool => $node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp || $node instanceof PreInc || $node instanceof PreDec || $node instanceof PostInc || $node instanceof PostDec || $node instanceof Foreach_ || $node instanceof FuncCall;
+        $isWrite = static fn (Node $node): bool => $node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp || $node instanceof PreInc || $node instanceof PreDec || $node instanceof PostInc || $node instanceof PostDec || $node instanceof Foreach_ || $node instanceof FuncCall || $node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof New_;
         foreach ((new NodeFinder())->find($node->stmts, $isWrite) as $write) {
             if ($write instanceof Assign) {
                 if (!isset($copies[spl_object_id($write)]) && !self::isNull($write->expr)) {
@@ -119,6 +124,8 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
                 $cloned = self::getClonedProperties($write);
                 $dynamic = $dynamic || null === $cloned;
                 $writes += array_fill_keys($cloned ?? [], true);
+            } elseif ($write instanceof FuncCall || $write instanceof StaticCall || $write instanceof MethodCall || $write instanceof NullsafeMethodCall || $write instanceof New_) {
+                $references = [...$references, ...self::getPropertyArguments($write)];
             }
         }
         while ([] !== $targets) {
@@ -143,7 +150,145 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
         $storage = $event->getStorage();
         $storage->custom_metadata[self::class] = $assignments;
         $storage->custom_metadata[self::class.'::writes'] = $writes;
+        $storage->custom_metadata[self::class.'::references'] = $references;
         $storage->custom_metadata[self::class.'::dynamic_writes'] = $dynamic;
+    }
+
+    /**
+     * Returns the properties that the call is given as arguments, which a by-reference parameter can write: the
+     * callee (the candidate names of a function, or a class and a method, `self`, `static` and `parent` resolved
+     * later), and the position, the name and the property of each argument. The callees whose class is only known at
+     * run time are left out.
+     *
+     * @return list<array{0: 'function'|'method', 1: list<string>, 2: string, 3: int, 4: string, 5: string}>
+     */
+    private static function getPropertyArguments(FuncCall|StaticCall|MethodCall|NullsafeMethodCall|New_ $call): array
+    {
+        if ($call->isFirstClassCallable()) {
+            return [];
+        }
+        $resolve = static function (Name $name): string {
+            $resolved = $name->getAttribute('resolvedName');
+
+            return \is_string($resolved) ? $resolved : $name->toString();
+        };
+        if ($call instanceof FuncCall) {
+            if (!$call->name instanceof Name) {
+                return [];
+            }
+            // an unqualified name of a namespace falls back to the global function
+            $resolved = $call->name->getAttribute('resolvedName');
+            $namespaced = $call->name->getAttribute('namespacedName');
+            $callee = ['function', \is_string($resolved) ? [$resolved] : array_values(array_filter([\is_string($namespaced) ? $namespaced : null, $call->name->toString()])), ''];
+        } elseif ($call instanceof New_) {
+            if (!$call->class instanceof Name) {
+                return [];
+            }
+            $callee = ['method', [$resolve($call->class)], '__construct'];
+        } else {
+            $method = $call->name;
+            if (!$method instanceof Identifier) {
+                return [];
+            }
+            if ($call instanceof StaticCall) {
+                if (!$call->class instanceof Name) {
+                    return [];
+                }
+                $callee = ['method', [$call->class->isSpecialClassName() ? $call->class->toLowerString() : $resolve($call->class)], $method->name];
+            } elseif ($call->var instanceof Variable && 'this' === $call->var->name) {
+                $callee = ['method', ['self'], $method->name];
+            } else {
+                return [];
+            }
+        }
+
+        $arguments = [];
+        foreach ($call->args as $position => $argument) {
+            if (!$argument instanceof Arg || $argument->unpack || !$argument->value instanceof PropertyFetch) {
+                continue;
+            }
+            $property = $argument->value->name;
+            $property = $property instanceof Identifier ? $property->name : ($property instanceof String_ ? $property->value : null);
+            if (null !== $property) {
+                $arguments[] = [...$callee, $position, $argument->name->name ?? '', $property];
+            }
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Whether the parameter the call of the class $class gives the argument to (see getPropertyArguments()) takes it by
+     * reference. A callee that can't be found doesn't.
+     *
+     * @param array<array-key, mixed> $reference
+     */
+    private static function isPassedByReference(Codebase $codebase, ClassLikeStorage $class, ClassLikeStorage $scope, array $reference): bool
+    {
+        [$kind, $callees, $method, $position, $name] = $reference + [null, [], '', 0, ''];
+        if (!\is_array($callees) || !\is_string($method) || !\is_int($position) || !\is_string($name)) {
+            return false;
+        }
+        $parameters = null;
+        foreach ($callees as $callee) {
+            if (!\is_string($callee)) {
+                continue;
+            }
+            if ('function' === $kind) {
+                $parameters = self::getFunctionParameters($codebase, strtolower(ltrim($callee, '\\')), $scope->location?->file_path);
+            } else {
+                // a call of a method of a trait on self or static calls the method of the class using it
+                $calledClass = match ($callee) {
+                    'self', 'static' => $class->name,
+                    'parent' => $class->parent_class,
+                    default => $callee,
+                };
+                $methodId = null === $calledClass || '' === $method || !$codebase->classlike_storage_provider->has($calledClass)
+                    ? null
+                    : $codebase->methods->getDeclaringMethodId(new MethodIdentifier($codebase->classlike_storage_provider->get($calledClass)->name, strtolower($method)));
+                $parameters = null === $methodId ? null : $codebase->methods->getStorage($methodId)->params;
+            }
+            if (null !== $parameters) {
+                break;
+            }
+        }
+        foreach ($parameters ?? [] as $offset => $parameter) {
+            if ('' !== $name ? $parameter->name === $name : ($offset === $position || ($parameter->is_variadic && $position > $offset))) {
+                return $parameter->by_ref;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param lowercase-string $function
+     *
+     * @return list<FunctionLikeParameter>|null
+     */
+    private static function getFunctionParameters(Codebase $codebase, string $function, ?string $file): ?array
+    {
+        if ('' === $function) {
+            return null;
+        }
+        try {
+            return null === $file ? null : $codebase->functions->getStorage(null, $function, $file, $file)->params;
+        } catch (\UnexpectedValueException|\InvalidArgumentException) {
+        }
+        $callables = InternalCallMapHandler::getCallablesFromCallMap($function);
+        if (null === $callables) {
+            return null;
+        }
+        // a variant of the builtin taking an argument by reference can write it
+        foreach ($callables as $callable) {
+            foreach ($callable->params ?? [] as $parameter) {
+                if ($parameter->by_ref) {
+                    return $callable->params;
+                }
+            }
+        }
+
+        return $callables[0]->params ?? null;
     }
 
     #[\Override]
@@ -276,6 +421,13 @@ final class AutowireCallableHandler implements AfterClassLikeVisitInterface, Aft
             }
             $traitWrites = $storage->custom_metadata[self::class.'::writes'] ?? [];
             $writes += \is_array($traitWrites) ? $traitWrites : [];
+            $references = $storage->custom_metadata[self::class.'::references'] ?? [];
+            foreach (\is_array($references) ? $references : [] as $reference) {
+                $property = \is_array($reference) ? $reference[5] ?? null : null;
+                if (\is_array($reference) && \is_string($property) && self::isPassedByReference($codebase, $class, $storage, $reference)) {
+                    $writes[$property] = true;
+                }
+            }
             foreach ($storage->used_traits as $trait) {
                 if ($codebase->classlike_storage_provider->has($trait)) {
                     $classes[] = $codebase->classlike_storage_provider->get($trait);

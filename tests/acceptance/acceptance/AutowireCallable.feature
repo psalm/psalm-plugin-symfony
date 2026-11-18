@@ -256,6 +256,138 @@ Feature: Autowired callables
     When I run Psalm
     Then I see no errors
 
+  Scenario: A property given to a by-reference parameter keeps its declared type
+    Given I have the following code
+      """
+      <?php
+      namespace App;
+
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      /** @param-out \Closure $format */
+      function replace(\Closure &$format): void {
+          $format = static fn (int $value): int => $value;
+      }
+
+      final class Replacer {
+          /** @param-out \Closure $format */
+          public function __construct(\Closure &$format) {
+              $format = static fn (int $value): int => $value;
+          }
+      }
+
+      final class StaticReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              self::replace($this->format);
+          }
+
+          /** @param-out \Closure $format */
+          private static function replace(\Closure &$format): void {
+              $format = static fn (int $value): int => $value;
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class MethodReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              $this->replace(format: $this->format);
+          }
+
+          /** @param-out \Closure $format */
+          private function replace(\Closure &$format): void {
+              $format = static fn (int $value): int => $value;
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class FunctionReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              replace($this->format);
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class ConstructorReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              new Replacer($this->format);
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property given to a parameter taken by value keeps the inferred signature
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          /**
+           * @param list<string> $values
+           * @return list<mixed>
+           */
+          public function formatAll(array $values): array {
+              return array_map($this->format, $values);
+          }
+
+          public function run(int $value): string {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                  | Message                                                      |
+      | InvalidScalarArgument | Argument 1 expects string, but int provided                  |
+    And I see no other errors
+
   Scenario: A property written by a clone with properties keeps its declared type
     Given I have the following config
       """
