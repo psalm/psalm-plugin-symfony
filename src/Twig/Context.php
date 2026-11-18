@@ -11,8 +11,11 @@ use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
+use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
+use Psalm\Internal\Analyzer\FileAnalyzer;
 use Psalm\Internal\Analyzer\FunctionLikeAnalyzer;
+use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\FunctionCallReturnTypeFetcher;
 use Psalm\Internal\Codebase\InternalCallMapHandler;
 use Psalm\Internal\Codebase\TaintFlowGraph;
@@ -20,10 +23,12 @@ use Psalm\Internal\Codebase\TaintStore;
 use Psalm\Internal\DataFlow\DataFlowNode;
 use Psalm\Internal\MethodIdentifier;
 use Psalm\Internal\Provider\ClassLikeStorageProvider;
+use Psalm\Internal\Provider\NodeDataProvider;
 use Psalm\Internal\Type\TemplateInferredTypeReplacer;
 use Psalm\Internal\Type\TemplateResult;
 use Psalm\Internal\Type\TypeExpander;
 use Psalm\Internal\Type\TypeVariableTracker;
+use Psalm\Plugin\EventHandler\Event\AddRemoveTaintsEvent;
 use Psalm\Storage\ClassLikeStorage;
 use Psalm\Storage\FunctionLikeStorage;
 use Psalm\Storage\MethodStorage;
@@ -153,6 +158,12 @@ final class Context
     /** @var Codebase|null */
     private $codebase;
 
+    /** @var FileAnalyzer|null the analyzer of the template, the source of the calls the plugins handling taints are given (see getPluginTaints()) */
+    private $fileAnalyzer;
+
+    /** @var PsalmContext|null the context of the calls the plugins handling taints are given (see getPluginTaints()) */
+    private $psalmContext;
+
     /** @var int how many `if` and `for` the analysis is in, whose body may not run */
     private $conditionalDepth = 0;
 
@@ -209,12 +220,14 @@ final class Context
     /**
      * @psalm-capabilities read-props
      */
-    public function __construct(Source $sourceContext, TaintFlowGraph $taint, Environment $twig, ?Codebase $codebase = null)
+    public function __construct(Source $sourceContext, TaintFlowGraph $taint, Environment $twig, ?Codebase $codebase = null, ?FileAnalyzer $fileAnalyzer = null, ?PsalmContext $psalmContext = null)
     {
         $this->sourceContext = $sourceContext;
         $this->taint = $taint;
         $this->twig = $twig;
         $this->codebase = $codebase;
+        $this->fileAnalyzer = $fileAnalyzer;
+        $this->psalmContext = $psalmContext;
     }
 
     public function addSink(Node $node, DataFlowNode $source): void
@@ -441,18 +454,31 @@ final class Context
         $targets = null === $codebase || null === $twigCallable ? [] : self::getCallableTargets($codebase, $twigCallable->getCallable(), $this->sourceContext->getPath());
         $arguments = null === $codebase || null === $twigCallable || [] === $targets ? null : $this->getCallArguments($expression, $twigCallable, $getSources);
 
+        // the arguments of the template, where the analysis can't tell which parameters they are given to
+        $templateArguments = null !== $arguments ? null : array_map(
+            static fn (Node $argument): array => [
+                $getSources($argument),
+                $argument instanceof ConstantExpression ? self::getLiteralType($argument->getAttribute('value')) : null,
+                $argument,
+            ],
+            self::getTemplateArguments($expression),
+        );
+
         $isFollowed = null !== $arguments;
-        // what all the function-likes it may call remove
+        // what all the function-likes it may call remove, and what any of them adds, with the plugins handling taints
         $removedTaints = [] === $targets ? 0 : -1;
+        $addedTaints = 0;
         if (null !== $codebase) {
             foreach ($targets as [$casedId, $storage]) {
+                $pluginTaints = $this->getPluginTaints($codebase, $expression, $casedId, $storage, $arguments ?? $templateArguments ?? []);
                 $storageRemovedTaints = self::getRemovedTaints($codebase, $storage);
-                $removedTaints &= $storageRemovedTaints;
+                $removedTaints &= $storageRemovedTaints | $pluginTaints[1];
+                $addedTaints |= $pluginTaints[0];
                 $isFollowed = $isFollowed && self::isBodyAnalyzed($codebase, $storage);
 
                 if (null !== $arguments) {
                     $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $this->getCallLocation($expression));
-                    $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization);
+                    $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization, pluginTaints: $pluginTaints);
                 }
             }
         }
@@ -462,20 +488,13 @@ final class Context
         }
 
         // the arguments of the template, but not those Twig adds: the context is only followed through a body
-        if (null === $arguments) {
-            $sources = [];
-            foreach (self::getTemplateArguments($expression) as $argument) {
-                $sources = [...$sources, ...$getSources($argument)];
-            }
-        } else {
-            $sources = [];
-            foreach ($arguments as [$argumentSources, , $argument]) {
-                $sources = [...$sources, ...(null === $argument ? [] : $argumentSources)];
-            }
+        $sources = [];
+        foreach ($arguments ?? $templateArguments ?? [] as [$argumentSources, , $argument]) {
+            $sources = [...$sources, ...(null === $argument ? [] : $argumentSources)];
         }
 
         foreach ($sources as $source) {
-            $this->taint->addPath($source, $taintDestination, $pathType, 0, $removedTaints);
+            $this->taint->addPath($source, $taintDestination, $pathType, $addedTaints, $removedTaints);
         }
 
         return $taintDestination;
@@ -685,12 +704,13 @@ final class Context
             foreach ($registered as $targets) {
                 foreach ($targets ?? [] as [$casedId, $storage]) {
                     $arguments = array_fill(0, max(1, \count($storage->params)), [$sources, null, null]);
+                    $pluginTaints = $this->getPluginTaints($codebase, $expression, $casedId, $storage, $arguments);
                     $storageRemovedTaints = self::getRemovedTaints($codebase, $storage);
                     $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
-                    $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization);
+                    $this->addCall($codebase, $expression, $label, $casedId, $storage, $arguments, $taintDestination, $storageRemovedTaints, $specialization, pluginTaints: $pluginTaints);
                     if (!self::isBodyAnalyzed($codebase, $storage)) {
                         foreach ($sources as $source) {
-                            $this->taint->addPath($source, $taintDestination, 'arg', 0, $storageRemovedTaints);
+                            $this->taint->addPath($source, $taintDestination, 'arg', $pluginTaints[0], $storageRemovedTaints | $pluginTaints[1]);
                         }
                     }
                 }
@@ -1043,16 +1063,19 @@ final class Context
      *    of the call resolve the condition to (see getTemplateResult());
      *  - what its body returns, its `@psalm-flow` from its parameters, its keyed stores (see addStoreFlows()) and its
      *    `@psalm-taint-source` flow into $taintDestination, without $removedTaints, nor those its conditional escapes
-     *    (`@psalm-taint-escape (<conditional>)`) remove given the literal arguments of the call.
+     *    (`@psalm-taint-escape (<conditional>)`) remove given the literal arguments of the call, and with the taints
+     *    the plugins handling taints add to and remove from the PHP call, $pluginTaints (see getPluginTaints()).
      * `__call` ($isMagic) is given the arguments as the items of its second parameter.
      *
      * @param list<array{list<DataFlowNode>, Union|null, Node|null}> $arguments
+     * @param array{int, int}                                       $pluginTaints
      */
-    private function addCall(Codebase $codebase, Node $expression, string $label, string $casedId, FunctionLikeStorage $storage, array $arguments, DataFlowNode $taintDestination, int $removedTaints, ?CodeLocation $specialization, bool $isMagic = false): void
+    private function addCall(Codebase $codebase, Node $expression, string $label, string $casedId, FunctionLikeStorage $storage, array $arguments, DataFlowNode $taintDestination, int $removedTaints, ?CodeLocation $specialization, bool $isMagic = false, array $pluginTaints = [0, 0]): void
     {
+        [$pluginAddedTaints, $pluginRemovedTaints] = $pluginTaints;
         $sources = array_column($arguments, 0);
         $templateResult = $isMagic ? new TemplateResult([], []) : self::getTemplateResult($storage, $arguments);
-        $removedTaints |= FunctionCallReturnTypeFetcher::getConditionallyRemovedTaints($codebase, $storage, $templateResult);
+        $removedTaints |= $pluginRemovedTaints | FunctionCallReturnTypeFetcher::getConditionallyRemovedTaints($codebase, $storage, $templateResult);
 
         foreach ($sources as $offset => $argumentSources) {
             // __call is given the arguments as the items of its second parameter
@@ -1103,7 +1126,7 @@ final class Context
 
         foreach ($storage->return_source_params as $offset => $pathType) {
             foreach ($isMagic ? [] : self::getArgumentsOfParameter($storage, $sources, $offset) as $source) {
-                $this->taint->addPath($source, $taintDestination, $pathType, $storage->added_taints, $removedTaints);
+                $this->taint->addPath($source, $taintDestination, $pathType, $storage->added_taints | $pluginAddedTaints, $removedTaints);
             }
         }
 
@@ -1113,12 +1136,100 @@ final class Context
         if (0 !== $sourceTaints) {
             $source = $this->getNode($expression, $label, 'source '.$casedId)->setTaints($sourceTaints);
             $this->taint->addSource($source);
-            $this->taint->addPath($source, $taintDestination, 'arg');
+            $this->taint->addPath($source, $taintDestination, 'arg', $pluginAddedTaints, $pluginRemovedTaints);
         }
 
         $returnNode = DataFlowNode::getForMethodReturn($casedId, $storage, $specialization);
         $this->taint->addNode($returnNode);
-        $this->taint->addPath($returnNode, $taintDestination, 'arg', 0, $removedTaints);
+        $this->taint->addPath($returnNode, $taintDestination, 'arg', $pluginAddedTaints, $removedTaints);
+    }
+
+    /**
+     * The taints the plugins handling taints (`AddTaintsInterface` and `RemoveTaintsInterface`) add to and remove from
+     * what the call $expression of the template returns, as they do for the PHP call Twig makes of the function-like
+     * $storage, `$casedId` (a function, `Class::method` or a closure), with $arguments by position (see
+     * getCallArguments()). They are given that PHP call, at the line of the call in the template: a call of the
+     * function, a static call of the method, a call of the method on a variable holding an object of its class, or a
+     * call of a variable holding the closure. Each argument is a literal for a literal argument, else a variable, and
+     * the type the call gives it, which a plugin reads from its statements source, holds the nodes of its taints.
+     *
+     * @param list<array{list<DataFlowNode>, Union|null, Node|null}> $arguments
+     *
+     * @return array{int, int} the taints added, and those removed
+     */
+    private function getPluginTaints(Codebase $codebase, Node $expression, string $casedId, FunctionLikeStorage $storage, array $arguments): array
+    {
+        if (null === $this->fileAnalyzer) {
+            return [0, 0];
+        }
+
+        $location = $this->getCallLocation($expression);
+        $attributes = [
+            'startLine' => $expression->getTemplateLine(),
+            'endLine' => $expression->getTemplateLine(),
+            'startFilePos' => $location->raw_file_start,
+            'endFilePos' => $location->raw_file_end,
+        ];
+        $nodeData = new NodeDataProvider();
+
+        $args = [];
+        foreach ($arguments as $offset => [$sources, $type]) {
+            $value = null === $type ? null : self::getLiteralExpression($type, $attributes);
+            $value ??= new PhpNode\Expr\Variable('argument'.($offset + 1), $attributes);
+            $parentNodes = [];
+            foreach ($sources as $source) {
+                $parentNodes[$source->id] = $source;
+            }
+            $nodeData->setType($value, ($type ?? Type::getMixed())->setParentNodes($parentNodes));
+            $args[] = new PhpNode\Arg($value, attributes: $attributes);
+        }
+
+        $parts = explode('::', $casedId, 2);
+        if (str_ends_with($casedId, ':-:closure')) {
+            $closure = new PhpNode\Expr\Variable('closure', $attributes);
+            $nodeData->setType($closure, new Union([new TNamedObject('Closure')]));
+            $call = new PhpNode\Expr\FuncCall($closure, $args, $attributes);
+        } elseif (2 === \count($parts) && $storage instanceof MethodStorage) {
+            [$class, $method] = $parts;
+            $methodName = new PhpNode\Identifier($method, $attributes);
+            if ($storage->is_static) {
+                $call = new PhpNode\Expr\StaticCall(new PhpNode\Name\FullyQualified($class, $attributes), $methodName, $args, $attributes);
+            } else {
+                $object = new PhpNode\Expr\Variable('object', $attributes);
+                $nodeData->setType($object, new Union([new TNamedObject($class)]));
+                $call = new PhpNode\Expr\MethodCall($object, $methodName, $args, $attributes);
+            }
+        } else {
+            $call = new PhpNode\Expr\FuncCall(new PhpNode\Name\FullyQualified($casedId, $attributes), $args, $attributes);
+        }
+
+        $event = new AddRemoveTaintsEvent(
+            $call,
+            $this->psalmContext ?? new PsalmContext(),
+            new StatementsAnalyzer($this->fileAnalyzer, $nodeData, true),
+            $codebase,
+        );
+        $dispatcher = $codebase->config->eventDispatcher;
+
+        return [$dispatcher->dispatchAddTaints($event), $dispatcher->dispatchRemoveTaints($event)];
+    }
+
+    /**
+     * The PHP expression of the literal type $type (see getLiteralType()), with the attributes $attributes.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    private static function getLiteralExpression(Union $type, array $attributes): ?PhpNode\Expr
+    {
+        return match (true) {
+            $type->isSingleStringLiteral() => new PhpNode\Scalar\String_($type->getSingleStringLiteral()->value, $attributes),
+            $type->isSingleIntLiteral() => new PhpNode\Scalar\Int_($type->getSingleIntLiteral()->value, $attributes),
+            $type->isSingleFloatLiteral() => new PhpNode\Scalar\Float_($type->getSingleFloatLiteral()->value, $attributes),
+            $type->isTrue() => new PhpNode\Expr\ConstFetch(new PhpNode\Name('true', $attributes), $attributes),
+            $type->isFalse() => new PhpNode\Expr\ConstFetch(new PhpNode\Name('false', $attributes), $attributes),
+            $type->isNull() => new PhpNode\Expr\ConstFetch(new PhpNode\Name('null', $attributes), $attributes),
+            default => null,
+        };
     }
 
     /**
@@ -1208,17 +1319,12 @@ final class Context
 
         $taintDestination = $this->getNode($expression, 'method_'.$name);
         $location = $this->getCallLocation($expression);
-
-        // the expressions of the arguments, by position, which give their literal types and store keys
-        $callArguments = [];
-        $values = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
-        $values = $values instanceof ArrayExpression ? array_column($values->getKeyValuePairs(), 'value') : [];
-        foreach ($arguments as $offset => $sources) {
-            $value = $values[$offset] ?? null;
-            $callArguments[] = [$sources, $value instanceof ConstantExpression ? self::getLiteralType($value->getAttribute('value')) : null, $value];
-        }
+        $callArguments = self::getMethodCallArguments($expression, $arguments);
 
         foreach ($methods as [$methodId, $storage, $className]) {
+            $isMagic = '__call' === strtolower((string) $storage->cased_name);
+            $pluginTaints = $this->getPluginTaints($codebase, $expression, $className.'::'.($isMagic ? $name : (string) $storage->cased_name), $storage, $callArguments);
+
             // like the PHP calls of a method specialized by call or by instance, the call only takes what its own
             // arguments give the body: what the object holds comes with the receiver
             $specialization = self::getCallSpecialization($codebase, $this->taint, $storage, $location);
@@ -1227,15 +1333,37 @@ final class Context
                 ? null
                 : self::getReceiverPath($codebase, $className, $storage, $expression);
             if (null !== $receiverPath) {
-                $this->taint->addPath($this->addReceiverPath($codebase, $expression, $name, $methodId, $storage, $receiverPath, $receiver), $taintDestination, 'arg');
+                $this->taint->addPath($this->addReceiverPath($codebase, $expression, $name, $methodId, $storage, $receiverPath, $receiver, $pluginTaints), $taintDestination, 'arg');
             }
 
             $removedTaints = $storage->removed_taints | ($storage->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
-            $isMagic = '__call' === strtolower((string) $storage->cased_name);
-            $this->addCall($codebase, $expression, 'method_'.$name, $methodId, $storage, $callArguments, $taintDestination, $removedTaints, $specialization, $isMagic);
+            $this->addCall($codebase, $expression, 'method_'.$name, $methodId, $storage, $callArguments, $taintDestination, $removedTaints, $specialization, $isMagic, $pluginTaints);
         }
 
         return $taintDestination;
+    }
+
+    /**
+     * The arguments of the method call $expression, `item.name(...)`, given the nodes of each of them by position, as
+     * getCallArguments() gives those of a filter: with the expressions giving them, and their literal types, which
+     * give the store keys of the call, the conditions it resolves, and the arguments of the PHP call the plugins
+     * handling taints are given.
+     *
+     * @param list<list<DataFlowNode>> $arguments
+     *
+     * @return list<array{list<DataFlowNode>, Union|null, Node|null}>
+     */
+    private static function getMethodCallArguments(GetAttrExpression $expression, array $arguments): array
+    {
+        $callArguments = [];
+        $values = $expression->hasNode('arguments') ? $expression->getNode('arguments') : null;
+        $values = $values instanceof ArrayExpression ? array_column($values->getKeyValuePairs(), 'value') : [];
+        foreach ($arguments as $offset => $sources) {
+            $value = $values[$offset] ?? null;
+            $callArguments[] = [$sources, $value instanceof ConstantExpression ? self::getLiteralType($value->getAttribute('value')) : null, $value];
+        }
+
+        return $callArguments;
     }
 
     /**
@@ -1381,11 +1509,12 @@ final class Context
      * returns what its object holds through its body, which the attributes of the objects of a variable of the
      * template give (see getObjectAttributeSources()).
      *
-     * @param list<DataFlowNode> $receiver
+     * @param list<DataFlowNode>       $receiver
+     * @param list<list<DataFlowNode>> $arguments the nodes of each of its arguments, by position
      *
      * @return list<DataFlowNode>
      */
-    public function getReceiverTaintSources(GetAttrExpression $expression, string $name, array $receiver): array
+    public function getReceiverTaintSources(GetAttrExpression $expression, string $name, array $receiver, array $arguments = []): array
     {
         $methods = null === $this->codebase ? [] : $this->getCalledMethods($this->codebase, $name);
         if (null === $this->codebase || [] === $methods || [] === $receiver) {
@@ -1394,18 +1523,21 @@ final class Context
 
         $sources = [];
         $location = $this->getCallLocation($expression);
+        $callArguments = self::getMethodCallArguments($expression, $arguments);
         foreach ($methods as [$methodId, $method, $className]) {
+            $isMagic = '__call' === strtolower((string) $method->cased_name);
+            $pluginTaints = $this->getPluginTaints($this->codebase, $expression, $className.'::'.($isMagic ? $name : (string) $method->cased_name), $method, $callArguments);
             if ($this->addReceiverToBody($this->codebase, $className, $method, $receiver, $location)) {
                 // what the body of the call specialized to its location returns of its own object
                 $returnNode = DataFlowNode::getForMethodReturn($methodId, $method, $location);
                 $this->taint->addNode($returnNode);
-                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, 'arg', [$returnNode]);
+                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, 'arg', [$returnNode], $pluginTaints);
                 continue;
             }
 
             $path = self::getReceiverPath($this->codebase, $className, $method, $expression);
             if (null !== $path) {
-                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, $path, $receiver);
+                $sources[] = $this->addReceiverPath($this->codebase, $expression, $name, $methodId, $method, $path, $receiver, $pluginTaints);
             }
         }
 
@@ -1452,16 +1584,18 @@ final class Context
     /**
      * Makes what $method, called by $methodId, returns of what its receiver holds, the nodes $receiver, flow through
      * $path into a node of its own for the method call $expression, `item.name(...)`, without the taints its return
-     * type removes.
+     * type removes, and with those the plugins handling taints add to and remove from the PHP call, $pluginTaints
+     * (see getPluginTaints()).
      *
      * @param list<DataFlowNode> $receiver
+     * @param array{int, int}    $pluginTaints
      */
-    private function addReceiverPath(Codebase $codebase, GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, string $path, array $receiver): DataFlowNode
+    private function addReceiverPath(Codebase $codebase, GetAttrExpression $expression, string $name, string $methodId, MethodStorage $method, string $path, array $receiver, array $pluginTaints): DataFlowNode
     {
         $node = $this->getNode($expression, 'method_'.$name, 'receiver '.$methodId);
-        $removedTaints = $method->removed_taints | ($method->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
+        $removedTaints = $method->removed_taints | $pluginTaints[1] | ($method->signature_return_type?->getTaintsToRemove($codebase->getInputTaints()) ?? 0);
         foreach ($receiver as $source) {
-            $this->taint->addPath($source, $node, $path, 0, $removedTaints);
+            $this->taint->addPath($source, $node, $path, $pluginTaints[0], $removedTaints);
         }
 
         return $node;

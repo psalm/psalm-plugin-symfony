@@ -232,10 +232,11 @@ final class AppExtension extends AbstractExtension
 - `html`, `html_attr`, `js` and `css` remove `html` and `has_quotes`; `url` also removes `url_component` and `header`. A custom strategy goes through the escaper a `setEscaper()` call in the scanned PHP files registers.
 - `attribute(item, name)` with a name only known when rendering may call any public method of `item`.
 - In an included template, a `needs_context` callable gets the including template's context (unless `only`) and the `with` variables.
-- Not followed yet: `AddTaintsInterface` and `RemoveTaintsInterface` handlers.
+- `AddTaintsInterface` and `RemoveTaintsInterface` handlers (like Psalm's own for `json_encode()` and `htmlspecialchars()`) get the call's PHP counterpart: a `FuncCall`, `StaticCall` or `MethodCall` with the template's literal arguments.
 
 [See the cases of the PHP callables.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigCallableBodies.feature)
 [See the cases of the arrow functions, `attribute()`, the escaping strategies and the included contexts.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigArrowsAttributesEscapers.feature)
+[See the cases of the taint handlers.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigTaintHandlers.feature)
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 

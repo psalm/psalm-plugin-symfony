@@ -267,7 +267,7 @@ final class PrintNodeAnalyzer
             if ($node instanceof NameExpression) {
                 // what the methods return of what their objects hold comes with the attributes of the objects, but for
                 // the methods returning it by what their PHP calls do
-                $sources = $this->context->getReceiverTaintSources($expression, $name, $sources);
+                $sources = $this->context->getReceiverTaintSources($expression, $name, $sources, $argumentSources);
             }
         }
 
