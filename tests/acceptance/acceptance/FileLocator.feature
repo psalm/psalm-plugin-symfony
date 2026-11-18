@@ -31,3 +31,15 @@ Feature: FileLocator locate
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: FileLocatorInterface locate method return type should be `array` when third argument is false
+    Given I have the following code
+      """
+      <?php
+      function test(\Symfony\Component\Config\FileLocatorInterface $locator): array
+      {
+        return $locator->locate(__FILE__, null, false);
+      }
+      """
+    When I run Psalm
+    Then I see no errors

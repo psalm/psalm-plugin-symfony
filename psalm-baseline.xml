@@ -5,6 +5,11 @@
       <code><![CDATA[$result]]></code>
     </PossiblyNullArrayOffset>
   </file>
+  <file src="src/Handler/ServiceLocatorHandler.php">
+    <InvalidPropertyAssignmentValue>
+      <code><![CDATA[$storage->custom_metadata]]></code>
+    </InvalidPropertyAssignmentValue>
+  </file>
   <file src="src/Plugin.php">
     <PossiblyFalseOperand>
       <code><![CDATA[getcwd()]]></code>

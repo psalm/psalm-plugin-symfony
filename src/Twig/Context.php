@@ -3004,7 +3004,7 @@ final class Context
         $attributes = [];
         /** @var array<string, array<string, non-empty-list<string>>> $chains variable set by the template => the chains of attributes of other variables it is set to or loops over */
         $chains = [];
-        // the templates embedded in the templates read, by index: each one is read where its `embed` displays it
+        /** @var array<array-key, ModuleNode> $embeddedTemplates the templates embedded in the templates read, by index: each one is read where its `embed` displays it */
         $embeddedTemplates = [];
         /** @var list<Node> $macroArguments the arguments of the calls of the macros of the template */
         $macroArguments = [];
@@ -3153,7 +3153,9 @@ final class Context
 
             if ($node instanceof ModuleNode) {
                 foreach ($node->getAttribute('embedded_templates') ?? [] as $embeddedTemplate) {
-                    $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                    if ($embeddedTemplate instanceof ModuleNode) {
+                        $embeddedTemplates[$embeddedTemplate->getAttribute('index')] = $embeddedTemplate;
+                    }
                 }
             }
 
