@@ -15,8 +15,8 @@ use Psalm\Context as PsalmContext;
 use Psalm\Internal\Analyzer\ClassLikeAnalyzer;
 use Psalm\Internal\Analyzer\FileAnalyzer;
 use Psalm\Internal\Analyzer\FunctionLikeAnalyzer;
-use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\Analyzer\Statements\Expression\Call\FunctionCallReturnTypeFetcher;
+use Psalm\Internal\Analyzer\StatementsAnalyzer;
 use Psalm\Internal\Codebase\InternalCallMapHandler;
 use Psalm\Internal\Codebase\TaintFlowGraph;
 use Psalm\Internal\Codebase\TaintStore;
@@ -1068,7 +1068,7 @@ final class Context
      * `__call` ($isMagic) is given the arguments as the items of its second parameter.
      *
      * @param list<array{list<DataFlowNode>, Union|null, Node|null}> $arguments
-     * @param array{int, int}                                       $pluginTaints
+     * @param array{int, int}                                        $pluginTaints
      */
     private function addCall(Codebase $codebase, Node $expression, string $label, string $casedId, FunctionLikeStorage $storage, array $arguments, DataFlowNode $taintDestination, int $removedTaints, ?CodeLocation $specialization, bool $isMagic = false, array $pluginTaints = [0, 0]): void
     {
