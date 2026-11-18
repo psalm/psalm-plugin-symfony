@@ -354,6 +354,46 @@ Feature: Twig tainting with analyzer
       | TaintedTextWithQuotes | Detected tainted text with possible quotes |
     And I see no other errors
 
+  Scenario: A template of a project without the templates directory is named after its path in the project
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm totallyTyped="true">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles allowMissingFiles="true">
+            <directory name="../../vendor" />
+            <directory name="./cache" />
+          </ignoreFiles>
+        </projectFiles>
+        <fileExtensions>
+           <extension name=".php" />
+           <extension name=".twig" checker="../../src/Twig/TemplateFileAnalyzer.php" scanner="../../src/Twig/TemplateFileScanner.php"/>
+        </fileExtensions>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin" />
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      $untrusted = $_GET['untrusted'];
+      echo twig()->render('views/index.html.twig', ['untrusted' => $untrusted]);
+      """
+    And the template root directory is "views"
+    And I have the following "index.html.twig" template
+      """
+      <h1>
+        {{ untrusted|raw }}
+      </h1>
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type                  | Message                                    |
+      | TaintedHtml           | Detected tainted HTML                      |
+      | TaintedTextWithQuotes | Detected tainted text with possible quotes |
+    And I see no other errors
+
   Scenario: A tainted attribute of a parameter of the twig template is displayed with only the raw filter
     Given I have the following code
       """
