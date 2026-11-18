@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Twig;
 
 use Twig\Environment;
+use Twig\Node\DoNode;
 use Twig\Node\EmbedNode;
 use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ConstantExpression;
@@ -71,7 +72,19 @@ final class TaintAnalysisVisitor implements NodeVisitorInterface
         }
 
         if ($node instanceof IfNode) {
+            // the conditions aren't output, but the calls they are made of still run, with what they are given
+            foreach ($node->getNode('tests') as $i => $test) {
+                if (0 === (int) $i % 2) {
+                    $this->expressionAnalyzer->getTaintSources($test);
+                }
+            }
+
             $this->context->enterConditional();
+        }
+
+        if ($node instanceof DoNode) {
+            // `do` doesn't output what it evaluates, but the calls it is made of still run
+            $this->expressionAnalyzer->getTaintSources($node->getNode('expr'));
         }
 
         if ($node instanceof ForNode) {

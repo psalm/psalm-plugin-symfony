@@ -160,6 +160,316 @@ Feature: Autowired callables
     When I run Psalm
     Then I see no errors
 
+  Scenario: A property written elsewhere keeps its declared type
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Wither {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function withFormat(Closure $format): self {
+              $clone = clone $this;
+              $clone->format = $format;
+
+              return $clone;
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class Setter {
+          private Closure $format;
+
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              Closure $format,
+          ) {
+              $this->format = $format;
+          }
+
+          public function setFormat(Closure $format): void {
+              $this->format = $format;
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      trait FormatWither {
+          public function withFormat(Closure $format): static {
+              $clone = clone $this;
+              $clone->format = $format;
+
+              return $clone;
+          }
+      }
+
+      final class TraitWither {
+          use FormatWither;
+
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class PublicProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public Closure $format,
+          ) {}
+      }
+
+      function replace(PublicProperty $consumer, Closure $format): void {
+          $consumer->format = $format;
+      }
+
+      class ProtectedProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              protected Closure $format,
+          ) {}
+      }
+
+      final class ChildProperty extends ProtectedProperty {
+          public function setFormat(Closure $format): void {
+              $this->format = $format;
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property given to a by-reference parameter keeps its declared type
+    Given I have the following code
+      """
+      <?php
+      namespace App;
+
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      /** @param-out \Closure $format */
+      function replace(\Closure &$format): void {
+          $format = static fn (int $value): int => $value;
+      }
+
+      final class Replacer {
+          /** @param-out \Closure $format */
+          public function __construct(\Closure &$format) {
+              $format = static fn (int $value): int => $value;
+          }
+      }
+
+      final class StaticReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              self::replace($this->format);
+          }
+
+          /** @param-out \Closure $format */
+          private static function replace(\Closure &$format): void {
+              $format = static fn (int $value): int => $value;
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class MethodReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              $this->replace(format: $this->format);
+          }
+
+          /** @param-out \Closure $format */
+          private function replace(\Closure &$format): void {
+              $format = static fn (int $value): int => $value;
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class FunctionReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              replace($this->format);
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+
+      final class ConstructorReference {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private \Closure $format,
+          ) {}
+
+          public function swap(): void {
+              new Replacer($this->format);
+          }
+
+          public function run(int $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property given to a parameter taken by value keeps the inferred signature
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          /**
+           * @param list<string> $values
+           * @return list<mixed>
+           */
+          public function formatAll(array $values): array {
+              return array_map($this->format, $values);
+          }
+
+          public function run(int $value): string {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                  | Message                                                      |
+      | InvalidScalarArgument | Argument 1 expects string, but int provided                  |
+    And I see no other errors
+
+  Scenario: A property written by a clone with properties keeps its declared type
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" phpVersion="8.5">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      final class Consumer {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private readonly Closure $format,
+          ) {}
+
+          public function withLength(): self {
+              return clone($this, ['format' => static fn (string $value): int => \strlen($value)]);
+          }
+
+          public function run(string $value): mixed {
+              return ($this->format)($value);
+          }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
+  Scenario: A property that only the attribute writes keeps the inferred signature
+    Given I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+      }
+
+      class PrivateProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              private Closure $format,
+          ) {}
+
+          public function run(): string {
+              return ($this->format)(1);
+          }
+      }
+
+      final class ChildOfPrivateProperty extends PrivateProperty {}
+
+      final class ReadonlyProperty {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public readonly Closure $format,
+          ) {}
+      }
+
+      function run(ReadonlyProperty $consumer): string {
+          return ($consumer->format)(2);
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                  | Message                                   |
+      | InvalidScalarArgument | Argument 1 expects string, but 1 provided |
+      | InvalidScalarArgument | Argument 1 expects string, but 2 provided |
+    And I see no other errors
+
   Scenario: Magic methods keep their declared types
     Given I have the following code
       """
@@ -247,6 +557,70 @@ Feature: Autowired callables
     Then I see these errors
       | Type                    | Message                                  |
       | InvalidAutowireCallable | Method Formatter::hidden() is not public. |
+    And I see no other errors
+
+  Scenario: Invalid bindings honour the suppressions of the method and of the class
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" findUnusedPsalmSuppress="true">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+        </plugins>
+      </psalm>
+      """
+    And I have the following code
+      """
+      <?php
+      use Symfony\Component\DependencyInjection\Attribute\AutowireCallable;
+
+      final class Formatter {
+          public function format(string $value): string { return $value; }
+          private function hidden(string $value): string { return $value; }
+      }
+      interface Converter { public function convert(int $value): int; }
+
+      final class MethodSuppression {
+          /** @psalm-suppress InvalidAutowireCallable */
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+              #[AutowireCallable(service: Formatter::class, method: 'hidden')]
+              public Closure $hidden,
+              #[AutowireCallable(callable: [Formatter::class, 'format'])]
+              public Closure $notStatic,
+          ) {}
+      }
+
+      /** @psalm-suppress InvalidAutowireCallable */
+      final class ClassSuppression {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+              #[AutowireCallable(service: Formatter::class, method: 'hidden')]
+              public Closure $hidden,
+              #[AutowireCallable(callable: [Formatter::class, 'format'])]
+              public Closure $notStatic,
+              #[AutowireCallable(service: Formatter::class, method: 'format')]
+              public Converter $incompatible,
+          ) {}
+      }
+
+      final class NoSuppression {
+          public function __construct(
+              #[AutowireCallable(service: Formatter::class, method: 'missing')]
+              public Closure $missing,
+          ) {}
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type                    | Message                                    |
+      | InvalidAutowireCallable | Method Formatter::missing() does not exist. |
     And I see no other errors
 
   Scenario: A static return type is the target class
