@@ -1,0 +1,19 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+
+class FileBag extends ParameterBag
+{
+    /**
+     * Returns an uploaded file, or the files uploaded under a name ending with `[]`, by name.
+     *
+     * @template TDefault
+     *
+     * @param TDefault $default
+     *
+     * @return UploadedFile|array<array-key, mixed>|TDefault
+     */
+    public function get(string $key, mixed $default = null): mixed {}
+}
