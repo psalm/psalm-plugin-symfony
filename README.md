@@ -184,6 +184,60 @@ A constant whose value Psalm does not know, like one defined at run time, takes 
 </pluginClass>
 ```
 
+The filters, functions and tests a template calls, the methods it calls on its variables, and the arrow functions it gives them go through their PHP callables like PHP calls.
+The analyzer finds the callables in the extensions that the `twig` service of the `containerXml` adds, loaded by the `autoloader` of the Psalm configuration:
+
+```php
+final class AppExtension extends AbstractExtension
+{
+    public function getFilters(): array
+    {
+        return [
+            new TwigFilter('trimmed', self::trimmed(...)),
+            new TwigFilter('bold', self::bold(...)),
+            new TwigFilter('shell', self::shell(...)),
+        ];
+    }
+
+    public static function trimmed(string $text): string
+    {
+        return trim($text);
+    }
+
+    public static function bold(string $text): string
+    {
+        return '<b>' . htmlspecialchars($text, ENT_QUOTES) . '</b>';
+    }
+
+    public static function shell(string $command): string
+    {
+        return (string) shell_exec($command); // TaintedShell, from {{ name|shell }}
+    }
+}
+```
+
+```twig
+{{ name|trimmed|raw }} {# TaintedHtml #}
+{{ name|bold|raw }} {# safe #}
+{{ names|map(n => n|trimmed)|join(', ')|raw }} {# TaintedHtml #}
+{{ names|map(n => n|bold)|join(', ')|raw }} {# safe #}
+{{ name|upper|raw }} {# TaintedHtml: a callable Psalm doesn't analyze returns its arguments #}
+<script>var name = '{{ name|e('js') }}';</script> {# safe #}
+{{ name|e('url')|raw }} {# safe #}
+{{ name|e('csv')|raw }} {# TaintedHtml: no escaper registered for 'csv' #}
+<script>var name = '{{ name }}';</script> {# no issue: a strategy isn't checked against its context #}
+```
+
+- A callable's `@psalm-taint-escape`, `@psalm-taint-sink` (conditional ones too, resolved with the call's literal arguments), `@psalm-flow`, `@psalm-taint-source` and `@psalm-taint-specialize` work as in PHP calls.
+- `html`, `html_attr`, `js` and `css` remove `html` and `has_quotes`; `url` also removes `url_component` and `header`. A custom strategy goes through the escaper a `setEscaper()` call in the scanned PHP files registers.
+- `attribute(item, name)` with a name only known when rendering may call any public method of `item`.
+- In an included template, a `needs_context` callable gets the including template's context (unless `only`) and the `with` variables.
+- `AddTaintsInterface` and `RemoveTaintsInterface` handlers (like Psalm's own for `json_encode()` and `htmlspecialchars()`) get the call's PHP counterpart: a `FuncCall`, `StaticCall` or `MethodCall` with the template's literal arguments.
+
+[See the cases of the PHP callables.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigCallableBodies.feature)
+[See the cases of the arrow functions, `attribute()`, the escaping strategies and the included contexts.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigArrowsAttributesEscapers.feature)
+[See the cases of the taint handlers.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/TwigTaintHandlers.feature)
+
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithAnalyzer.feature)
 
 #### Cache Analyzer
