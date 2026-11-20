@@ -15,6 +15,8 @@ class RedirectResponse extends Response
      * @throws \InvalidArgumentException
      *
      * @psalm-taint-sink redirect $url
+     * @psalm-taint-sink url_component $url
+     * @psalm-taint-sink url_path $url
      */
     public function __construct(string $url, int $status = 302, array $headers = []) {}
 }

@@ -31,6 +31,8 @@ abstract class AbstractController implements ServiceSubscriberInterface
      * @param int $status The HTTP status code (302 "Found" by default)
      *
      * @psalm-taint-sink redirect $url
+     * @psalm-taint-sink url_component $url
+     * @psalm-taint-sink url_path $url
      */
     protected function redirect(string $url, int $status = 302): \Symfony\Component\HttpFoundation\RedirectResponse {}
 }

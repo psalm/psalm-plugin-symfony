@@ -5,9 +5,40 @@ namespace Symfony\Component\HttpFoundation\Session;
 interface SessionInterface
 {
     /**
+     * Returns an attribute.
+     *
+     * @psalm-flow SessionInterface::$attributes[$name] -> return
+     * @psalm-flow ($default) -> return
+     */
+    public function get(string $name, mixed $default = null): mixed;
+
+    /**
      * Sets an attribute.
      *
-     * @psalm-taint-sink session $value
+     * @psalm-flow ($value) -> SessionInterface::$attributes[$name]
      */
     public function set(string $name, mixed $value): void;
+
+    /**
+     * Returns attributes.
+     *
+     * @psalm-flow SessionInterface::$attributes[*] -> return
+     */
+    public function all(): array;
+
+    /**
+     * Sets attributes.
+     *
+     * @psalm-flow ($attributes) -> SessionInterface::$attributes[*]
+     */
+    public function replace(array $attributes): void;
+
+    /**
+     * Removes an attribute.
+     *
+     * @return mixed The removed value or null when it does not exist
+     *
+     * @psalm-flow SessionInterface::$attributes[$name] -> return
+     */
+    public function remove(string $name): mixed;
 }

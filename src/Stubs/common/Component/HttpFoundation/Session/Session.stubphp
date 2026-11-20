@@ -5,7 +5,28 @@ namespace Symfony\Component\HttpFoundation\Session;
 class Session implements FlashBagAwareSessionInterface, \IteratorAggregate, \Countable
 {
     /**
-     * @psalm-taint-sink session $value
+     * @psalm-flow SessionInterface::$attributes[$name] -> return
+     * @psalm-flow ($default) -> return
+     */
+    public function get(string $name, mixed $default = null): mixed {}
+
+    /**
+     * @psalm-flow ($value) -> SessionInterface::$attributes[$name]
      */
     public function set(string $name, mixed $value): void {}
+
+    /**
+     * @psalm-flow SessionInterface::$attributes[*] -> return
+     */
+    public function all(): array {}
+
+    /**
+     * @psalm-flow ($attributes) -> SessionInterface::$attributes[*]
+     */
+    public function replace(array $attributes): void {}
+
+    /**
+     * @psalm-flow SessionInterface::$attributes[$name] -> return
+     */
+    public function remove(string $name): mixed {}
 }
