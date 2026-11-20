@@ -1,0 +1,22 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class RedirectResponse extends Response
+{
+    /**
+     * Creates a redirect response so that it conforms to the rfc2616 standard.
+     *
+     * @param string $url     The URL to redirect to. The URL should be a full URL, with schema etc.,
+     *                        but practically every browser redirects on paths only as well
+     * @param int    $status  The HTTP status code (302 "Found" by default)
+     * @param array  $headers The headers (Location is always set to the given URL)
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @psalm-taint-sink redirect $url
+     * @psalm-taint-sink url_component $url
+     * @psalm-taint-sink url_path $url
+     */
+    public function __construct(string $url, int $status = 302, array $headers = []) {}
+}

@@ -16,6 +16,7 @@ use Psalm\SymfonyPsalmPlugin\Handler\DoctrineQueryBuilderHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\DoctrineRepositoryHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\FrameworkCallsHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\HeaderBagHandler;
+use Psalm\SymfonyPsalmPlugin\Handler\InsecureCookieHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ParameterBagHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredPropertyHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\RequiredSetterHandler;
@@ -53,6 +54,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
     public function __invoke(RegistrationInterface $registration, ?\SimpleXMLElement $config = null): void
     {
         require_once __DIR__.'/Handler/HeaderBagHandler.php';
+        require_once __DIR__.'/Handler/InsecureCookieHandler.php';
         require_once __DIR__.'/Handler/ContainerHandler.php';
         require_once __DIR__.'/Handler/ConsoleHandler.php';
         require_once __DIR__.'/Handler/ContainerDependencyHandler.php';
@@ -65,6 +67,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $registration->registerHooksFromClass(HeaderBagHandler::class);
+        $registration->registerHooksFromClass(InsecureCookieHandler::class);
         $registration->registerHooksFromClass(ConsoleHandler::class);
         $registration->registerHooksFromClass(ContainerDependencyHandler::class);
         $registration->registerHooksFromClass(RequiredPropertyHandler::class);
