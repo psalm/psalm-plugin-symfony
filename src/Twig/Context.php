@@ -1687,8 +1687,9 @@ final class Context
             }
 
             foreach ($classStorage->methods as $methodName => $methodStorage) {
-                if ($methodStorage->abstract) {
-                    // its implementations are methods of other classes
+                // the implementations of an abstract method are methods of other classes, and a template calls none
+                // but the public ones
+                if ($methodStorage->abstract || ClassLikeAnalyzer::VISIBILITY_PUBLIC !== $methodStorage->visibility) {
                     continue;
                 }
 
@@ -1706,7 +1707,7 @@ final class Context
 
                 $methodStorage = $codebase->methods->getStorage($declaringMethodId);
                 $methodId = new MethodIdentifier($classStorage->name, $methodName);
-                if ($methodStorage->abstract || FunctionLikeAnalyzer::getBodyMethodId($codebase, $methodId)->fq_class_name !== $classStorage->name) {
+                if ($methodStorage->abstract || ClassLikeAnalyzer::VISIBILITY_PUBLIC !== $methodStorage->visibility || FunctionLikeAnalyzer::getBodyMethodId($codebase, $methodId)->fq_class_name !== $classStorage->name) {
                     continue;
                 }
 
