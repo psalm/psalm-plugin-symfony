@@ -34,4 +34,38 @@ final class InputBag extends ParameterBag
      * @psalm-mutation-free
      */
     public function all(?string $key = null): array {}
+
+    /**
+     * Returns the parameter value converted to string.
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function getString(string $key, string $default = ''): string {}
+
+    /**
+     * Returns the parameter value converted to integer: a number keeps only the taints numbers carry.
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function getInt(string $key, int $default = 0): int {}
+
+    /**
+     * Returns the parameter value converted to boolean: a boolean keeps only the taints booleans carry.
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function getBoolean(string $key, bool $default = false): bool {}
+
+    /**
+     * Filters the parameter value.
+     *
+     * @return mixed
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function filter(string $key, mixed $default = null, int $filter = \FILTER_DEFAULT, mixed $options = []): mixed {}
 }

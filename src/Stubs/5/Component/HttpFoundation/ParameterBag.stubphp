@@ -27,4 +27,92 @@ class ParameterBag implements \IteratorAggregate, \Countable
      * @psalm-mutation-free
      */
     public function all(string $key = null) {}
+
+    /**
+     * Returns the parameter keys, which the client chooses.
+     *
+     * @return list<string>
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function keys() {}
+
+    /**
+     * Returns the alphabetic characters of the parameter value: a word can still be a name or an instruction.
+     *
+     * @psalm-taint-source sql_unquoted
+     * @psalm-taint-source xpath
+     * @psalm-taint-source shell
+     * @psalm-taint-source callable
+     * @psalm-taint-source include
+     * @psalm-taint-source file
+     * @psalm-taint-source ssrf
+     * @psalm-taint-source cookie
+     * @psalm-taint-source llm_prompt
+     * @psalm-mutation-free
+     */
+    public function getAlpha(string $key, string $default = '') {}
+
+    /**
+     * Returns the alphabetic characters and digits of the parameter value: a word can still be a name or an instruction.
+     *
+     * @psalm-taint-source sql_unquoted
+     * @psalm-taint-source xpath
+     * @psalm-taint-source shell
+     * @psalm-taint-source callable
+     * @psalm-taint-source include
+     * @psalm-taint-source file
+     * @psalm-taint-source ssrf
+     * @psalm-taint-source cookie
+     * @psalm-taint-source llm_prompt
+     * @psalm-taint-source sleep
+     * @psalm-mutation-free
+     */
+    public function getAlnum(string $key, string $default = '') {}
+
+    /**
+     * Returns the digits of the parameter value.
+     *
+     * @psalm-taint-source sleep
+     * @psalm-mutation-free
+     */
+    public function getDigits(string $key, string $default = '') {}
+
+    /**
+     * Returns the parameter value converted to integer: a number keeps only the taints numbers carry.
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function getInt(string $key, int $default = 0) {}
+
+    /**
+     * Returns the parameter value converted to boolean: a boolean keeps only the taints booleans carry.
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function getBoolean(string $key, bool $default = false) {}
+
+    /**
+     * Filters the parameter value.
+     *
+     * @return mixed
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    public function filter(string $key, $default = null, int $filter = \FILTER_DEFAULT, $options = []) {}
+
+    /**
+     * Returns an iterator for the parameters, whose keys and values the client chooses.
+     *
+     * @return \ArrayIterator<string, mixed>
+     *
+     * @psalm-taint-source input
+     * @psalm-mutation-free
+     */
+    #[\ReturnTypeWillChange]
+    public function getIterator() {}
 }
