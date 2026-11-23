@@ -36,6 +36,7 @@ The plugin determines the real return type by checking the given argument and ma
 - Detects the return type of `Symfony\Component\HttpFoundation\HeaderBag::get()` by checking the default value (third argument for < Symfony 4.4).
 - Detects the return types of `Symfony\Component\Messenger\Envelope::last` and `Symfony\Component\Messenger\Envelope::all`, based on the provided argument.
 - Taint analysis for Symfony.
+- Taints what the browser sends to [Symfony UX live components](#symfony-ux-live-components-tainting).
 - Detects services and parameters [naming conventions](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations.
 - Complains when `Container` is injected in a service, and asks to use dependency-injection instead.
 - Fixes `PropertyNotSetInConstructor` false positive issues:
@@ -254,6 +255,38 @@ To allow the analysis through the cached template files, you have to add the `tw
 ```
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/master/tests/acceptance/acceptance/TwigTaintingWithCachedTemplates.feature)
+
+### Symfony UX live components tainting
+
+The values the browser sends to a live component are taint sources: the live props with `writable: true` (or the
+writable paths of `writable: [...]`, the properties of an object prop or the whole array prop) and those with `url`,
+which the query string sets, the old value the `onUpdated` hooks of these props get, and the `#[LiveArg]` arguments of
+the live actions and listeners:
+
+```php
+#[AsLiveComponent]
+final class Chat
+{
+    #[LiveProp(writable: true)]
+    public string $message = '';
+
+    #[LiveProp]
+    public string $topic = '';
+
+    #[LiveAction]
+    public function submit(#[LiveArg] string $tone): void
+    {
+        echo $this->message; // TaintedHtml
+        echo $tone;          // TaintedHtml
+        echo $this->topic;   // no issue: the browser sends it back with a checksum of the server
+    }
+}
+```
+
+The other live props aren't sources: the browser sends them back with a checksum the server checks. A `modifier` of
+a live prop can change it at runtime, which the analysis doesn't see.
+
+[See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/LiveComponentTainting.feature)
 
 ### Credits
 
