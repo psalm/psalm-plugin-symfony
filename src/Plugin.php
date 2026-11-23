@@ -7,6 +7,7 @@ use Psalm\Exception\ConfigException;
 use Psalm\Plugin\PluginEntryPointInterface;
 use Psalm\Plugin\PluginFixableIssuesInterface;
 use Psalm\Plugin\RegistrationInterface;
+use Psalm\SymfonyPsalmPlugin\Handler\AiTemplateVariablesHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\AnnotationHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\AutowireCallableHandler;
 use Psalm\SymfonyPsalmPlugin\Handler\ConsoleHandler;
@@ -69,6 +70,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
         require_once __DIR__.'/Handler/AutowireCallableHandler.php';
         require_once __DIR__.'/Handler/ValidatorRegexTaintHandler.php';
         require_once __DIR__.'/Handler/LiveComponentHandler.php';
+        require_once __DIR__.'/Handler/AiTemplateVariablesHandler.php';
         require_once __DIR__.'/Provider/FormGetErrorsReturnTypeProvider.php';
 
         $registration->registerHooksFromClass(HeaderBagHandler::class);
@@ -85,6 +87,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
         AutowireCallableHandler::init(null);
         $registration->registerHooksFromClass(ValidatorRegexTaintHandler::class);
         $registration->registerHooksFromClass(LiveComponentHandler::class);
+        $registration->registerHooksFromClass(AiTemplateVariablesHandler::class);
 
         if (class_exists(\Doctrine\ORM\QueryBuilder::class)) {
             require_once __DIR__.'/Handler/DoctrineQueryBuilderHandler.php';

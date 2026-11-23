@@ -37,6 +37,7 @@ The plugin determines the real return type by checking the given argument and ma
 - Detects the return types of `Symfony\Component\Messenger\Envelope::last` and `Symfony\Component\Messenger\Envelope::all`, based on the provided argument.
 - Taint analysis for Symfony.
 - Taints what the browser sends to [Symfony UX live components](#symfony-ux-live-components-tainting).
+- Taints the [Symfony AI message templates](#symfony-ai-template-variables) with the variables rendered into them.
 - Detects services and parameters [naming conventions](https://symfony.com/doc/current/contributing/code/standards.html#naming-conventions) violations.
 - Complains when `Container` is injected in a service, and asks to use dependency-injection instead.
 - Fixes `PropertyNotSetInConstructor` false positive issues:
@@ -288,6 +289,26 @@ The other live props aren't sources: the browser sends them back with a checksum
 a live prop can change it at runtime, which the analysis doesn't see.
 
 [See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/LiveComponentTainting.feature)
+
+### Symfony AI template variables
+
+Symfony AI renders the variables of the `template_vars` option into the message templates (`Template::string()`, `Template::expression()`) only when a call runs, so Psalm does not see them in the templates. The plugin follows them from the options of `PlatformInterface::invoke()`, `AgentInterface::call()`, `Input::setOptions()` and `InvocationEvent::setOptions()` into the templates with a placeholder of their name, and the sinks the templates reach report them, such as the `llm_prompt` sink of a system prompt (`TaintedLlmPrompt`):
+
+```php
+$messages = new MessageBag(
+    Message::forSystem(Template::string('You are helping {name}.')),
+    Message::ofUser(Template::string('Tell me about {topic}')),
+);
+
+$platform->invoke('gpt-5', $messages, ['template_vars' => [
+    'name' => $request->query->getString('name'), // TaintedLlmPrompt: rendered into the system prompt
+    'topic' => $request->query->getString('topic'), // no issue: rendered into the user message only
+]]);
+```
+
+The sinks are declared by Symfony AI: the plugin only connects the variables to the templates. Messages are built apart from the calls rendering them, so a template holds what every call gives to the variables it has a placeholder for. The variables of a call whose variable names Psalm does not know reach every template with a placeholder, and an expression template, or one whose content Psalm does not know, reads every variable.
+
+[See the currently supported cases.](https://github.com/psalm/psalm-plugin-symfony/blob/5.x/tests/acceptance/acceptance/AiTemplateTainting.feature)
 
 ### Credits
 

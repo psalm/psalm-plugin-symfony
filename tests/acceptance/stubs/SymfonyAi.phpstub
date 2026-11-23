@@ -1,0 +1,98 @@
+<?php
+
+// The API of Symfony AI the acceptance tests use, with its taint annotations: it requires Symfony >= 7.3.
+
+namespace Symfony\AI\Platform\Message;
+
+final class Template implements \Stringable
+{
+    /**
+     * @psalm-taint-specialize
+     *
+     * @psalm-flow ($template) -> return
+     */
+    public function __construct(string $template, string $type) {}
+
+    public function __toString(): string {}
+
+    /**
+     * @psalm-taint-specialize
+     *
+     * @psalm-flow ($template) -> return
+     */
+    public static function string(string $template): self {}
+
+    /**
+     * @psalm-taint-specialize
+     *
+     * @psalm-flow ($template) -> return
+     */
+    public static function expression(string $template): self {}
+}
+
+final class SystemMessage
+{
+}
+
+final class UserMessage
+{
+}
+
+final class Message
+{
+    /**
+     * @psalm-taint-sink llm_prompt $content
+     */
+    public static function forSystem(\Stringable|string|Template $content): SystemMessage {}
+
+    public static function ofUser(\Stringable|string|Template ...$content): UserMessage {}
+}
+
+final class MessageBag
+{
+    public function __construct(SystemMessage|UserMessage ...$messages) {}
+}
+
+namespace Symfony\AI\Platform;
+
+use Symfony\AI\Platform\Message\MessageBag;
+
+interface PlatformInterface
+{
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function invoke(string $model, array|string|object $input, array $options = []): object;
+}
+
+namespace Symfony\AI\Agent;
+
+use Symfony\AI\Platform\Message\MessageBag;
+
+interface AgentInterface
+{
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function call(string|MessageBag $input, array $options = []): object;
+}
+
+final class Input
+{
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function setOptions(array $options): void {}
+}
+
+namespace Symfony\AI\Agent\InputProcessor;
+
+use Symfony\AI\Platform\Message\Template;
+
+final class SystemPromptInputProcessor
+{
+    /**
+     * @psalm-taint-sink llm_prompt $systemPrompt
+     */
+    public function __construct(\Stringable|string|Template $systemPrompt) {}
+}
