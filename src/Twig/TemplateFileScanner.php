@@ -27,5 +27,32 @@ final class TemplateFileScanner extends FileScanner
         ?Progress $progress = null,
     ): void {
         $file_storage->deep_scan = $this->will_analyze;
+
+        // the analysis follows the PHP callables of the filters, functions and tests into their classes, like those
+        // of Twig, which no PHP file of the project may name
+        foreach (TemplateFileAnalyzer::getEnvironment($codebase)->getExtensions() as $extension) {
+            foreach ([...$extension->getFilters(), ...$extension->getFunctions(), ...$extension->getTests()] as $twigCallable) {
+                $className = self::getClassName($twigCallable->getCallable());
+                if (null !== $className) {
+                    $codebase->queueClassLikeForScanning($className);
+                    $file_storage->referenced_classlikes[strtolower($className)] = $className;
+                }
+            }
+        }
+    }
+
+    private static function getClassName(mixed $callable): ?string
+    {
+        if (\is_array($callable) && isset($callable[0])) {
+            $class = \is_object($callable[0]) ? $callable[0]::class : $callable[0];
+
+            return \is_string($class) && '' !== $class ? $class : null;
+        }
+
+        if (\is_string($callable) && str_contains($callable, '::')) {
+            return explode('::', $callable, 2)[0];
+        }
+
+        return null;
     }
 }

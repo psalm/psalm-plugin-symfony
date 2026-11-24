@@ -153,6 +153,38 @@ final class ServiceLocatorHandler implements AfterClassLikeVisitInterface, After
             }
         }
         $storage->custom_metadata[self::class] = $data;
+
+        // the classes the maps name are only known once the codebase is populated, too late for Psalm to scan them
+        $codebase = $event->getCodebase();
+        $fileStorage = $codebase->file_storage_provider->get($event->getStatementsSource()->getFilePath());
+        foreach (self::classNames($data) as $className) {
+            $codebase->queueClassLikeForScanning($className);
+            $fileStorage->referenced_classlikes[strtolower($className)] = $className;
+        }
+    }
+
+    /**
+     * The class names, with a namespace, among the strings of a description of the maps (see describe()).
+     *
+     * @return list<string>
+     */
+    private static function classNames(mixed $description): array
+    {
+        if (\is_string($description)) {
+            $className = ltrim($description, '?\\');
+
+            return 1 === preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*(?:\\\\[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)+$/', $className) ? [$className] : [];
+        }
+        if (!\is_array($description)) {
+            return [];
+        }
+
+        $classNames = [];
+        foreach ($description as $value) {
+            $classNames = [...$classNames, ...self::classNames($value)];
+        }
+
+        return $classNames;
     }
 
     #[\Override]
