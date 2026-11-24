@@ -28,6 +28,7 @@ use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleOptionValue;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Symfony\StubbedClass;
 use Psalm\SymfonyPsalmPlugin\Symfony\SymfonyVersion;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
@@ -200,7 +201,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
 
         $a = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
         foreach ($a as $file) {
-            if (!$file->isDir()) {
+            if (!$file->isDir() && StubbedClass::isLoadable($file->getPathname())) {
                 $registration->addStubFile($file->getPathname());
             }
         }
