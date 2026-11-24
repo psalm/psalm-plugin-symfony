@@ -28,13 +28,14 @@ use Psalm\SymfonyPsalmPlugin\Issue\InvalidConsoleOptionValue;
 use Psalm\SymfonyPsalmPlugin\Issue\RepositoryStringShortcut;
 use Psalm\SymfonyPsalmPlugin\Provider\FormGetErrorsReturnTypeProvider;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Psalm\SymfonyPsalmPlugin\Symfony\StubbedClass;
+use Psalm\SymfonyPsalmPlugin\Symfony\SymfonyVersion;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
 use Psalm\SymfonyPsalmPlugin\Twig\TwigUtils;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
-use Symfony\Component\HttpKernel\Kernel;
 
 /**
  * @psalm-suppress UnusedClass
@@ -134,10 +135,12 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
 
         $registration->registerHooksFromClass(ContainerHandler::class);
 
-        $symfonyMajorVersion = (string) ($config->symfonyMajorVersion ?? Kernel::MAJOR_VERSION);
+        $symfonyMajorVersion = isset($config->symfonyMajorVersion) ? (string) $config->symfonyMajorVersion : SymfonyVersion::detectMajorVersion();
 
         $this->addStubs($registration, __DIR__.'/Stubs/common');
-        $this->addStubs($registration, __DIR__.'/Stubs/'.$symfonyMajorVersion);
+        if (null !== $symfonyMajorVersion) {
+            $this->addStubs($registration, __DIR__.'/Stubs/'.$symfonyMajorVersion);
+        }
         $this->addStubs($registration, __DIR__.'/Stubs/php');
 
         if (isset($config->twigCachePath)) {
@@ -198,7 +201,7 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
 
         $a = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
         foreach ($a as $file) {
-            if (!$file->isDir()) {
+            if (!$file->isDir() && StubbedClass::isLoadable($file->getPathname())) {
                 $registration->addStubFile($file->getPathname());
             }
         }
