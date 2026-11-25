@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Psalm\SymfonyPsalmPlugin\Symfony;
 
 use Composer\InstalledVersions;
-use Symfony\Component\HttpKernel\Kernel;
 
 /**
  * The major version of the installed Symfony, which selects the stubs of the classes that changed between versions.
@@ -13,9 +12,12 @@ use Symfony\Component\HttpKernel\Kernel;
 final class SymfonyVersion
 {
     /**
-     * The packages of the classes the version-specific stubs declare.
+     * The packages whose version is that of the installed Symfony: the kernel (on its own or in the monorepo), then
+     * those of the classes the version-specific stubs declare.
      */
-    private const STUBBED_PACKAGES = [
+    private const VERSION_PACKAGES = [
+        'symfony/http-kernel',
+        'symfony/symfony',
         'symfony/http-foundation',
         'symfony/framework-bundle',
         'symfony/serializer',
@@ -24,14 +26,13 @@ final class SymfonyVersion
     /**
      * The major version of the installed Symfony: that of the kernel, or else that of a package with stubs for each
      * version. Null when none of them is installed, as in a project using only other components.
+     *
+     * The versions come from the installed packages: loading the kernel fails where a class it extends isn't
+     * installed (that of symfony/dependency-injection, in http-kernel 8.1).
      */
     public static function detectMajorVersion(): ?string
     {
-        if (class_exists(Kernel::class)) {
-            return (string) Kernel::MAJOR_VERSION;
-        }
-
-        foreach (self::STUBBED_PACKAGES as $package) {
+        foreach (self::VERSION_PACKAGES as $package) {
             if (!InstalledVersions::isInstalled($package)) {
                 continue;
             }
