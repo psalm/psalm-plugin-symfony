@@ -69,6 +69,38 @@ Feature: ConsoleOption
     When I run Psalm
     Then I see no errors
 
+  Scenario: A mode with a constant Psalm doesn't load, like InputOption::HIDDEN of a newer symfony/console
+    Given I have the following code
+      """
+      final class Flags
+      {
+        public const HIDDEN = 1 << 6;
+      }
+
+      final class MyCommand extends Command
+      {
+        #[\Override]
+        public function configure(): void
+        {
+          $this->addOption('flag', null, InputOption::VALUE_NONE | Flags::HIDDEN);
+        }
+
+        #[\Override]
+        public function execute(InputInterface $input, OutputInterface $output): int
+        {
+          $this->boolean($input->getOption('flag'));
+
+          return 0;
+        }
+
+        private function boolean(bool $input): void
+        {
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors
+
   Scenario: Asserting options return types have inferred (without error), with a default value
     Given I have the following code
       """

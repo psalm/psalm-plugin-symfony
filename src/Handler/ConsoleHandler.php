@@ -13,6 +13,7 @@ use Psalm\CodeLocation;
 use Psalm\FileManipulation;
 use Psalm\Issue\CodeIssue;
 use Psalm\IssueBuffer;
+use Psalm\NodeTypeProvider;
 use Psalm\Plugin\EventHandler\AfterMethodCallAnalysisInterface;
 use Psalm\Plugin\EventHandler\Event\AfterMethodCallAnalysisEvent;
 use Psalm\StatementsSource;
@@ -137,7 +138,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
         $modeParam = $normalizedParams['mode'];
         if ($modeParam) {
             try {
-                $mode = self::getModeValue($modeParam->value);
+                $mode = self::getModeValue($modeParam->value, $statements_source->getNodeTypeProvider());
             } catch (InvalidConsoleModeException $e) {
                 self::reportInvalidMode(
                     $event,
@@ -189,7 +190,7 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
         $modeOption = $normalizedParams['mode'];
         if ($modeOption) {
             try {
-                $mode = self::getModeValue($modeOption->value);
+                $mode = self::getModeValue($modeOption->value, $event->getStatementsSource()->getNodeTypeProvider());
             } catch (InvalidConsoleModeException $e) {
                 self::reportInvalidMode(
                     $event,
@@ -356,24 +357,26 @@ final class ConsoleHandler implements AfterMethodCallAnalysisInterface
         return $result;
     }
 
-    private static function getModeValue(Expr $mode): ?int
+    private static function getModeValue(Expr $mode, NodeTypeProvider $types): ?int
     {
         if ($mode instanceof Expr\BinaryOp\BitwiseOr) {
-            return self::getModeValue($mode->left) | self::getModeValue($mode->right);
+            return self::getModeValue($mode->left, $types) | self::getModeValue($mode->right, $types);
         }
 
         if ($mode instanceof Expr\ClassConstFetch) {
-            /**
-             * @psalm-suppress MixedAssignment
-             * @psalm-suppress MixedOperand
-             * @psalm-suppress UndefinedPropertyFetch
-             */
-            $value = constant($mode->class->getAttribute('resolvedName').'::'.$mode->name->name);
-            if (!is_int($value)) {
+            // the value the analysis gives the constant, that of the symfony/console of the project, which may have
+            // constants the one loaded with Psalm doesn't (InputOption::HIDDEN of 8.2); unknown if the analysis
+            // doesn't know the constant, which it reports itself
+            $type = $types->getType($mode);
+            if (null === $type || $type->hasMixed()) {
+                return null;
+            }
+
+            if (!$type->isSingleIntLiteral()) {
                 throw new InvalidConsoleModeException();
             }
 
-            return $value;
+            return $type->getSingleIntLiteral()->value;
         }
 
         if ($mode instanceof Expr\Ternary) {
