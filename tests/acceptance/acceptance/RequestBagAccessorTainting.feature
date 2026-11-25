@@ -87,6 +87,24 @@ Feature: Tainting through the typed accessors of the request bags
       | getAlpha |
       | getAlnum |
 
+  Scenario Outline: A number read from a request bag is run as a shell command
+    Given I have the following code
+      """
+      final class MyController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response((string) shell_exec('sleep '.<read>));
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
+    Examples:
+      | read                                    |
+      | $request->query->getDigits('untrusted') |
+      | $request->query->getInt('untrusted')    |
+
   Scenario: A word read from a request bag is a column of an SQL query, outside of its quotes
     Given I have the following code
       """
@@ -145,3 +163,4 @@ Feature: Tainting through the typed accessors of the request bags
       | $request->query->getInt('untrusted')           |
       | (int) $request->query->getDigits('untrusted')  |
       | (int) $request->query->getAlnum('untrusted')   |
+      | (int) $request->query->getBoolean('untrusted') |
