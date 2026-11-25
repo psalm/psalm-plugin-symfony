@@ -2,6 +2,7 @@
 
 namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 
+use Composer\InstalledVersions;
 use PHPUnit\Framework\TestCase;
 use Psalm\SymfonyPsalmPlugin\Symfony\SymfonyVersion;
 use Symfony\Component\HttpKernel\Kernel;
@@ -14,6 +15,21 @@ class SymfonyVersionTest extends TestCase
     public function testDetectsTheVersionOfTheKernel(): void
     {
         $this->assertSame((string) Kernel::MAJOR_VERSION, SymfonyVersion::detectMajorVersion());
+    }
+
+    /**
+     * Loading the kernel fails where a class it extends isn't installed (symfony/dependency-injection for http-kernel
+     * 8.1): the version is read without loading it.
+     *
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function testDetectsTheVersionWithoutLoadingTheKernel(): void
+    {
+        $version = SymfonyVersion::detectMajorVersion();
+
+        $this->assertFalse(class_exists(Kernel::class, false));
+        $this->assertSame(SymfonyVersion::getMajorVersion(InstalledVersions::getVersion('symfony/http-kernel')), $version);
     }
 
     /**
