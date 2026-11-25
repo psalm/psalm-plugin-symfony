@@ -16,6 +16,7 @@ Feature: Constraint
         /**
          * @var array<string, string>
          */
+        #[\Override]
         protected static $errorNames = [
           'test' => 'test',
         ];
