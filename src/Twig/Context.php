@@ -371,7 +371,7 @@ final class Context
     {
         $path = [];
         $node = $expression;
-        while ($node instanceof GetAttrExpression) {
+        do {
             $attribute = $node->getNode('attribute');
             if ('array' === $node->getAttribute('type')) {
                 return null;
@@ -381,11 +381,11 @@ final class Context
             $name = $attribute instanceof ConstantExpression ? (string) $attribute->getAttribute('value') : self::ANY_ATTRIBUTE;
             $path[] = $name.('method' === $node->getAttribute('type') ? '()' : '');
             $node = $node->getNode('node');
-        }
+        } while ($node instanceof GetAttrExpression);
 
         $path = array_reverse($path);
 
-        return [] !== $path && \count($path) <= self::MAX_ATTRIBUTE_DEPTH && $node instanceof NameExpression && !$node instanceof AssignNameExpression
+        return \count($path) <= self::MAX_ATTRIBUTE_DEPTH && $node instanceof NameExpression && !$node instanceof AssignNameExpression
             ? [$node, $path]
             : null;
     }

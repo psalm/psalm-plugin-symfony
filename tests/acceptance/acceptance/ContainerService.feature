@@ -60,6 +60,6 @@ Feature: Container service
       """
     When I run Psalm
     Then I see these errors
-      | Type            | Message                                                                          |
-      | MixedMethodCall | Cannot determine the type of the object on the left hand side of this expression |
+      | Type            | Message                                                                                       |
+      | MixedMethodCall | Cannot determine the methods of the object on the left hand side of this expression (object) |
     And I see no other errors
