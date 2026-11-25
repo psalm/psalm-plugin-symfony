@@ -2,7 +2,21 @@
 Feature: Constraint
 
   Background:
-    Given I have Symfony plugin enabled
+    # Analysed as PHP 8.4: for PHP 8.5, Psalm requires #[\Override] on a property overriding a parent property, which
+    # a property can't take before PHP 8.5.
+    Given I have the following config
+      """
+      <?xml version="1.0"?>
+      <psalm errorLevel="1" findUnusedCode="false" phpVersion="8.4">
+        <projectFiles>
+          <directory name="."/>
+          <ignoreFiles> <directory name="../../vendor"/> </ignoreFiles>
+        </projectFiles>
+        <plugins>
+          <pluginClass class="Psalm\SymfonyPsalmPlugin\Plugin"/>
+        </plugins>
+      </psalm>
+      """
 
   Scenario: NonInvariantDocblockPropertyType error about $errorNames is not raised
     Given I have the following code
