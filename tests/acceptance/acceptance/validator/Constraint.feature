@@ -1,4 +1,4 @@
-@symfony-common
+@symfony-5 @symfony-6
 Feature: Constraint
 
   Background:
@@ -16,7 +16,6 @@ Feature: Constraint
         /**
          * @var array<string, string>
          */
-        #[\Override]
         protected static $errorNames = [
           'test' => 'test',
         ];
