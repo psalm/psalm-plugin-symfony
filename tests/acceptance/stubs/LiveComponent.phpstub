@@ -1,0 +1,52 @@
+<?php
+
+// The attributes of symfony/ux-live-component the acceptance tests use: it requires Symfony >= 6.4.
+
+namespace Symfony\UX\LiveComponent\Attribute;
+
+#[\Attribute(\Attribute::TARGET_CLASS)]
+final class AsLiveComponent
+{
+    public function __construct(?string $name = null) {}
+}
+
+#[\Attribute(\Attribute::TARGET_PROPERTY)]
+final class LiveProp
+{
+    public const IDENTITY = '@identity';
+
+    /**
+     * @param bool|string[]              $writable
+     * @param string|array<string>|null $onUpdated
+     */
+    public function __construct(
+        bool|array $writable = false,
+        ?string $hydrateWith = null,
+        ?string $dehydrateWith = null,
+        bool $useSerializerForHydration = false,
+        array $serializationContext = [],
+        ?string $fieldName = null,
+        ?string $format = null,
+        bool $updateFromParent = false,
+        string|array|null $onUpdated = null,
+        bool|object $url = false,
+        ?string $modifier = null,
+    ) {}
+}
+
+#[\Attribute(\Attribute::TARGET_METHOD)]
+final class LiveAction
+{
+}
+
+#[\Attribute(\Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE)]
+final class LiveListener
+{
+    public function __construct(string $eventName) {}
+}
+
+#[\Attribute(\Attribute::TARGET_PARAMETER)]
+final class LiveArg
+{
+    public function __construct(?string $name = null) {}
+}
