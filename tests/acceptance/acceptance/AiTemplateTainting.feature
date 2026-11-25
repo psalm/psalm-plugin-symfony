@@ -145,6 +145,22 @@ Feature: Symfony AI message templates tainted by their variables
       | TaintedLlmPrompt | Detected tainted LLM prompt |
     And I see no other errors
 
+  Scenario: A tainted variable changed by a listener of the platform is rendered into a system prompt
+    Given I have the following code
+      """
+      $messages = new MessageBag(Message::forSystem(Template::string('You are helping {name}.')));
+      function onInvocation(\Symfony\AI\Platform\Event\InvocationEvent $event, string $name): void
+      {
+          $event->setOptions(['template_vars' => ['name' => $name]]);
+      }
+      onInvocation(new \Symfony\AI\Platform\Event\InvocationEvent(), $untrusted);
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type             | Message                     |
+      | TaintedLlmPrompt | Detected tainted LLM prompt |
+    And I see no other errors
+
   Scenario: Variables whose names are not known reach every system prompt with placeholders
     Given I have the following code
       """
@@ -173,6 +189,66 @@ Feature: Symfony AI message templates tainted by their variables
       | Type             | Message                     |
       | TaintedLlmPrompt | Detected tainted LLM prompt |
     And I see no other errors
+
+  Scenario Outline: A tainted template is a system prompt
+    Given I have the following code
+      """
+      $messages = new MessageBag(Message::forSystem(<template>));
+      platform()->invoke('gpt', $messages, ['template_vars' => ['name' => 'Fabien']]);
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type             | Message                     |
+      | TaintedLlmPrompt | Detected tainted LLM prompt |
+    And I see no other errors
+    Examples:
+      | template                                                     |
+      | Template::string('You are helping {name}. '.$untrusted)      |
+      | Template::string($untrusted)                                 |
+      | Template::expression($untrusted)                             |
+      | new Template('You are helping {name}. '.$untrusted, 'string') |
+
+  Scenario: A template returned by a static method reads the placeholders of its content
+    Given I have the following code
+      """
+      final class Prompts
+      {
+          public static function system(): Template
+          {
+              return Template::string('You are helping {name}.');
+          }
+
+          public static function assistant(): Template
+          {
+              return Template::string('You are a helpful assistant.');
+          }
+      }
+
+      $messages = new MessageBag(Message::forSystem(Prompts::system()), Message::forSystem(Prompts::assistant()));
+      platform()->invoke('gpt', $messages, ['template_vars' => ['name' => $untrusted]]);
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type             | Message                     |
+      | TaintedLlmPrompt | Detected tainted LLM prompt |
+    And I see no other errors
+
+  Scenario: A template without placeholders returned by a static method is not tainted by the variables
+    Given I have the following code
+      """
+      final class Prompts
+      {
+          public static function assistant(): Template
+          {
+              return Template::string('You are a helpful assistant.');
+          }
+      }
+
+      $messages = new MessageBag(Message::forSystem(Prompts::assistant()));
+      platform()->invoke('gpt', $messages, ['template_vars' => ['name' => $untrusted]]);
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
 
   Scenario: Untainted variables are rendered into a system prompt
     Given I have the following code

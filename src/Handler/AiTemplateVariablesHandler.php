@@ -8,6 +8,7 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
 use Psalm\Codebase;
 use Psalm\CodeLocation;
 use Psalm\Internal\DataFlow\DataFlowNode;
@@ -100,6 +101,13 @@ final class AiTemplateVariablesHandler implements AfterMethodCallAnalysisInterfa
     {
         $expr = $event->getExpr();
         if ((!$expr instanceof StaticCall && !$expr instanceof New_) || $expr->isFirstClassCallable()) {
+            return null;
+        }
+
+        // A static method of another class returning a template gets it from a template built in its body.
+        if ($expr instanceof StaticCall
+            && (!$expr->class instanceof Name || 0 !== strcasecmp((string) $expr->class->getAttribute('resolvedName'), self::TEMPLATE_CLASS))
+        ) {
             return null;
         }
 

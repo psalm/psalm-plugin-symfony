@@ -65,6 +65,16 @@ interface PlatformInterface
     public function invoke(string $model, array|string|object $input, array $options = []): object;
 }
 
+namespace Symfony\AI\Platform\Event;
+
+final class InvocationEvent
+{
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function setOptions(array $options): void {}
+}
+
 namespace Symfony\AI\Agent;
 
 use Symfony\AI\Platform\Message\MessageBag;
