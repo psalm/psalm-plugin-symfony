@@ -5,9 +5,11 @@ namespace Symfony\Component\HttpFoundation;
 class EventStreamResponse extends StreamedResponse
 {
     /**
-     * @param array $headers An array of HTTP headers
+     * @param array    $headers An array of HTTP headers
+     * @param int|null $retry   The number of milliseconds the client should wait
+     *                          before reconnecting in case of network failure
      *
      * @psalm-taint-sink header $headers
      */
-    public function __construct(?callable $callback = null, int $status = 200, array $headers = [], ?int $retry = null) {}
+    public function __construct(?callable $callback = null, int $status = 200, array $headers = [], private ?int $retry = null) {}
 }

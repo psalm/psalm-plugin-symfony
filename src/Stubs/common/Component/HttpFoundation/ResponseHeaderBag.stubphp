@@ -9,14 +9,24 @@ namespace Symfony\Component\HttpFoundation;
 class ResponseHeaderBag extends HeaderBag
 {
     /**
+     * Symfony forwards the headers to set().
+     *
+     * @psalm-taint-sink header $headers
+     */
+    public function __construct(array $headers = []) {}
+
+    /**
      * Sets a header by name.
      *
-     * The value of a `Location` header is the URL the client is sent to, as for header() in Psalm.
+     * The value of a `Location` header is the URL the client is sent to, as for header() in Psalm. Symfony matches
+     * the name case-insensitively, a conditional type matches the literals listed only.
      *
      * @param string|string[]|null $values The value or an array of values
      *
+     * @return void
+     *
      * @psalm-taint-sink header $key
-     * @psalm-taint-sink ($key is 'Location'|'location' ? 'redirect'|'url_component'|'url_path' : 'header') $values
+     * @psalm-taint-sink ($key is 'Location'|'location'|'LOCATION' ? 'redirect'|'url_component'|'url_path' : 'header') $values
      */
     public function set(string $key, $values, bool $replace = true) {}
 
@@ -27,6 +37,8 @@ class ResponseHeaderBag extends HeaderBag
      *
      * @param array $headers
      *
+     * @return void
+     *
      * @psalm-taint-sink header $headers
      */
     public function add(array $headers) {}
@@ -35,6 +47,8 @@ class ResponseHeaderBag extends HeaderBag
      * Replaces the current HTTP headers by a new set.
      *
      * @param array $headers
+     *
+     * @return void
      *
      * @psalm-taint-sink header $headers
      */

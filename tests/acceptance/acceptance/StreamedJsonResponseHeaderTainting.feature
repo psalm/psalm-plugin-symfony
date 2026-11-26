@@ -28,3 +28,20 @@ Feature: StreamedJsonResponse header tainting
       | Type          | Message                 |
       | TaintedHeader | Detected tainted header |
     And I see no other errors
+
+  Scenario: The headers of a StreamedJsonResponse are strings or lists of strings
+    Given I have the following code
+      """
+      final class ExportController
+      {
+        public function __invoke(): StreamedJsonResponse
+        {
+          return new StreamedJsonResponse(['items' => []], 200, ['X-Header' => new stdClass()]);
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type            | Message                                                                                                                                                                                  |
+      | InvalidArgument | Argument 3 of Symfony\Component\HttpFoundation\StreamedJsonResponse::__construct expects array<string, array<array-key, string>\|string>, but array{'X-Header': stdClass} provided |
+    And I see no other errors

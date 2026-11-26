@@ -103,6 +103,48 @@ Feature: Response header tainting
       | TaintedHeader | Detected tainted header |
     And I see no other errors
 
+  Scenario: The client chooses an element of an array of values of a header set on the response
+    Given I have the following code
+      """
+      final class CorsController
+      {
+        public function __invoke(Request $request): Response
+        {
+          $response = new Response('');
+          $response->headers->set('Vary', ['Accept', (string) $request->query->get('vary')]);
+
+          return $response;
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type          | Message                 |
+      | TaintedHeader | Detected tainted header |
+    And I see no other errors
+
+  Scenario: The client chooses the key of an array of values of a header set on the response (known limitation)
+    # Symfony keeps the values of the array only, so the key is never sent, but a sink on the elements of an array
+    # cannot be conditional on the name of the header: Psalm reports the keys of the array too.
+    Given I have the following code
+      """
+      final class CorsController
+      {
+        public function __invoke(Request $request): Response
+        {
+          $response = new Response('');
+          $response->headers->set('Vary', [(string) $request->query->get('vary') => 'Accept']);
+
+          return $response;
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type          | Message                 |
+      | TaintedHeader | Detected tainted header |
+    And I see no other errors
+
   Scenario Outline: The client chooses headers added to or replaced on the response
     Given I have the following code
       """
@@ -126,6 +168,23 @@ Feature: Response header tainting
       | call    |
       | add     |
       | replace |
+
+  Scenario: The client chooses a header through the constructor of the response headers
+    Given I have the following code
+      """
+      final class CorsController
+      {
+        public function __invoke(Request $request): ResponseHeaderBag
+        {
+          return new ResponseHeaderBag(['Access-Control-Allow-Origin' => (string) $request->query->get('origin')]);
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type          | Message                 |
+      | TaintedHeader | Detected tainted header |
+    And I see no other errors
 
   Scenario Outline: The client chooses a header written to a bag extending that of the response headers
     Given I have the following code
@@ -187,6 +246,30 @@ Feature: Response header tainting
 
           if (1 === preg_match('#^[a-z0-9:/.-]+$#D', $next)) {
             $response->headers->set('Location', $next);
+          }
+
+          return $response;
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type            | Message                          |
+      | TaintedRedirect | Detected tainted redirect target |
+    And I see no other errors
+
+  Scenario: A Location header named in capitals without a line break still sends the client where it chooses
+    Given I have the following code
+      """
+      final class LoginController
+      {
+        public function __invoke(Request $request): Response
+        {
+          $response = new Response('', 302);
+          $next = (string) $request->query->get('next');
+
+          if (1 === preg_match('#^[a-z0-9:/.-]+$#D', $next)) {
+            $response->headers->set('LOCATION', $next);
           }
 
           return $response;
