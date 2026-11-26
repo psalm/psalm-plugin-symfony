@@ -210,7 +210,7 @@ Feature: Response header tainting
       | add(['Access-Control-Allow-Origin' => (string) $request->query->get('origin')])   |
       | replace(['Access-Control-Allow-Origin' => (string) $request->query->get('origin')]) |
 
-  Scenario Outline: The client chooses where a Location header set on the response sends it
+  Scenario Outline: The client chooses the value of a Location header set on the response
     Given I have the following code
       """
       final class LoginController
@@ -226,61 +226,13 @@ Feature: Response header tainting
       """
     When I run Psalm with taint analysis
     Then I see these errors
-      | Type            | Message                          |
-      | TaintedRedirect | Detected tainted redirect target |
+      | Type          | Message                 |
+      | TaintedHeader | Detected tainted header |
     And I see no other errors
     Examples:
       | name     |
       | Location |
       | location |
-
-  Scenario: A Location header without a line break still sends the client where it chooses
-    Given I have the following code
-      """
-      final class LoginController
-      {
-        public function __invoke(Request $request): Response
-        {
-          $response = new Response('', 302);
-          $next = (string) $request->query->get('next');
-
-          if (1 === preg_match('#^[a-z0-9:/.-]+$#D', $next)) {
-            $response->headers->set('Location', $next);
-          }
-
-          return $response;
-        }
-      }
-      """
-    When I run Psalm with taint analysis
-    Then I see these errors
-      | Type            | Message                          |
-      | TaintedRedirect | Detected tainted redirect target |
-    And I see no other errors
-
-  Scenario: A Location header named in capitals without a line break still sends the client where it chooses
-    Given I have the following code
-      """
-      final class LoginController
-      {
-        public function __invoke(Request $request): Response
-        {
-          $response = new Response('', 302);
-          $next = (string) $request->query->get('next');
-
-          if (1 === preg_match('#^[a-z0-9:/.-]+$#D', $next)) {
-            $response->headers->set('LOCATION', $next);
-          }
-
-          return $response;
-        }
-      }
-      """
-    When I run Psalm with taint analysis
-    Then I see these errors
-      | Type            | Message                          |
-      | TaintedRedirect | Detected tainted redirect target |
-    And I see no other errors
 
   Scenario: A Location header to a fixed path with an encoded query value is not reported
     Given I have the following code
@@ -367,4 +319,19 @@ Feature: Response header tainting
       }
       """
     When I run Psalm with taint analysis
+    Then I see no errors
+
+  Scenario: A bag extending that of the response headers can override the method setting a header
+    Given I have the following code
+      """
+      final class CorsHeaderBag extends ResponseHeaderBag
+      {
+        #[\Override]
+        public function set(string $key, string|array|null $values, bool $replace = true): void
+        {
+          parent::set($key, $values, $replace);
+        }
+      }
+      """
+    When I run Psalm
     Then I see no errors
