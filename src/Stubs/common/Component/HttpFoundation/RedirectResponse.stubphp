@@ -17,6 +17,7 @@ class RedirectResponse extends Response
      * @psalm-taint-sink redirect $url
      * @psalm-taint-sink url_component $url
      * @psalm-taint-sink url_path $url
+     * @psalm-taint-sink header $headers
      */
     public function __construct(string $url, int $status = 302, array $headers = []) {}
 }
