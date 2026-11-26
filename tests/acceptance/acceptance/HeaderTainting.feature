@@ -335,3 +335,37 @@ Feature: Response header tainting
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: A header the server set on the response and read back is not input
+    Given I have the following code
+      """
+      final class ClientHintsListener
+      {
+        public function __invoke(Response $response): Response
+        {
+          $policy = $response->headers->get('Permissions-Policy');
+          $response->headers->set('Permissions-Policy', ($policy === null ? '' : $policy.', ').'ch-dpr=(self)');
+
+          return $response;
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see no errors
+
+  Scenario: A header the client sent with the request is input
+    Given I have the following code
+      """
+      final class LocaleController
+      {
+        public function __invoke(Request $request): Response
+        {
+          return new Response('', 200, ['Content-Language' => (string) $request->headers->get('Accept-Language')]);
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type          | Message                 |
+      | TaintedHeader | Detected tainted header |
+    And I see no other errors
