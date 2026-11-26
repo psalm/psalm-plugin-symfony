@@ -1,0 +1,42 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+/**
+ * The sinks are declared here and not in HeaderBag, which is also the bag of the request headers: a header written
+ * to a request is not sent to the client.
+ */
+class ResponseHeaderBag extends HeaderBag
+{
+    /**
+     * Sets a header by name.
+     *
+     * The value of a `Location` header is the URL the client is sent to, as for header() in Psalm.
+     *
+     * @param string|string[]|null $values The value or an array of values
+     *
+     * @psalm-taint-sink header $key
+     * @psalm-taint-sink ($key is 'Location'|'location' ? 'redirect'|'url_component'|'url_path' : 'header') $values
+     */
+    public function set(string $key, $values, bool $replace = true) {}
+
+    /**
+     * Adds new headers the current HTTP headers set.
+     *
+     * Symfony inherits this method from HeaderBag: it is declared here to make it a sink for response headers only.
+     *
+     * @param array $headers
+     *
+     * @psalm-taint-sink header $headers
+     */
+    public function add(array $headers) {}
+
+    /**
+     * Replaces the current HTTP headers by a new set.
+     *
+     * @param array $headers
+     *
+     * @psalm-taint-sink header $headers
+     */
+    public function replace(array $headers = []) {}
+}

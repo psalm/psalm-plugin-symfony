@@ -23,32 +23,4 @@ class HeaderBag implements \IteratorAggregate, \Countable
      * @psalm-mutation-free
      */
     public function get(string $key, string $default = null): ?string {}
-
-    /**
-     * Sets a header by name.
-     *
-     * @param string|string[]|null $values The value or an array of values
-     *
-     * @psalm-taint-sink header $key
-     * @psalm-taint-sink header $values
-     */
-    public function set(string $key, $values, bool $replace = true) {}
-
-    /**
-     * Adds new headers the current HTTP headers set.
-     *
-     * @param array $headers
-     *
-     * @psalm-taint-sink header $headers
-     */
-    public function add(array $headers) {}
-
-    /**
-     * Replaces the current HTTP headers by a new set.
-     *
-     * @param array $headers
-     *
-     * @psalm-taint-sink header $headers
-     */
-    public function replace(array $headers = []) {}
 }

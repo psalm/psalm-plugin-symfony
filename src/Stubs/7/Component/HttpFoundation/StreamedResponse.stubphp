@@ -5,7 +5,8 @@ namespace Symfony\Component\HttpFoundation;
 class StreamedResponse extends Response
 {
     /**
-     * @param array $headers An array of HTTP headers
+     * @param callable|iterable<string>|null $callbackOrChunks
+     * @param array                          $headers An array of HTTP headers
      *
      * @psalm-taint-sink header $headers
      */
