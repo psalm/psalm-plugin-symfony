@@ -119,3 +119,21 @@ Feature: Process shell tainting
       """
     When I run Psalm
     Then I see no errors
+
+  Scenario: The environment type alias of a process can still be imported
+    Given I have the following code
+      """
+      /**
+       * @psalm-import-type EnvArray from Process
+       */
+      final class ArchiveRunner
+      {
+        /** @param EnvArray $env */
+        public function run(array $env): void
+        {
+          Process::fromShellCommandline('tar -czf backup.tgz uploads', null, $env)->mustRun();
+        }
+      }
+      """
+    When I run Psalm
+    Then I see no errors

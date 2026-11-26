@@ -4,6 +4,8 @@ namespace Symfony\Component\Process;
 
 /**
  * @implements \IteratorAggregate<string, string>
+ *
+ * @psalm-type EnvArray = array<string, string|\Stringable|false>
  */
 class Process implements \IteratorAggregate
 {
