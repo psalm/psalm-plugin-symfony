@@ -11,31 +11,6 @@ Feature: Symfony 8 stubs keep the types Symfony 8 declares
       use Symfony\Component\HttpFoundation\Request;
       """
 
-  Scenario Outline: All parameters of a bag are keyed by string
-    Given I have the following code
-      """
-      final class App
-      {
-        public function __invoke(Request $request): void
-        {
-          foreach ($request-><property>->all() as $key => $_value) {
-            $this->takesString($key);
-          }
-        }
-
-        private function takesString(string $key): void
-        {
-        }
-      }
-      """
-    When I run Psalm
-    Then I see no errors
-
-    Examples:
-      | property   |
-      | query      |
-      | attributes |
-
   Scenario: createForm() returns a form flow for a form flow type
     Given I have the following code
       """

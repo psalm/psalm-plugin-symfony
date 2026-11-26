@@ -13,28 +13,26 @@ use Composer\InstalledVersions;
 final class SymfonyVersion
 {
     /**
-     * The major version of an installed package, or of the monorepo that replaces it. Null when neither is
-     * installed.
+     * The major version of an installed package, or of the monorepo when it replaces the package. Null when the
+     * package isn't installed.
      *
-     * Each package has its own version: Laravel 13 installs http-kernel 7.4 next to http-foundation 8.1. The version
-     * comes from the installed packages, without loading their classes: loading the kernel fails where a class it
-     * extends isn't installed (that of symfony/dependency-injection, in http-kernel 8.1).
+     * Each package has its own version: Laravel 13 can install http-kernel 7.4 next to http-foundation 8.1. The
+     * version comes from the installed packages, without loading their classes: loading the kernel fails where a
+     * class it extends isn't installed (that of symfony/dependency-injection, in http-kernel 8.1).
      */
     public static function detectMajorVersion(string $package): ?string
     {
-        foreach ([$package, 'symfony/symfony'] as $installedPackage) {
-            if (!InstalledVersions::isInstalled($installedPackage)) {
-                continue;
-            }
-
-            // A package the monorepo replaces is installed without a version of its own.
-            $majorVersion = self::getMajorVersion(InstalledVersions::getVersion($installedPackage));
-            if (null !== $majorVersion) {
-                return $majorVersion;
-            }
+        if (!InstalledVersions::isInstalled($package)) {
+            return null;
         }
 
-        return null;
+        $majorVersion = self::getMajorVersion(InstalledVersions::getVersion($package));
+        if (null !== $majorVersion || !InstalledVersions::isInstalled('symfony/symfony')) {
+            return $majorVersion;
+        }
+
+        // A package the monorepo replaces is installed without a version of its own.
+        return self::getMajorVersion(InstalledVersions::getVersion('symfony/symfony'));
     }
 
     /**

@@ -125,8 +125,8 @@ If you're getting the following error
 #### Symfony version
 
 By default, the plugin picks the stubs of `symfony/http-foundation`, `symfony/framework-bundle`, `symfony/serializer`
-and `symfony/validator` by the installed version of each package, as projects can mix major versions (Laravel 13
-installs `symfony/http-kernel` 7.4 next to `symfony/http-foundation` 8.1). However, this might not be accurate if you
+and `symfony/validator` by the installed version of each package, as projects can mix major versions (Laravel 13 can
+install `symfony/http-kernel` 7.4 next to `symfony/http-foundation` 8.1). However, this might not be accurate if you
 have Psalm installed globally. You can set the version of all of them explicitly using the `symfonyMajorVersion`
 configuration option:
 
