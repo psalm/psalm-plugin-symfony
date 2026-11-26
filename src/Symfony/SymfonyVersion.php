@@ -7,37 +7,28 @@ namespace Psalm\SymfonyPsalmPlugin\Symfony;
 use Composer\InstalledVersions;
 
 /**
- * The major version of the installed Symfony, which selects the stubs of the classes that changed between versions.
+ * The major version of an installed Symfony package, which selects the stubs of its classes that changed between
+ * versions.
  */
 final class SymfonyVersion
 {
     /**
-     * The packages whose version is that of the installed Symfony: the kernel (on its own or in the monorepo), then
-     * those of the classes the version-specific stubs declare.
-     */
-    private const VERSION_PACKAGES = [
-        'symfony/http-kernel',
-        'symfony/symfony',
-        'symfony/http-foundation',
-        'symfony/framework-bundle',
-        'symfony/serializer',
-    ];
-
-    /**
-     * The major version of the installed Symfony: that of the kernel, or else that of a package with stubs for each
-     * version. Null when none of them is installed, as in a project using only other components.
+     * The major version of an installed package, or of the monorepo that replaces it. Null when neither is
+     * installed.
      *
-     * The versions come from the installed packages: loading the kernel fails where a class it extends isn't
-     * installed (that of symfony/dependency-injection, in http-kernel 8.1).
+     * Each package has its own version: Laravel 13 installs http-kernel 7.4 next to http-foundation 8.1. The version
+     * comes from the installed packages, without loading their classes: loading the kernel fails where a class it
+     * extends isn't installed (that of symfony/dependency-injection, in http-kernel 8.1).
      */
-    public static function detectMajorVersion(): ?string
+    public static function detectMajorVersion(string $package): ?string
     {
-        foreach (self::VERSION_PACKAGES as $package) {
-            if (!InstalledVersions::isInstalled($package)) {
+        foreach ([$package, 'symfony/symfony'] as $installedPackage) {
+            if (!InstalledVersions::isInstalled($installedPackage)) {
                 continue;
             }
 
-            $majorVersion = self::getMajorVersion(InstalledVersions::getVersion($package));
+            // A package the monorepo replaces is installed without a version of its own.
+            $majorVersion = self::getMajorVersion(InstalledVersions::getVersion($installedPackage));
             if (null !== $majorVersion) {
                 return $majorVersion;
             }

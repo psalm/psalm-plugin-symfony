@@ -12,9 +12,9 @@ use Symfony\Component\HttpKernel\Kernel;
  */
 class SymfonyVersionTest extends TestCase
 {
-    public function testDetectsTheVersionOfTheKernel(): void
+    public function testDetectsTheVersionOfAPackage(): void
     {
-        $this->assertSame((string) Kernel::MAJOR_VERSION, SymfonyVersion::detectMajorVersion());
+        $this->assertSame((string) Kernel::MAJOR_VERSION, SymfonyVersion::detectMajorVersion('symfony/http-kernel'));
     }
 
     /**
@@ -26,10 +26,15 @@ class SymfonyVersionTest extends TestCase
      */
     public function testDetectsTheVersionWithoutLoadingTheKernel(): void
     {
-        $version = SymfonyVersion::detectMajorVersion();
+        $version = SymfonyVersion::detectMajorVersion('symfony/http-kernel');
 
         $this->assertFalse(class_exists(Kernel::class, false));
         $this->assertSame(SymfonyVersion::getMajorVersion(InstalledVersions::getVersion('symfony/http-kernel')), $version);
+    }
+
+    public function testDetectsNoVersionOfAPackageThatIsNotInstalled(): void
+    {
+        $this->assertNull(SymfonyVersion::detectMajorVersion('symfony/not-installed'));
     }
 
     /**

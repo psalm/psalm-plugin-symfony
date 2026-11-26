@@ -44,6 +44,16 @@ use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
  */
 final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInterface
 {
+    /**
+     * The directories of the version-specific stubs, by the package whose version selects them.
+     */
+    private const VERSIONED_STUB_PACKAGES = [
+        'Bundle/FrameworkBundle' => 'symfony/framework-bundle',
+        'Component/HttpFoundation' => 'symfony/http-foundation',
+        'Component/Serializer' => 'symfony/serializer',
+        'Component/Validator' => 'symfony/validator',
+    ];
+
     #[\Override]
     public function getFixableIssues(?\SimpleXMLElement $config = null): array
     {
@@ -141,11 +151,14 @@ final class Plugin implements PluginEntryPointInterface, PluginFixableIssuesInte
 
         $registration->registerHooksFromClass(ContainerHandler::class);
 
-        $symfonyMajorVersion = isset($config->symfonyMajorVersion) ? (string) $config->symfonyMajorVersion : SymfonyVersion::detectMajorVersion();
+        $configuredMajorVersion = isset($config->symfonyMajorVersion) ? (string) $config->symfonyMajorVersion : null;
 
         $this->addStubs($registration, __DIR__.'/Stubs/common');
-        if (null !== $symfonyMajorVersion) {
-            $this->addStubs($registration, __DIR__.'/Stubs/'.$symfonyMajorVersion);
+        foreach (self::VERSIONED_STUB_PACKAGES as $directory => $package) {
+            $majorVersion = $configuredMajorVersion ?? SymfonyVersion::detectMajorVersion($package);
+            if (null !== $majorVersion) {
+                $this->addStubs($registration, __DIR__.'/Stubs/'.$majorVersion.'/'.$directory);
+            }
         }
         $this->addStubs($registration, __DIR__.'/Stubs/php');
 
