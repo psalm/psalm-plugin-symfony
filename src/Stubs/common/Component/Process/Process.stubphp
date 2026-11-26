@@ -1,0 +1,26 @@
+<?php
+
+namespace Symfony\Component\Process;
+
+/**
+ * @implements \IteratorAggregate<string, string>
+ *
+ * @psalm-type EnvArray = array<string, string|\Stringable|false>
+ */
+class Process implements \IteratorAggregate
+{
+    /**
+     * Creates a Process instance as a command-line to be run in a shell wrapper.
+     *
+     * @param string       $command The command line to pass to the shell of the OS
+     * @param string|null  $cwd     The working directory or null to use the working dir of the current PHP process
+     * @param array|null   $env     The environment variables or null to use the same environment as the current PHP process
+     * @param mixed        $input   The input as stream resource, scalar or \Traversable, or null for no input
+     * @param float|null   $timeout The timeout in seconds or null to disable
+     *
+     * @return static
+     *
+     * @psalm-taint-sink shell $command
+     */
+    public static function fromShellCommandline(string $command, ?string $cwd = null, ?array $env = null, mixed $input = null, ?float $timeout = 60) {}
+}
