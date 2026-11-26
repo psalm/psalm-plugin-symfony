@@ -1,0 +1,20 @@
+<?php
+
+namespace Symfony\Component\HttpFoundation;
+
+class JsonResponse extends Response
+{
+    /**
+     * @param array $headers An array of response headers
+     *
+     * @psalm-taint-sink header $headers
+     */
+    public function __construct(mixed $data = null, int $status = 200, array $headers = [], bool $json = false) {}
+
+    /**
+     * @param array $headers An array of response headers
+     *
+     * @psalm-taint-sink header $headers
+     */
+    public static function fromJsonString(string $data, int $status = 200, array $headers = []): static {}
+}
