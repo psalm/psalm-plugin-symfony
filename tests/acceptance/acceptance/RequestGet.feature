@@ -2,7 +2,8 @@
 Feature: Request get() before Symfony 8
 
   Background:
-    Given I have issue handlers "UnusedVariable,DeprecatedMethod" suppressed
+    # Request::get() is internal since Symfony 6.4 and deprecated since Symfony 7.4
+    Given I have issue handlers "UnusedVariable,InternalMethod,DeprecatedMethod" suppressed
     And I have Symfony plugin enabled
     And I have the following code preamble
       """

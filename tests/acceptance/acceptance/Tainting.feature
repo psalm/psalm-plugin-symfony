@@ -2,8 +2,7 @@
 Feature: Tainting
 
   Background:
-    # Request::get() is internal since Symfony 6.4 and deprecated since Symfony 7.4
-    Given I have issue handlers "UnusedVariable,InternalMethod,DeprecatedMethod" suppressed
+    Given I have issue handler "UnusedVariable" suppressed
     And I have Symfony plugin enabled
     And I have the following code preamble
       """
@@ -31,7 +30,6 @@ Feature: Tainting
     And I see no other errors
     Examples:
       | property     |
-      |              |
       | ->request    |
       | ->query      |
       | ->cookies    |
