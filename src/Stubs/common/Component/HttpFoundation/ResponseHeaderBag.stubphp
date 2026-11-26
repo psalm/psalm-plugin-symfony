@@ -16,6 +16,26 @@ class ResponseHeaderBag extends HeaderBag
     public function __construct(array $headers = []) {}
 
     /**
+     * Not a taint source: the server writes the headers of a response, and HeaderBag::get() is the source of the
+     * request headers. Psalm makes a method overriding a source one too, unless it escapes the taints.
+     * Symfony inherits this method from HeaderBag.
+     *
+     * @psalm-taint-escape input
+     * @psalm-mutation-free
+     */
+    public function get(string $key, ?string $default = null): ?string {}
+
+    /**
+     * Symfony overrides this method without a docblock: the conditional return type it then inherits keeps a template
+     * of HeaderBag::all() that a call on a ResponseHeaderBag never binds.
+     *
+     * @param string|null $key
+     *
+     * @return ($key is null ? array<string, list<string|null>> : list<string|null>)
+     */
+    public function all(?string $key = null): array {}
+
+    /**
      * Sets a header by name.
      *
      * @param string|string[]|null $values The value or an array of values

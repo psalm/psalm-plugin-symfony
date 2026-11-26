@@ -46,3 +46,29 @@ Feature: Header get
       | Type  | Message         |
       | Trace | $string: string |
     And I see no other errors
+
+  Scenario Outline: The types of the headers read from a response
+    Given I have the following code
+      """
+      use Symfony\Component\HttpFoundation\Response;
+
+      final class PreloadController
+      {
+        public function index(Response $response): void
+        {
+          /** @psalm-trace $headers */
+          $headers = $response->headers-><call>;
+        }
+      }
+      """
+    When I run Psalm
+    Then I see these errors
+      | Type  | Message   |
+      | Trace | <trace>   |
+    And I see no other errors
+    Examples:
+      | call                   | trace                                       |
+      | all('Link')            | $headers: list<null\|string>                |
+      | all()                  | $headers: array<string, list<null\|string>> |
+      | get('Vary')            | $headers: null\|string                      |
+      | get('Vary', 'Accept')  | $headers: string                            |

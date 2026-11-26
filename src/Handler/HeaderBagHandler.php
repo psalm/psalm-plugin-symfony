@@ -12,6 +12,7 @@ use Psalm\Type\Atomic\TNull;
 use Psalm\Type\Atomic\TString;
 use Psalm\Type\Union;
 use Symfony\Component\HttpFoundation\HeaderBag;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 final class HeaderBagHandler implements MethodReturnTypeProviderInterface
 {
@@ -23,6 +24,7 @@ final class HeaderBagHandler implements MethodReturnTypeProviderInterface
     {
         return [
             HeaderBag::class,
+            ResponseHeaderBag::class,
         ];
     }
 
@@ -35,7 +37,7 @@ final class HeaderBagHandler implements MethodReturnTypeProviderInterface
         $source = $event->getSource();
         $code_location = $event->getCodeLocation();
 
-        if (HeaderBag::class !== $fq_classlike_name) {
+        if (HeaderBag::class !== $fq_classlike_name && ResponseHeaderBag::class !== $fq_classlike_name) {
             return null;
         }
 
@@ -45,7 +47,7 @@ final class HeaderBagHandler implements MethodReturnTypeProviderInterface
 
         $type = static::makeReturnType($call_args);
 
-        if ($call_args[0]->value instanceof String_ && 'user-agent' === $call_args[0]->value->value) {
+        if (HeaderBag::class === $fq_classlike_name && $call_args[0]->value instanceof String_ && 'user-agent' === $call_args[0]->value->value) {
             $uniqId = $source->getFileName().':'.$code_location->getLineNumber().'-'.$code_location->getColumn();
             $type = $source->getCodebase()->addTaintSource($type, 'tainted-'.$uniqId, $code_location);
         }
