@@ -2,7 +2,10 @@
 
 namespace Symfony\Component\Process;
 
-class Process
+/**
+ * @implements \IteratorAggregate<string, string>
+ */
+class Process implements \IteratorAggregate
 {
     /**
      * Creates a Process instance as a command-line to be run in a shell wrapper.

@@ -29,6 +29,27 @@ Feature: Process shell tainting
       | TaintedShell | Detected tainted shell code   |
     And I see no other errors
 
+  Scenario: A subclass inherits the shell command line sink
+    Given I have the following code
+      """
+      final class ArchiveProcess extends Process
+      {
+      }
+
+      final class ArchiveController
+      {
+        public function __invoke(Request $request): void
+        {
+          ArchiveProcess::fromShellCommandline('tar -czf backup.tgz '.(string) $request->query->get('directory'))->mustRun();
+        }
+      }
+      """
+    When I run Psalm with taint analysis
+    Then I see these errors
+      | Type         | Message                     |
+      | TaintedShell | Detected tainted shell code   |
+    And I see no other errors
+
   Scenario: The client input is escaped before it joins the shell command line
     Given I have the following code
       """
@@ -72,7 +93,7 @@ Feature: Process shell tainting
     When I run Psalm with taint analysis
     Then I see no errors
 
-  Scenario: The client input is an argument of the array form, which Process escapes
+  Scenario: The client input is an argument of the array form, which never reaches a shell unescaped
     Given I have the following code
       """
       final class ArchiveController
@@ -84,4 +105,17 @@ Feature: Process shell tainting
       }
       """
     When I run Psalm with taint analysis
+    Then I see no errors
+
+  Scenario: A process is still an iterator of its output
+    Given I have the following code
+      """
+      /** @param \IteratorAggregate<string, string> $output */
+      function printOutput(\IteratorAggregate $output): void
+      {
+      }
+
+      printOutput(Process::fromShellCommandline('ls'));
+      """
+    When I run Psalm
     Then I see no errors
