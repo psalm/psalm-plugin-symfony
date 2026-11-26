@@ -19,9 +19,11 @@ class ParameterBag implements \IteratorAggregate, \Countable
     /**
      * Returns the parameters.
      *
-     * @param string|null $key The name of the parameter to return or null to get them all
+     * @template TKey of string|null
      *
-     * @return array An array of parameters
+     * @param TKey $key The name of the parameter to return or null to get them all
+     *
+     * @return (TKey is null ? array<string, mixed> : array<mixed>)
      *
      * @psalm-taint-source input
      * @psalm-mutation-free
