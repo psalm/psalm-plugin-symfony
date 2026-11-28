@@ -5,9 +5,11 @@ namespace Psalm\SymfonyPsalmPlugin\Tests\Symfony;
 use PHPUnit\Framework\TestCase;
 use Psalm\Exception\ConfigException;
 use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\Kernel;
 
 /**
@@ -75,6 +77,23 @@ class ContainerMetaTest extends TestCase
             'validator' => 'debug.validator',
         ], $this->containerMeta->getSubscribedServiceIds('App\Controller\DummyController'));
         self::assertNull($this->containerMeta->getSubscribedServiceIds('UnregisteredClass'));
+    }
+
+    /**
+     * @testdox lazy_proxy and env_closure arguments (Symfony 8.2)
+     */
+    public function testLazyProxyAndEnvClosureArguments(): void
+    {
+        $arguments = $this->containerMeta->get('lazy_proxy_and_env_closure_service')->getArguments();
+
+        self::assertCount(5, $arguments);
+        foreach ([0, 1, 2] as $index) {
+            self::assertInstanceOf(Reference::class, $arguments[$index]);
+            self::assertSame('dummy_private_service', (string) $arguments[$index]);
+        }
+        self::assertSame(ContainerInterface::NULL_ON_INVALID_REFERENCE, $arguments[1]->getInvalidBehavior());
+        self::assertSame('%env(bool:APP_DEBUG)%', $arguments[3]);
+        self::assertSame('%env(APP_SECRET)%', $arguments[4]);
     }
 
     /**
