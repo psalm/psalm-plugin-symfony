@@ -317,6 +317,7 @@
       <xsd:element name="argument" type="argument" maxOccurs="unbounded" />
       <xsd:element name="service" type="service" />
       <xsd:element name="exclude" type="xsd:string" maxOccurs="unbounded" />
+      <xsd:element name="interface" type="xsd:string" maxOccurs="unbounded" />
     </xsd:choice>
     <xsd:attribute name="key-type" type="key_type" />
     <xsd:attribute name="type" type="argument_type" />
@@ -330,6 +331,9 @@
     <xsd:attribute name="default-priority-method" type="xsd:string" />
     <xsd:attribute name="exclude" type="xsd:string" />
     <xsd:attribute name="exclude-self" type="xsd:boolean" />
+    <xsd:attribute name="interface" type="xsd:string" />
+    <xsd:attribute name="stringable" type="xsd:boolean" />
+    <xsd:attribute name="default" type="xsd:string" />
   </xsd:complexType>
 
   <xsd:complexType name="call">
@@ -366,6 +370,8 @@
       <xsd:enumeration value="tagged" />
       <xsd:enumeration value="tagged_iterator" />
       <xsd:enumeration value="tagged_locator" />
+      <xsd:enumeration value="lazy_proxy" />
+      <xsd:enumeration value="env_closure" />
     </xsd:restriction>
   </xsd:simpleType>
 

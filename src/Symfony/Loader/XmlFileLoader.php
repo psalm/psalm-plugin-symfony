@@ -593,11 +593,17 @@ class XmlFileLoader extends FileLoader
 
             switch ($type = $arg->getAttribute('type')) {
                 case 'service':
+                case 'lazy_proxy':
                     if ('' === $arg->getAttribute('id')) {
-                        throw new InvalidArgumentException(\sprintf('Tag "<%s>" with type="service" has no or empty "id" attribute in "%s".', $name, $file));
+                        throw new InvalidArgumentException(\sprintf('Tag "<%s>" with type="%s" has no or empty "id" attribute in "%s".', $name, $type, $file));
                     }
 
+                    // A lazy proxy (Symfony 8.2+) stands in for the referenced service, so the plugin reads it as a plain reference.
                     $arguments[$key] = new Reference($arg->getAttribute('id'), $invalidBehavior);
+                    break;
+                case 'env_closure':
+                    // Symfony 8.2+ dumps the env expression as text; the closure itself only exists at runtime.
+                    $arguments[$key] = $arg->nodeValue;
                     break;
                 case 'expression':
                     if (!class_exists(Expression::class)) {

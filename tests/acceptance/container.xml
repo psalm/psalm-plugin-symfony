@@ -100,5 +100,16 @@
       <argument type="service" id="service_container"/>
       <factory service=".service_locator.890xyz" method="withContext"/>
     </service>
+    <!-- Symfony 8.2 argument types -->
+    <service id="lazy_proxy_and_env_closure_service" class="App\SomeClass">
+      <argument type="lazy_proxy" id="dummy_private_service"/>
+      <argument type="lazy_proxy" id="dummy_private_service" on-invalid="null" interface="Psr\Log\LoggerInterface"/>
+      <argument type="lazy_proxy" id="dummy_private_service">
+        <interface>Psr\Log\LoggerInterface</interface>
+        <interface>Countable</interface>
+      </argument>
+      <argument type="env_closure">%env(bool:APP_DEBUG)%</argument>
+      <argument type="env_closure" stringable="true" default="fallback">%env(APP_SECRET)%</argument>
+    </service>
   </services>
 </container>
